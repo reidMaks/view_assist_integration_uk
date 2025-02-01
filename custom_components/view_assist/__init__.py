@@ -7,7 +7,6 @@ from homeassistant.core import (
     SupportsResponse,
 )
 from .const import DOMAIN
-#import homeassistant.helpers.entity_registry as er
 from homeassistant.helpers import entity_registry as er
 
 import logging
@@ -105,7 +104,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
 #
 ########
+#
+# Load dashboard
 
+
+
+
+
+#
+###########
 
     return True
     
