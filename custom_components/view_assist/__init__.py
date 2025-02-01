@@ -1,5 +1,6 @@
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import (
     HomeAssistant,
     ServiceCall,
