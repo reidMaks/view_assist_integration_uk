@@ -8,7 +8,7 @@ from homeassistant.core import (
 )
 from .const import DOMAIN
 from homeassistant.helpers import entity_registry as er
-
+from .frontend import FrontendConfig
 import logging
 
 _LOGGER = logging.getLogger(__name__)
@@ -107,7 +107,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 #
 # Load dashboard
 
+    async def load_frontend_config(*args):
+            f = FrontendConfig(hass)
+            await f.async_config()
 
+    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, load_frontend_config)
 
 
 
