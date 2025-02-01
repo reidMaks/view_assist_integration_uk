@@ -1,0 +1,17 @@
+{
+  "domain": "view_assist",
+  "name": "View Assist",
+  "codeowners": [
+    "@dinki"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/dinki/View-Assist",
+  "homekit": {},
+  "iot_class": "local_polling",
+  "requirements": [],
+  "single_config_entry": false,
+  "ssdp": [],
+  "version": "1.0.0",
+  "zeroconf": []
+}
