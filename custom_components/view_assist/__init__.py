@@ -1,147 +1,116 @@
-"""The Integration 101 Template integration.
-
-This shows how to use the requests library to get and use data from an external device over http and
-uses this data to create some binary sensors (of a generic type) and sensors (of multiple types).
-
-Things you need to change
-1. Change the api call in the coordinator async_update_data and the config flow validate input methods.
-2. The constants in const.py that define the api data parameters to set sensors for (and the sensor async_setup_entry logic)
-3. The specific sensor types to match your requirements.
-"""
-
-from __future__ import annotations
-
-from collections.abc import Callable
-from dataclasses import dataclass
-import logging
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
-from homeassistant.helpers.device_registry import DeviceEntry
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+)
 from .const import DOMAIN
-from .coordinator import ExampleCoordinator
-from .services import ExampleServicesSetup
+#import homeassistant.helpers.entity_registry as er
+from homeassistant.helpers import entity_registry as er
+
+import logging
 
 _LOGGER = logging.getLogger(__name__)
 
-# ----------------------------------------------------------------------------
-# A list of the different platforms we wish to setup.
-# Add or remove from this list based on your specific need
-# of entity platform types.
-# ----------------------------------------------------------------------------
-PLATFORMS: list[Platform] = [
-    Platform.BINARY_SENSOR,
-    Platform.FAN,
-    Platform.LIGHT,
-    Platform.SENSOR,
-    Platform.SWITCH,
-]
+PLATFORMS: list[Platform] = [Platform.SENSOR]
 
-type MyConfigEntry = ConfigEntry[RuntimeData]
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+    """Set up View Assist from a config entry."""
+    hass.data.setdefault(DOMAIN, {})
+    # Request platform setup
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-
-@dataclass
-class RuntimeData:
-    """Class to hold your data."""
-
-    coordinator: DataUpdateCoordinator
-    cancel_update_listener: Callable
+##################
+# Get Target Satellite
+# Used to determine which VA satellite is being used based on its microphone device
+#
+# Sample usage
+# action: view_assist.get_target_satellite
+# data:
+#   device_id: 4385828338e48103f63c9f91756321df
 
 
-async def async_setup_entry(hass: HomeAssistant, config_entry: MyConfigEntry) -> bool:
-    """Set up Example Integration from a config entry."""
+    async def handle_get_target_satellite(call: ServiceCall) -> ServiceResponse:
+            """Handle a get target satellite lookup call."""
+            device_id = call.data.get("device_id")
+            entity_registry = er.async_get(hass)
 
-    # ----------------------------------------------------------------------------
-    # Initialise the coordinator that manages data updates from your api.
-    # This is defined in coordinator.py
-    # ----------------------------------------------------------------------------
-    coordinator = ExampleCoordinator(hass, config_entry)
+            entities = []
 
-    # ----------------------------------------------------------------------------
-    # Perform an initial data load from api.
-    # async_config_entry_first_refresh() is special in that it does not log errors
-    # if it fails.
-    # ----------------------------------------------------------------------------
-    await coordinator.async_config_entry_first_refresh()
+            entry_ids = [entry.entry_id for entry in hass.config_entries.async_entries(DOMAIN)]
 
-    # ----------------------------------------------------------------------------
-    # Test to see if api initialised correctly, else raise ConfigNotReady to make
-    # HA retry setup.
-    # Change this to match how your api will know if connected or successful
-    # update.
-    # ----------------------------------------------------------------------------
-    if not coordinator.data:
-        raise ConfigEntryNotReady
+            for entry_id in entry_ids:
+                integration_entities=er.async_entries_for_config_entry(entity_registry, entry_id)
+                entity_ids = [entity.entity_id for entity in integration_entities]
+                entities.extend(entity_ids)
 
-    # ----------------------------------------------------------------------------
-    # Initialise a listener for config flow options changes.
-    # This will be removed automatically if the integraiton is unloaded.
-    # See config_flow for defining an options setting that shows up as configure
-    # on the integration.
-    # If you do not want any config flow options, no need to have listener.
-    # ----------------------------------------------------------------------------
-    cancel_update_listener = config_entry.async_on_unload(
-        config_entry.add_update_listener(_async_update_listener)
+   
+            # Fetch the 'mic_device' attribute for each entity
+            # compare the device_id of mic_device to the value passed in to the service
+            # return the match for the satellite that contains that mic_device
+            target_satellite_devices = []
+            for entity_id in entities:
+                if state := hass.states.get(entity_id):
+                    if mic_entity_id := state.attributes.get("mic_device"):
+                        if mic_entity := entity_registry.async_get(mic_entity_id):
+                            if mic_entity.device_id == device_id:
+                                target_satellite_devices.append(entity_id)
+
+
+            # Return the list of target_satellite_devices
+            # This should match only one VA device
+            return {"target_satellite": target_satellite_devices}
+
+    hass.services.async_register(
+        DOMAIN,
+        "get_target_satellite",
+        handle_get_target_satellite,
+        supports_response=SupportsResponse.ONLY,
+    )
+#
+#########
+
+
+#########
+# Handle Navigation
+# Used to determine how to change the view on the VA device
+#
+# action: view_assist.navigate
+# data:
+#   target_display_device: sensor.viewassist_office_browser_path
+#   target_display_type: browsermod
+#   path: /dashboard-viewassist/weather
+#
+    async def handle_navigate(call: ServiceCall):
+            """Handle a navigate to view call."""
+            target_display_device = call.data.get('target_display_device')
+            target_display_type = call.data.get('target_display_type')
+            path = call.data.get('path')
+
+            if not target_display_device or not target_display_type or not path:
+                # Figure out how to write an error to the log
+                _LOGGER.info('Received data', call.data)
+                return
+            
+            if target_display_type == "browsermod" :
+                await hass.services.async_call('browser_mod', 'navigate', {'entity_id': target_display_device, 'path': path})
+
+    hass.services.async_register(
+        DOMAIN,
+        "navigate",
+        handle_navigate
     )
 
-    # ----------------------------------------------------------------------------
-    # Add the coordinator and update listener to your config entry to make
-    # accessible throughout your integration
-    # ----------------------------------------------------------------------------
-    config_entry.runtime_data = RuntimeData(coordinator, cancel_update_listener)
+#
+########
 
-    # ----------------------------------------------------------------------------
-    # Setup platforms (based on the list of entity types in PLATFORMS defined above)
-    # This calls the async_setup method in each of your entity type files.
-    # ----------------------------------------------------------------------------
-    await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
 
-    # ----------------------------------------------------------------------------
-    # Setup global services
-    # This can be done here but included in a seperate file for ease of reading.
-    # See also light.py for entity services examples
-    # ----------------------------------------------------------------------------
-    ExampleServicesSetup(hass, config_entry)
-
-    # Return true to denote a successful setup.
     return True
-
-
-async def _async_update_listener(hass: HomeAssistant, config_entry: ConfigEntry):
-    """Handle config options update.
-
-    Reload the integration when the options change.
-    Called from our listener created above.
-    """
-    await hass.config_entries.async_reload(config_entry.entry_id)
-
-
-async def async_remove_config_entry_device(
-    hass: HomeAssistant, config_entry: ConfigEntry, device_entry: DeviceEntry
-) -> bool:
-    """Delete device if selected from UI.
-
-    Adding this function shows the delete device option in the UI.
-    Remove this function if you do not want that option.
-    You may need to do some checks here before allowing devices to be removed.
-    """
-    return True
-
-
-async def async_unload_entry(hass: HomeAssistant, config_entry: MyConfigEntry) -> bool:
-    """Unload a config entry.
-
-    This is called when you remove your integration or shutdown HA.
-    If you have created any custom services, they need to be removed here too.
-    """
-
-    # Unload services
-    for service in hass.services.async_services_for_domain(DOMAIN):
-        hass.services.async_remove(DOMAIN, service)
-
-    # Unload platforms and return result
-    return await hass.config_entries.async_unload_platforms(config_entry, PLATFORMS)
+    
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
+    """Unload a config entry."""
+    if unloaded := await hass.config_entries.async_forward_entry_unload(entry, PLATFORMS):
+        hass.data[DOMAIN].pop(entry.entry_id)
+    return unloaded
