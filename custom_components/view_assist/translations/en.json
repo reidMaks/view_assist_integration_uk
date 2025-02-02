@@ -32,13 +32,13 @@
         "title": "Reconfigure a View Assist device",
         "description": "Select which options to amend.",
         "menu_options": {
-          "main_config": "Main Configuration",
-          "display_options": "Display Options"
+          "main_config": "Core Device Configuration",
+          "display_options": "Dashboard Options"
         }
       },
       "main_config": {
-        "title": "Main Config",
-        "description": "Option Set 1",
+        "title": "Core Device Configuration",
+        "description": "",
         "data": {
           "name": "name",
           "mic_device": "Microphone device",
@@ -49,13 +49,13 @@
         }
       },
       "display_options": {
-        "title": "Display Options",
+        "title": "Dashboard Options",
         "description": "Option Set 2",
         "data": {
-          "option1": "Option 1",
-          "option2": "Option 2",
-          "option3": "Option 3",
-          "option4": "Option 4"
+          "dashboard": "The base dashboard for View Assist (do not include trailing slash)",
+          "home": "The screen to return to after timeout",
+          "music": "The view to return to when in music mode",
+          "intent": "The view to display for default HA actions for displaying those entities"
         }
       }
     }

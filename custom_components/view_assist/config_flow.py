@@ -115,14 +115,14 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
         """Handle options flow."""
 
         # Display an options menu if display device
-        # Display reconfigure form if audio onlu
+        # Display reconfigure form if audio only
 
         # Also need to be in strings.json and translation files.
 
         if self.type == "view_audio":
             return self.async_show_menu(
                 step_id="init",
-                menu_options=["main_config", "display_options"],
+                menu_options=["main_config", "dashboard_options"],
             )
 
         return await self.async_step_main_config()
@@ -181,7 +181,7 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
         return self.async_show_form(step_id="main_config", data_schema=data_schema)
 
     async def async_step_display_options(self, user_input=None):
-        """Handle display options flow."""
+        """Handle dashboard options flow."""
         if user_input is not None:
             # This is just updating the core config so update config_entry.data
             return self.async_create_entry(data=user_input)
@@ -189,23 +189,39 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
         data_schema = vol.Schema(
             {
                 vol.Optional(
-                    "display_op1",
-                    default=self.config_entry.options.get("display_op1", "abc"),
+                    "dashboard",
+                    default=self.config_entry.options.get("dashboard", "/dashboard-viewassist"),
                 ): str,
                 vol.Optional(
-                    "display_op2",
-                    default=self.config_entry.options.get("display_op2", "def"),
+                    "home",
+                    default=self.config_entry.options.get("home", "/dashboard-viewassist/clock"),
                 ): str,
                 vol.Optional(
-                    "display_op3",
-                    default=self.config_entry.options.get("display_op3", "ghi"),
+                    "music",
+                    default=self.config_entry.options.get("music", "/dashboard-viewassist/music"),
                 ): str,
                 vol.Optional(
-                    "display_op4",
-                    default=self.config_entry.options.get("display_op4", "klm"),
+                    "intent",
+                    default=self.config_entry.options.get("intent", "/dashboard-viewassist/intent"),
                 ): str,
+
+                vol.Required("assist_prompt", default="blur pop up"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[
+                            {
+                                "value": "blur pop up",
+                                "label": "Blurs the screen and shows pop up",
+                            },
+                            {
+                                "value": "flashing bar",
+                                "label": "Alexa style flashing bar",
+                            },
+                        ],
+                        mode="dropdown",
+                    )
+                ),                
             }
         )
 
         # Show the form for the selected type
-        return self.async_show_form(step_id="display_options", data_schema=data_schema)
+        return self.async_show_form(step_id="dashboard_options", data_schema=data_schema)
