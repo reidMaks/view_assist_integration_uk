@@ -1,0 +1,63 @@
+{
+  "config": {
+    "title": "Advanced Config Flow Example",
+    "abort": {
+      "already_configured": "Device is already configured",
+      "reconfigure_successful": "Reconfiguration successful",
+      "already_in_progress": "A setup is already in progress for this integration"
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "invalid_auth": "Invalid authentication",
+      "invalid_settings": "Invalid settings",
+      "unknown": "Unexpected error"
+    },
+    "step": {
+      "init": {
+        "title": "Configure a View Assist device",
+        "data": {
+          "name": "name",
+          "mic_device": "Microphone device",
+          "mediaplayer_device": "Media player device",
+          "musicplayer_device": "Music player device",
+          "display_device": "Display Device",
+          "browser_id": "Browser Id"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Reconfigure a View Assist device",
+        "description": "Select which options to amend.",
+        "menu_options": {
+          "main_config": "Main Configuration",
+          "display_options": "Display Options"
+        }
+      },
+      "main_config": {
+        "title": "Main Config",
+        "description": "Option Set 1",
+        "data": {
+          "name": "name",
+          "mic_device": "Microphone device",
+          "mediaplayer_device": "Media player device",
+          "musicplayer_device": "Music player device",
+          "display_device": "Display Device",
+          "browser_id": "Browser Id"
+        }
+      },
+      "display_options": {
+        "title": "Display Options",
+        "description": "Option Set 2",
+        "data": {
+          "option1": "Option 1",
+          "option2": "Option 2",
+          "option3": "Option 3",
+          "option4": "Option 4"
+        }
+      }
+    }
+  }
+}
