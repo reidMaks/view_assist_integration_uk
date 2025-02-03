@@ -1,0 +1,63 @@
+{
+  "config": {
+    "title": "Advanced Config Flow Example",
+    "abort": {
+      "already_configured": "Device is already configured",
+      "reconfigure_successful": "Reconfiguration successful",
+      "already_in_progress": "A setup is already in progress for this integration"
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "invalid_auth": "Invalid authentication",
+      "invalid_settings": "Invalid settings",
+      "unknown": "Unexpected error"
+    },
+    "step": {
+      "init": {
+        "title": "Configure a View Assist device",
+        "data": {
+          "name": "name",
+          "mic_device": "Microphone device",
+          "mediaplayer_device": "Media player device",
+          "musicplayer_device": "Music player device",
+          "display_device": "Display Device",
+          "browser_id": "Browser Id"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Reconfigure a View Assist device",
+        "description": "Select which options to amend.",
+        "menu_options": {
+          "main_config": "Core Device Configuration",
+          "display_options": "Dashboard Options"
+        }
+      },
+      "main_config": {
+        "title": "Core Device Configuration",
+        "description": "",
+        "data": {
+          "name": "name",
+          "mic_device": "Microphone device",
+          "mediaplayer_device": "Media player device",
+          "musicplayer_device": "Music player device",
+          "display_device": "Display Device",
+          "browser_id": "Browser Id"
+        }
+      },
+      "display_options": {
+        "title": "Dashboard Options",
+        "description": "Option Set 2",
+        "data": {
+          "dashboard": "The base dashboard for View Assist (do not include trailing slash)",
+          "home": "The screen to return to after timeout",
+          "music": "The view to return to when in music mode",
+          "intent": "The view to display for default HA actions for displaying those entities"
+        }
+      }
+    }
+  }
+}
