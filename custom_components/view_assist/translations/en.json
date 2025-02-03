@@ -33,7 +33,7 @@
         "description": "Select which options to amend.",
         "menu_options": {
           "main_config": "Core Device Configuration",
-          "display_options": "Dashboard Options"
+          "dashboard_options": "Dashboard Options"
         }
       },
       "main_config": {
@@ -48,7 +48,7 @@
           "browser_id": "Browser Id"
         }
       },
-      "display_options": {
+      "dashboard_options": {
         "title": "Dashboard Options",
         "description": "Option Set 2",
         "data": {

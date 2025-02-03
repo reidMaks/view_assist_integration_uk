@@ -180,7 +180,7 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
         # Show the form for the selected type
         return self.async_show_form(step_id="main_config", data_schema=data_schema)
 
-    async def async_step_display_options(self, user_input=None):
+    async def async_step_dashboard_options(self, user_input=None):
         """Handle dashboard options flow."""
         if user_input is not None:
             # This is just updating the core config so update config_entry.data
