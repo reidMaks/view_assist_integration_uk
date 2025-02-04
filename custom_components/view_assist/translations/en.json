@@ -100,5 +100,13 @@
         }        
       }      
     }
-  }
+  },
+  "selector": {
+    "assist_prompt_selector": {
+      "options": {
+        "blur pop up": "Blurs the screen and shows pop up",
+        "flashing bar": "Flashing bar at bottom"
+      }
+    }
+  }  
 }

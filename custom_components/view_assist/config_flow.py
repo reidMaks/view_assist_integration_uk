@@ -204,29 +204,23 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                     "intent",
                     default=self.config_entry.options.get("intent", "/dashboard-viewassist/intent"),
                 ): str,
-
-                vol.Required("assist_prompt", default="blur pop up"): selector.SelectSelector(
+                vol.Optional(
+                    "assist_prompt",
+                    default=self.config_entry.options.get(
+                        "assist_prompt", "blur pop up"
+                    ),
+                ): selector.SelectSelector(
                     selector.SelectSelectorConfig(
-                        options=[
-                            {
-                                "value": "blur pop up",
-                                "label": "Blurs the screen and shows pop up",
-                            },
-                            {
-                                "value": "flashing bar",
-                                "label": "Flashing bar at bottom",
-                            },
-                        ],
+                        translation_key="assist_prompt_selector",
+                        options=["blur pop up", "flashing bar"],
                         mode="dropdown",
                     )
-                ),                
+                ),
             }
         )
 
         # Show the form for the selected type
         return self.async_show_form(step_id="dashboard_options", data_schema=data_schema)
-
-#########
 
     async def async_step_default_options(self, user_input=None):
         """Handle default options flow."""
