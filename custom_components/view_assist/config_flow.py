@@ -214,7 +214,7 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                             },
                             {
                                 "value": "flashing bar",
-                                "label": "Alexa style flashing bar",
+                                "label": "Flashing bar at bottom",
                             },
                         ],
                         mode="dropdown",
