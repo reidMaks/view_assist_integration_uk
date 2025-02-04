@@ -81,22 +81,19 @@
         "data": {
           "mode": "Default Mode",
           "view_timeout": "View Timeout",
-          "do_not_disturb": "Do Not Disturb",
           "status_icons": "Launch Icons",
           "status_icons_size": "Status Icon Size",
           "font_style": "Font Style",
-          "use_24_hour_time": "Use 24 Hour Time",
-          "use_announce": "Use Home Assistant Announce"
+          "do_not_disturb": "Default state for do not disturb mode",
+          "use_24_hour_time": "Sets clock display to 24 hour time when enabled",
+          "use_announce": "Some media player devices, like BrowserMod, cannot use the Home Assistant announce feature while media is playing. This option allows for turning off announce messages if problems arise. Default is on."
         },
         "data_description": {
           "mode": "The default mode for this satellite device",
           "view_timeout": "The default time out value for this satellite device in seconds before returning to default view",
-          "do_not_disturb": "Default state for do not disturb mode",
           "status_icons": "Advanced option! List of custom launch icons to set on start up. Do not change this if you do not know what you are doing",
           "status_icons_size": "Size of the icons in the status icon display",
-          "font_style": "The default font to use for this satellite device. Font name must match perfectly and be available",
-          "use_24_hour_time": "Sets clock display to 24 hour time when enabled",
-          "use_announce": "Some media player devices, like BrowserMod, cannot use the Home Assistant announce feature while media is playing. This option allows for turning off announce messages if problems arise. Default is on.s"
+          "font_style": "The default font to use for this satellite device. Font name must match perfectly and be available"
         }        
       }      
     }
@@ -107,6 +104,13 @@
         "blur pop up": "Blurs the screen and shows pop up",
         "flashing bar": "Flashing bar at bottom"
       }
+    },
+      "status_icons_size_selector": {
+        "options": {
+          "Small": "Small",
+          "Medium": "Medium",
+          "Large": "Large"
+        }      
     }
   }  
 }
