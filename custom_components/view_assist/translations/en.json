@@ -29,11 +29,12 @@
   "options": {
     "step": {
       "init": {
-        "title": "Reconfigure a View Assist device",
+        "title": "Reconfigure device",
         "description": "Select which options to amend.",
         "menu_options": {
           "main_config": "Core Device Configuration",
-          "dashboard_options": "Dashboard Options"
+          "dashboard_options": "Dashboard Options",
+          "default_options": "Default Options"
         }
       },
       "main_config": {
@@ -52,12 +53,34 @@
         "title": "Dashboard Options",
         "description": "Option Set 2",
         "data": {
+          "dashboard": "Dashboard",
+          "home": "Home Screen",
+          "music": "Music View",
+          "intent": "Intent View",
+          "assist_prompt": "Assist Prompt"
+        },
+        "data_description": {
           "dashboard": "The base dashboard for View Assist (do not include trailing slash)",
           "home": "The screen to return to after timeout",
           "music": "The view to return to when in music mode",
-          "intent": "The view to display for default HA actions for displaying those entities"
+          "intent": "The view to display for default HA actions for displaying those entities",
+          "assist_prompt": "The Assist notification prompt style to use for wake word detection and intent processing"
+        }        
+      },
+      "default_options": {
+        "title": "Default Options",
+        "description": "Option Set 3",
+        "data": {
+          "mode": "The default mode for this satellite device",
+          "view_timeout": "The default time out value for this satellite device in seconds before returning to default view",
+          "do_not_disturb": "Default state for do not disturb mode",
+          "status_icons": "Advanced option! List of custom launch icons to set on start up. Do not change this if you do not know what you are doing",
+          "status_icons_size": "Size of the icons in the status icon display",
+          "font_style": "The default font to use for this satellite device. Font name must match perfectly and be available",
+          "use_24_hour_time": "Sets clock display to 24 hour time when enabled",
+          "use_announce": "Some media player devices, like BrowserMod, cannot use the Home Assistant announce feature while media is playing. This option allows for turning off announce messages if problems arise. Default is on.s"
         }
-      }
+      }      
     }
   }
 }
