@@ -122,7 +122,7 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
         if self.type == "view_audio":
             return self.async_show_menu(
                 step_id="init",
-                menu_options=["main_config", "dashboard_options"],
+                menu_options=["main_config", "dashboard_options", "default_options"],
             )
 
         return await self.async_step_main_config()
@@ -180,7 +180,7 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
         # Show the form for the selected type
         return self.async_show_form(step_id="main_config", data_schema=data_schema)
 
-    async def async_step_display_options(self, user_input=None):
+    async def async_step_dashboard_options(self, user_input=None):
         """Handle dashboard options flow."""
         if user_input is not None:
             # This is just updating the core config so update config_entry.data
@@ -204,24 +204,81 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                     "intent",
                     default=self.config_entry.options.get("intent", "/dashboard-viewassist/intent"),
                 ): str,
-
-                vol.Required("assist_prompt", default="blur pop up"): selector.SelectSelector(
+                vol.Optional(
+                    "assist_prompt",
+                    default=self.config_entry.options.get(
+                        "assist_prompt", "blur pop up"
+                    ),
+                ): selector.SelectSelector(
                     selector.SelectSelectorConfig(
-                        options=[
-                            {
-                                "value": "blur pop up",
-                                "label": "Blurs the screen and shows pop up",
-                            },
-                            {
-                                "value": "flashing bar",
-                                "label": "Alexa style flashing bar",
-                            },
-                        ],
+                        translation_key="assist_prompt_selector",
+                        options=["blur pop up", "flashing bar"],
                         mode="dropdown",
                     )
-                ),                
+                ),
+                vol.Optional(
+                    "status_icons_size",
+                    default=self.config_entry.options.get(
+                        "status_icons_size", "Large"
+                    ),
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        translation_key="status_icons_size_selector",
+                        options=["Small", "Medium", "Large"],
+                        mode="dropdown",
+                    )
+                ),
+                vol.Optional(
+                    "font_style",
+                    default=self.config_entry.options.get("font_style", "Roboto"),
+                ): str,
+                vol.Optional(
+                    "status_icons",
+                    default=self.config_entry.options.get("status_icons", "[]"),
+                ): str,
+                vol.Optional(
+                    "use_24_hour_time",
+                    default=self.config_entry.options.get("use_24_hour_time", False),
+                ): bool,
             }
         )
 
         # Show the form for the selected type
         return self.async_show_form(step_id="dashboard_options", data_schema=data_schema)
+
+    async def async_step_default_options(self, user_input=None):
+        """Handle default options flow."""
+        if user_input is not None:
+            # This is just updating the core config so update config_entry.data
+            return self.async_create_entry(data=user_input)
+
+        data_schema = vol.Schema(
+            {
+                vol.Optional(
+                    "mode",
+                    default=self.config_entry.options.get("mode", "normal"),
+                ): str,
+                vol.Optional(
+                    "view_timeout",
+                    default=self.config_entry.options.get("view_timeout", "20"),
+                ): str,
+                vol.Optional(
+                    "do_not_disturb",
+                    default=self.config_entry.options.get("do_not_disturb", False),
+                ): bool,                
+                vol.Optional(
+                    "use_announce",
+                    default=self.config_entry.options.get("use_announce", True),
+                ): bool,                                                
+                vol.Optional(
+                    "micunmute",
+                    default=self.config_entry.options.get("use_announce", False),
+                ): bool,                
+            }
+        )
+
+        # Show the form for the selected type
+        return self.async_show_form(step_id="default_options", data_schema=data_schema)
+    
+
+    
