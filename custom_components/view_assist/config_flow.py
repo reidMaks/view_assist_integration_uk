@@ -216,6 +216,30 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                         mode="dropdown",
                     )
                 ),
+                vol.Optional(
+                    "status_icons_size",
+                    default=self.config_entry.options.get(
+                        "status_icons_size", "Large"
+                    ),
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        translation_key="status_icons_size_selector",
+                        options=["Small", "Medium", "Large"],
+                        mode="dropdown",
+                    )
+                ),
+                vol.Optional(
+                    "font_style",
+                    default=self.config_entry.options.get("font_style", "Roboto"),
+                ): str,
+                vol.Optional(
+                    "status_icons",
+                    default=self.config_entry.options.get("status_icons", "[]"),
+                ): str,
+                vol.Optional(
+                    "use_24_hour_time",
+                    default=self.config_entry.options.get("use_24_hour_time", False),
+                ): bool,
             }
         )
 
@@ -239,45 +263,22 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                     default=self.config_entry.options.get("view_timeout", "20"),
                 ): str,
                 vol.Optional(
-                    "status_icons",
-                    default=self.config_entry.options.get("status_icons", "[]"),
-                ): str,
-                vol.Optional(
-                    "status_icons_size",
-                    default=self.config_entry.options.get("status_icons_size", "Large"),
-                ): str,
-                vol.Optional(
-                    "status_icons_size",
-                    default=self.config_entry.options.get(
-                        "status_icons_size", "Large"
-                    ),
-                ): selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        translation_key="status_icons_size_selector",
-                        options=["Small", "Medium", "Large"],
-                        mode="dropdown",
-                    )
-                ),
-
-                vol.Optional(
-                    "font_style",
-                    default=self.config_entry.options.get("font_style", "Roboto"),
-                ): str,
-                vol.Optional(
                     "do_not_disturb",
                     default=self.config_entry.options.get("do_not_disturb", False),
                 ): bool,                
                 vol.Optional(
-                    "use_24_hour_time",
-                    default=self.config_entry.options.get("use_24_hour_time", False),
-                ): bool,
-                vol.Optional(
                     "use_announce",
                     default=self.config_entry.options.get("use_announce", True),
                 ): bool,                                                
-               
+                vol.Optional(
+                    "micunmute",
+                    default=self.config_entry.options.get("use_announce", False),
+                ): bool,                
             }
         )
 
         # Show the form for the selected type
         return self.async_show_form(step_id="default_options", data_schema=data_schema)
+    
+
+    
