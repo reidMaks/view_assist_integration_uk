@@ -29,6 +29,7 @@ class ViewAssistSensor(SensorEntity):
         self._mic_device = config["mic_device"]
         self._mediaplayer_device = config["mediaplayer_device"]
         self._musicplayer_device = config["musicplayer_device"]
+        self._mode = config["mode"]
         self._display_device = config.get("display_device")  # Optional for audio_only
         self._browser_id = config.get("browser_id", "")  # Optional for audio_only
         self._attr_native_value = ""
@@ -37,6 +38,7 @@ class ViewAssistSensor(SensorEntity):
             "mic_device": self._mic_device,
             "mediaplayer_device": self._mediaplayer_device,
             "musicplayer_device": self._musicplayer_device,
+            "mode": self._mode,
         }
 
         # Only add these attributes if they exist
