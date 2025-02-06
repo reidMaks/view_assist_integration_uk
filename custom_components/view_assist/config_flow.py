@@ -205,6 +205,10 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                     default=self.config_entry.options.get("intent", "/dashboard-viewassist/intent"),
                 ): str,
                 vol.Optional(
+                    "background",
+                    default=self.config_entry.options.get("background", "/local/viewassist/backgrounds/mybackground.jpg"),
+                ): str,                
+                vol.Optional(
                     "assist_prompt",
                     default=self.config_entry.options.get(
                         "assist_prompt", "blur pop up"
@@ -254,6 +258,19 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
 
         data_schema = vol.Schema(
             {
+                # vol.Optional(
+                #     "weather_entity",
+                #     default=self.config_entry.options["weather_entity"],
+                # ): selector.EntitySelector(
+                #     selector.EntitySelectorConfig(domain="weather")
+                # ),    
+                #             
+                vol.Optional(
+                    "weather_entity",
+                    default=self.config_entry.options.get("weather_entity", "weather.home"),
+                ): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="weather")
+                ),                    
                 vol.Optional(
                     "mode",
                     default=self.config_entry.options.get("mode", "normal"),
