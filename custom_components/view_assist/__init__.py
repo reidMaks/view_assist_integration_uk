@@ -163,6 +163,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     # Request platform setup
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+
     # Run first display instance only functions
     await run_if_first_display_instance(hass, entry)
 
@@ -173,13 +175,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     return True
 
 
+async def _async_update_listener(hass: HomeAssistant, config_entry: VAConfigEntry):
+    """Handle config options update."""
+    # Reload the integration when the options change.
+    await hass.config_entries.async_reload(config_entry.entry_id)
+
+
 async def run_if_first_display_instance(hass: HomeAssistant, entry: VAConfigEntry):
     """Things to run only one when multiple instances exist."""
-
     entries = [
         entry
         for entry in hass.config_entries.async_entries(DOMAIN)
-        if not entry.disabled_by and entry.data["type"] == "view_audio"
+        if entry.data["type"] == "view_audio" and not entry.disabled_by
     ]
 
     # If not first instance, return
