@@ -163,8 +163,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     # Request platform setup
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Run first instance only functions
-    await run_if_first_instance(hass, entry)
+    # Run first display instance only functions
+    await run_if_first_display_instance(hass, entry)
 
     # Add runtime data to config entry to have place to store data and
     # make accessible throughout integration
@@ -173,12 +173,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     return True
 
 
-async def run_if_first_instance(hass: HomeAssistant, entry: VAConfigEntry):
+async def run_if_first_display_instance(hass: HomeAssistant, entry: VAConfigEntry):
     """Things to run only one when multiple instances exist."""
+
     entries = [
         entry
         for entry in hass.config_entries.async_entries(DOMAIN)
-        if not entry.disabled_by
+        if not entry.disabled_by and entry.data["type"] == "view_audio"
     ]
 
     # If not first instance, return
