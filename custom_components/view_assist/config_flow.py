@@ -257,14 +257,7 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
             return self.async_create_entry(data=user_input)
 
         data_schema = vol.Schema(
-            {
-                # vol.Optional(
-                #     "weather_entity",
-                #     default=self.config_entry.options["weather_entity"],
-                # ): selector.EntitySelector(
-                #     selector.EntitySelectorConfig(domain="weather")
-                # ),    
-                #             
+            {          
                 vol.Optional(
                     "weather_entity",
                     default=self.config_entry.options.get("weather_entity", "weather.home"),
