@@ -1,9 +1,16 @@
+from dataclasses import dataclass
 import logging
+from typing import Any
 
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_DEVICE, CONF_PATH, Platform
+from homeassistant.const import (
+    CONF_DEVICE,
+    CONF_PATH,
+    EVENT_HOMEASSISTANT_STARTED,
+    Platform,
+)
 from homeassistant.core import (
     HomeAssistant,
     ServiceCall,
@@ -12,11 +19,11 @@ from homeassistant.core import (
 )
 
 # import homeassistant.helpers.entity_registry as er
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import entity_registry as er, selector
 from homeassistant.helpers.event import partial
-from homeassistant.helpers.selector import selector
 
 from .const import DOMAIN
+from .frontend import FrontendConfig
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,19 +31,25 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 NAVIGATE_SERVICE_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_DEVICE): selector(
-            {"entity": {"filter": {"integration": DOMAIN}}}
+        vol.Required(CONF_DEVICE): selector.EntitySelector(
+            selector.EntitySelectorConfig(integration=DOMAIN)
         ),
         vol.Required(CONF_PATH): str,
     }
 )
 
+type VAConfigEntry = ConfigEntry[RuntimeData]
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+
+@dataclass
+class RuntimeData:
+    """Class to hold your data."""
+
+    data: dict[str, Any]
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     """Set up View Assist from a config entry."""
-    hass.data.setdefault(DOMAIN, {})
-    # Request platform setup
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     ##################
     # Get Target Satellite
@@ -147,13 +160,44 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 ),
             )
 
+    # Request platform setup
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Run first instance only functions
+    await run_if_first_instance(hass, entry)
+
+    # Add runtime data to config entry to have place to store data and
+    # make accessible throughout integration
+    entry.runtime_data = RuntimeData({})
+
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
+async def run_if_first_instance(hass: HomeAssistant, entry: VAConfigEntry):
+    """Things to run only one when multiple instances exist."""
+    entries = [
+        entry
+        for entry in hass.config_entries.async_entries(DOMAIN)
+        if not entry.disabled_by
+    ]
+
+    # If not first instance, return
+    if not entries or entries[0].entry_id != entry.entry_id:
+        return
+
+    # Things to run on first instance setup only go below here
+
+    # Run dashboard and view setup
+    async def setup_frontend(*args):
+        fc = FrontendConfig(hass)
+        await fc.async_config()
+
+    if hass.is_running:
+        await setup_frontend()
+    else:
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, setup_frontend)
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: VAConfigEntry):
     """Unload a config entry."""
-    if unloaded := await hass.config_entries.async_forward_entry_unload(
-        entry, PLATFORMS
-    ):
-        hass.data[DOMAIN].pop(entry.entry_id)
-    return unloaded
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

@@ -3,7 +3,7 @@
   "name": "View Assist",
   "version": "0.0.1",
   "documentation": "https://github.com/dinki/View-Assist",
-  "dependencies": [],
+  "dependencies": ["lovelace"],
   "codeowners": ["@dinki"],
   "config_flow": true,
   "requirements": []
