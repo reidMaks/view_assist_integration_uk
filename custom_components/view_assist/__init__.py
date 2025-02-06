@@ -24,6 +24,7 @@ from homeassistant.helpers.event import partial
 
 from .const import DOMAIN
 from .frontend import FrontendConfig
+from .entity_listeners import EntityListeners
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -169,6 +170,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     # Add runtime data to config entry to have place to store data and
     # make accessible throughout integration
     entry.runtime_data = RuntimeData({})
+
+    # Load entity listeners
+    EntityListeners(hass, entry)
 
     return True
 
