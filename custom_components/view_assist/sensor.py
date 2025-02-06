@@ -38,6 +38,10 @@ class ViewAssistSensor(SensorEntity):
         self._mediaplayer_device = config.data["mediaplayer_device"]
         self._musicplayer_device = config.data["musicplayer_device"]
         self._mode = config.options.get("mode", "normal")
+        self._view_timeout = config.options.get("view_timeout", "20")
+        self._do_not_disturb = config.options.get("do_not_disturb", False)
+        self._status_icons = config.options.get("status_icons", "[]")
+        self._status_icons_size = config.options.get("status_icons_size", "8vw")
         self._display_device = config.data.get(
             "display_device"
         )  # Optional for audio_only
@@ -53,6 +57,10 @@ class ViewAssistSensor(SensorEntity):
             "mediaplayer_device": self._mediaplayer_device,
             "musicplayer_device": self._musicplayer_device,
             "mode": self._mode,
+            "view_timeout": self._view_timeout,
+            "do_not_disturb": self._do_not_disturb,
+            "status_icons": self._status_icons,
+            "status_icons_size": self._status_icons_size,
         }
 
         # Only add these attributes if they exist
