@@ -42,6 +42,12 @@ class ViewAssistSensor(SensorEntity):
         self._do_not_disturb = config.options.get("do_not_disturb", False)
         self._status_icons = config.options.get("status_icons", "[]")
         self._status_icons_size = config.options.get("status_icons_size", "8vw")
+        self._status_assist_prompt = config.options.get("assist_prompt", "blur pop up")
+        self._font_style = config.options.get("font_style", "Roboto")
+        self._use_24_hour_time = config.options.get("use_24_hour_time", False)
+        self._use_announce = config.options.get("use_announce", True)
+        self._background = config.options.get("background", "/local/viewassist/backgrounds/mybackground.jpg")
+        self._weather_entity = config.options.get("weather_entity", "weather.home")
         self._display_device = config.data.get(
             "display_device"
         )  # Optional for audio_only
@@ -61,6 +67,12 @@ class ViewAssistSensor(SensorEntity):
             "do_not_disturb": self._do_not_disturb,
             "status_icons": self._status_icons,
             "status_icons_size": self._status_icons_size,
+            "status_assist_prompt": self._status_assist_prompt,
+            "font_style": self._font_style,
+            "use_24_hour_time": self._use_24_hour_time,
+            "use_announce": self._use_announce,
+            "background": self._background,
+            "weather_entity": self._weather_entity,
         }
 
         # Only add these attributes if they exist
