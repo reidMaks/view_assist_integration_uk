@@ -53,4 +53,14 @@ class EntityListeners:
         mp_mute_new_state = event.data["new_state"].attributes['is_volume_muted']
         status_icons = self.status_icons
         _LOGGER.info("MP MUTE: %s", mp_mute_new_state)
-        _LOGGER.info("STATUS ICONS: %s", status_icons)        
+        _LOGGER.info("STATUS ICONS: %s", status_icons) 
+               
+    def get_target_device(target_device, mic_type):
+        if mic_type == "Stream Assist":
+            target_device = target_device.replace('sensor', 'switch').replace('_stt', '_mic')
+        elif mic_type == "HassMic":
+            target_device = target_device.replace('sensor', 'switch').replace('simple_state', 'microphone')
+        elif mic_type == "Home Assistant Voice Satellite":
+            target_device = target_device.replace('assist_satellite', 'switch') + '_mute'
+        
+        return target_device

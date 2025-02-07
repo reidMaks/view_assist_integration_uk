@@ -88,6 +88,8 @@
         "description": "",
         "data": {
           "weather_entity": "Weather entity to use for conditons display",
+          "mic_type": "The integration handling microphone input",
+          "display_type": "The integration handling the display control",
           "mode": "Default Mode",
           "view_timeout": "View Timeout",
           "do_not_disturb": "Default state for do not disturb mode",
@@ -114,6 +116,20 @@
           "Medium": "Medium",
           "Large": "Large"
         }      
-    }
+    },
+    "mic_type_selector": {
+      "options": {
+        "Home Assistant Voice Satellite": "Home Assistant Voice Satellite",
+        "HassMic": "HassMic",
+        "Stream Assist": "Stream Assist"
+      }      
+    },
+    "display_type_selector": {
+      "options": {
+        "BrowserMod": "BrowserMod",
+        "Remote Assist Display": "Remote Assist Display",
+        "Stream Assist": "Stream Assist"
+      }            
+    }        
   }  
 }

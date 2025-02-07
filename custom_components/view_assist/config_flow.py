@@ -263,7 +263,31 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                     default=self.config_entry.options.get("weather_entity", "weather.home"),
                 ): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="weather")
-                ),                    
+                ),
+                vol.Optional(
+                    "mic_type",
+                    default=self.config_entry.options.get(
+                        "mic_type", "Home Assistant Voice Satellite"
+                    ),
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        translation_key="mic_type_selector",
+                        options=["Home Assistant Voice Satellite", "HassMic", "Stream Assist"],
+                        mode="dropdown",
+                    )
+                ),
+                vol.Optional(
+                    "display_type",
+                    default=self.config_entry.options.get(
+                        "display_type", "BrowserMod"
+                    ),
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        translation_key="display_type_selector",
+                        options=["BrowserMod", "Remote Assist Display"],
+                        mode="dropdown",
+                    )
+                ),                                                     
                 vol.Optional(
                     "mode",
                     default=self.config_entry.options.get("mode", "normal"),

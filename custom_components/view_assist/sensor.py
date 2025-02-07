@@ -48,6 +48,8 @@ class ViewAssistSensor(SensorEntity):
         self._use_announce = config.options.get("use_announce", True)
         self._background = config.options.get("background", "/local/viewassist/backgrounds/mybackground.jpg")
         self._weather_entity = config.options.get("weather_entity", "weather.home")
+        self._mic_type = config.options.get("mic_type", "Home Assistant Voice Satellite")
+        self._display_type = config.options.get("display_type", "BrowserMod")
         self._display_device = config.data.get(
             "display_device"
         )  # Optional for audio_only
@@ -73,6 +75,8 @@ class ViewAssistSensor(SensorEntity):
             "use_announce": self._use_announce,
             "background": self._background,
             "weather_entity": self._weather_entity,
+            "mic_type": self._mic_type,
+            "display_type": self._display_type,
         }
 
         # Only add these attributes if they exist
