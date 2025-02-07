@@ -1,17 +1,14 @@
 """Functions to configure Lovelace frontend with dashboard and views."""
 
 import asyncio
-from dataclasses import dataclass
 import logging
 
 from homeassistant.components.lovelace import (
-    CONF_ALLOW_SINGLE_WORD,
     CONF_ICON,
     CONF_TITLE,
     CONF_URL_PATH,
     dashboard,
 )
-from homeassistant.const import CONF_MODE
 from homeassistant.core import HomeAssistant
 from homeassistant.util import slugify
 from homeassistant.util.yaml import load_yaml_dict
@@ -28,16 +25,6 @@ CONFIG_FILES_PATH = "default_config"
 
 # This could be replaced with a function that loads all files in directory if desired
 VIEWS_TO_LOAD = ["clock", "music", "info", "weather"]
-
-
-@dataclass
-class DashboardView:
-    """Class for dashboard view config."""
-
-    type: str
-    title: str
-    path: str
-    cards: list
 
 
 class FrontendConfig:
@@ -107,7 +94,7 @@ class FrontendConfig:
 
         # Load dashboard config data
         if dashboard_store:
-            dashboard_config = await dashboard_store.async_load(True)
+            dashboard_config = await dashboard_store.async_load(False)
 
             # Make list of existing view names for this dashboard
             existing_views = [
@@ -127,9 +114,13 @@ class FrontendConfig:
                 )
 
                 # Create new view and add it to dashboard
-                new_view = DashboardView(
-                    type="panel", title=view.title(), path=view, cards=[new_view_config]
-                )
+                new_view = {
+                    "type": "panel",
+                    "title": view.title(),
+                    "path": view,
+                    "cards": [new_view_config],
+                }
+
                 dashboard_config["views"].append(new_view)
 
             # Save dashboard config back to HA
