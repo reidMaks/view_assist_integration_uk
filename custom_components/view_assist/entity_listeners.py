@@ -2,9 +2,12 @@
 
 import logging
 
+from .const import VAConfigEntry
+from homeassistant.components.websocket_api.http import async_dispatcher_send
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -12,7 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 class EntityListeners:
     """Class to manage entity monitors."""
 
-    def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry) -> None:
+    def __init__(self, hass: HomeAssistant, config_entry: VAConfigEntry) -> None:
         """Initialise."""
         self.hass = hass
         self.config_entry = config_entry
@@ -34,12 +37,21 @@ class EntityListeners:
             )
         )
 
+    def update_entity(self):
+        """Dispatch message that entity is listening for to update."""
+        async_dispatcher_send(
+            self.hass, f"{DOMAIN}_{self.config_entry.entry_id}_update"
+        )
+
     @callback
     def _async_on_mic_change(self, event: Event[EventStateChangedData]) -> None:
         old_state = event.data["old_state"]
         new_state = event.data["new_state"]
         _LOGGER.info("OLD STATE: %s", old_state.state)
         _LOGGER.info("NEW STATE: %s", new_state.state)
+        if new_state.state == "on":
+            self.config_entry.runtime_data.status_icons = ["mic"]
+            self.update_entity()
 
     # Original attribute usage
     # @callback
