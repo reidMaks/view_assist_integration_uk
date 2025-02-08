@@ -19,3 +19,18 @@ navigate:
       required: true
       selector:
         text:
+set_state:
+  name: Set state or attributes
+  description: >
+    Set state or attributes of View Assist entity
+  target:
+    entity:
+      integration: view_assist
+      domain:
+        - sensor
+  fields:
+    state:
+      name: "State"
+      description: "Entity state"
+      selector:
+        text:
