@@ -49,9 +49,11 @@ class EntityListeners:
         new_state = event.data["new_state"]
         _LOGGER.info("OLD STATE: %s", old_state.state)
         _LOGGER.info("NEW STATE: %s", new_state.state)
+        self.config_entry.runtime_data.do_not_disturb = new_state.state == "on"
         if new_state.state == "on":
-            self.config_entry.runtime_data.status_icons = ["mic"]
-            self.update_entity()
+            if "mic" not in self.config_entry.runtime_data.status_icons:
+                self.config_entry.runtime_data.status_icons.append("mic")
+        self.update_entity()
 
     # Original attribute usage
     # @callback
