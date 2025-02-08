@@ -1,10 +1,7 @@
-from dataclasses import dataclass, field
 import logging
-from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_DEVICE,
     CONF_PATH,
@@ -20,7 +17,7 @@ from homeassistant.core import (
 from homeassistant.helpers import entity_registry as er, selector
 from homeassistant.helpers.event import partial
 
-from .const import DOMAIN
+from .const import DOMAIN, RuntimeData, VAConfigEntry
 from .entity_listeners import EntityListeners
 from .frontend import FrontendConfig
 
@@ -36,18 +33,6 @@ NAVIGATE_SERVICE_SCHEMA = vol.Schema(
         vol.Required(CONF_PATH): str,
     }
 )
-
-type VAConfigEntry = ConfigEntry[RuntimeData]
-
-
-@dataclass
-class RuntimeData:
-    """Class to hold your data."""
-
-    mode: str = "normal"
-    do_not_disturb: bool = False
-    status_icons: list[str] = field(default_factory=list)
-    extra_data: dict[str, Any] = field(default_factory=dict)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
@@ -176,6 +161,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
 
     # Load entity listeners
     EntityListeners(hass, entry)
+
+    # timers = VATimers(hass, entry)
+    # timers.add_timer(Timer(id=1, expires=(datetime.now() + timedelta(seconds=10))))
 
     return True
 
