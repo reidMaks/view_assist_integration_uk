@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import logging
 from typing import Any
 
@@ -17,14 +17,12 @@ from homeassistant.core import (
     ServiceResponse,
     SupportsResponse,
 )
-
-# import homeassistant.helpers.entity_registry as er
 from homeassistant.helpers import entity_registry as er, selector
 from homeassistant.helpers.event import partial
 
 from .const import DOMAIN
-from .frontend import FrontendConfig
 from .entity_listeners import EntityListeners
+from .frontend import FrontendConfig
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,7 +44,10 @@ type VAConfigEntry = ConfigEntry[RuntimeData]
 class RuntimeData:
     """Class to hold your data."""
 
-    data: dict[str, Any]
+    mode: str = "normal"
+    do_not_disturb: bool = False
+    status_icons: list[str] = field(default_factory=list)
+    extra_data: dict[str, Any] = field(default_factory=dict)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
@@ -161,6 +162,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
                 ),
             )
 
+    # Add runtime data to config entry to have place to store data and
+    # make accessible throughout integration
+    entry.runtime_data = RuntimeData()
+
     # Request platform setup
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -168,10 +173,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
 
     # Run first display instance only functions
     await run_if_first_display_instance(hass, entry)
-
-    # Add runtime data to config entry to have place to store data and
-    # make accessible throughout integration
-    entry.runtime_data = RuntimeData({})
 
     # Load entity listeners
     EntityListeners(hass, entry)

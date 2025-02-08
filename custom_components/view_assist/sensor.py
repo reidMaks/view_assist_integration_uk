@@ -3,15 +3,16 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_platform
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.config_validation import make_entity_service_schema
 
+from . import VAConfigEntry
+
 
 async def async_setup_entry(
-    hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities
+    hass: HomeAssistant, config_entry: VAConfigEntry, async_add_entities
 ):
     """Set up sensors from a config entry."""
     sensors = [ViewAssistSensor(config_entry)]
@@ -21,6 +22,7 @@ async def async_setup_entry(
         schema=make_entity_service_schema({str: cv.match_all}, extra=vol.ALLOW_EXTRA),
         func="set_entity_state",
     )
+
     async_add_entities(sensors)
 
 
@@ -29,8 +31,11 @@ class ViewAssistSensor(SensorEntity):
 
     _attr_should_poll = False
 
-    def __init__(self, config):
+    def __init__(self, config: VAConfigEntry):
         """Initialize the sensor."""
+
+        self.config = config
+
         self._attr_name = config.data["name"]
         self._type = config.data["type"]
         self._attr_unique_id = f"{self._attr_name}_vasensor"
@@ -46,9 +51,13 @@ class ViewAssistSensor(SensorEntity):
         self._font_style = config.options.get("font_style", "Roboto")
         self._use_24_hour_time = config.options.get("use_24_hour_time", False)
         self._use_announce = config.options.get("use_announce", True)
-        self._background = config.options.get("background", "/local/viewassist/backgrounds/mybackground.jpg")
+        self._background = config.options.get(
+            "background", "/local/viewassist/backgrounds/mybackground.jpg"
+        )
         self._weather_entity = config.options.get("weather_entity", "weather.home")
-        self._mic_type = config.options.get("mic_type", "Home Assistant Voice Satellite")
+        self._mic_type = config.options.get(
+            "mic_type", "Home Assistant Voice Satellite"
+        )
         self._display_type = config.options.get("display_type", "BrowserMod")
         self._display_device = config.data.get(
             "display_device"
@@ -64,10 +73,10 @@ class ViewAssistSensor(SensorEntity):
             "mic_device": self._mic_device,
             "mediaplayer_device": self._mediaplayer_device,
             "musicplayer_device": self._musicplayer_device,
-            "mode": self._mode,
+            # "mode": self._mode,
             "view_timeout": self._view_timeout,
-            "do_not_disturb": self._do_not_disturb,
-            "status_icons": self._status_icons,
+            # "do_not_disturb": self._do_not_disturb,
+            # "status_icons": self._status_icons,
             "status_icons_size": self._status_icons_size,
             "status_assist_prompt": self._status_assist_prompt,
             "font_style": self._font_style,
@@ -85,6 +94,14 @@ class ViewAssistSensor(SensorEntity):
         if self._browser_id:
             attrs["browser_id"] = self._browser_id
 
+        # Add named attributes from runtime data
+        for k in self.config.runtime_data.__dict__:
+            if not k.startswith("_") and not k.startswith("__") and k != "extra_data":
+                attrs[k] = getattr(self.config.runtime_data, k)
+
+        # Add extra_data attributes from runtime data
+        attrs.update(self.config.runtime_data.extra_data)
+
         return attrs
 
     def set_entity_state(self, **kwargs):
@@ -97,7 +114,13 @@ class ViewAssistSensor(SensorEntity):
             if k == "state":
                 self._attr_native_value = v
                 continue
-            self._attr_extra_state_attributes[k] = v
+
+            # Set the value of named vartiables or add/update to extra_data dict
+            if hasattr(self.config.runtime_data, k):
+                setattr(self.config.runtime_data, k, v)
+            else:
+                self.config.runtime_data.extra_data[k] = v
+
         self.schedule_update_ha_state()
 
     @property
