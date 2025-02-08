@@ -23,7 +23,7 @@ class EntityListeners:
         # mic_device = self.config_entry.data["mic_device"]
         mic_device = "input_boolean.test"
         mediaplayer_device = self.config_entry.data["mediaplayer_device"]
-        self.status_icons = self.config_entry.options.get("status_icons")
+        # self.status_icons = self.config_entry.options.get("status_icons")
 
         # Add mic listener
         config_entry.async_on_unload(
@@ -55,24 +55,23 @@ class EntityListeners:
                 self.config_entry.runtime_data.status_icons.append("mic")
         self.update_entity()
 
-    # Original attribute usage
-    # @callback
-    # def _async_on_mediaplayer_device_mute_change(self, event: Event[EventStateChangedData]) -> None:
-    # old_state = event.data["old_state"]
-    # new_state = event.data["new_state"]
-    # _LOGGER.info("OLD STATE: %s", old_state.attributes['is_volume_muted'])
-    # _LOGGER.info("NEW STATE: %s", new_state.attributes['is_volume_muted'])
+
 
     @callback
     def _async_on_mediaplayer_device_mute_change(
         self, event: Event[EventStateChangedData]
     ) -> None:
-        mp_mute_new_state = event.data["new_state"].attributes.get(
-            "is_volume_muted", False
-        )
-        status_icons = self.status_icons
+        new_state = event.data["new_state"]
+        mp_mute_new_state = new_state.attributes.get("is_volume_muted", False)
         _LOGGER.info("MP MUTE: %s", mp_mute_new_state)
-        _LOGGER.info("STATUS ICONS: %s", status_icons)
+        if mp_mute_new_state is True:
+            self.config_entry.runtime_data.status_icons.append("mediaplayer")
+        elif mp_mute_new_state is False:
+            self.config_entry.runtime_data.status_icons.remove("mediaplayer")            
+        self.update_entity()            
+
+
+
 
     def get_target_device(target_device, mic_type):
         if mic_type == "Stream Assist":
