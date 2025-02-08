@@ -20,14 +20,17 @@ class EntityListeners:
         self.hass = hass
         self.config_entry = config_entry
 
-        # mic_device = self.config_entry.data["mic_device"]
-        mic_device = "input_boolean.test"
-        mediaplayer_device = self.config_entry.data["mediaplayer_device"]
-        # self.status_icons = self.config_entry.options.get("status_icons")
+        mic_device = self.config_entry.data["mic_device"]
+        mic_type = self.config_entry.options.get("mic_type")
+        mute_switch = get_mute_switch(mic_device, mic_type)
 
-        # Add mic listener
+
+        mediaplayer_device = self.config_entry.data["mediaplayer_device"]
+    
+
+        # Add microphone mute switch listener
         config_entry.async_on_unload(
-            async_track_state_change_event(hass, mic_device, self._async_on_mic_change)
+            async_track_state_change_event(hass, mute_switch, self._async_on_mic_change)
         )
 
         # Add media player mute listener
@@ -43,17 +46,25 @@ class EntityListeners:
             self.hass, f"{DOMAIN}_{self.config_entry.entry_id}_update"
         )
 
+    # @callback
+    # def _async_on_mic_change(self, event: Event[EventStateChangedData]) -> None:
+    #     old_state = event.data["old_state"]
+    #     new_state = event.data["new_state"]
+    #     _LOGGER.info("OLD STATE: %s", old_state.state)
+    #     _LOGGER.info("NEW STATE: %s", new_state.state)
+    #     self.config_entry.runtime_data.do_not_disturb = new_state.state == "on"
+    #     if new_state.state == "on":
+    #         if "mic" not in self.config_entry.runtime_data.status_icons:
+    #             self.config_entry.runtime_data.status_icons.append("mic")
+    #     self.update_entity()
+
+
     @callback
     def _async_on_mic_change(self, event: Event[EventStateChangedData]) -> None:
         old_state = event.data["old_state"]
         new_state = event.data["new_state"]
         _LOGGER.info("OLD STATE: %s", old_state.state)
         _LOGGER.info("NEW STATE: %s", new_state.state)
-        self.config_entry.runtime_data.do_not_disturb = new_state.state == "on"
-        if new_state.state == "on":
-            if "mic" not in self.config_entry.runtime_data.status_icons:
-                self.config_entry.runtime_data.status_icons.append("mic")
-        self.update_entity()
 
 
 
@@ -73,7 +84,7 @@ class EntityListeners:
 
 
 
-    def get_target_device(target_device, mic_type):
+    def get_mute_switch(target_device, mic_type):
         if mic_type == "Stream Assist":
             target_device = target_device.replace("sensor", "switch").replace(
                 "_stt", "_mic"
