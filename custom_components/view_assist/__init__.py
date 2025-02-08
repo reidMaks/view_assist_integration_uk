@@ -150,6 +150,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     # Add runtime data to config entry to have place to store data and
     # make accessible throughout integration
     entry.runtime_data = RuntimeData()
+    initialise_runtime_variables(entry)
 
     # Request platform setup
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -197,6 +198,29 @@ async def run_if_first_display_instance(hass: HomeAssistant, entry: VAConfigEntr
         await setup_frontend()
     else:
         hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, setup_frontend)
+
+
+def initialise_runtime_variables(config: VAConfigEntry):
+    """Set runtime variables initial values from config options with the same name."""
+    for k in config.runtime_data.__dict__:
+        if not k.startswith("_") and not k.startswith("__") and k != "extra_data":
+            if config.options.get(k):
+                try:
+                    if isinstance(
+                        getattr(config.runtime_data, k), list
+                    ) and not isinstance(config.options[k], list):
+                        # Make list
+                        v = (
+                            config.options[k]
+                            .replace("[", "")
+                            .replace("]", "")
+                            .replace('"', "")
+                        ).split(",")
+                    else:
+                        v = config.options[k]
+                    setattr(config.runtime_data, k, v)
+                except Exception as ex:
+                    _LOGGER.error("Unable to set runtime var %s due to %s", k, ex)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: VAConfigEntry):
