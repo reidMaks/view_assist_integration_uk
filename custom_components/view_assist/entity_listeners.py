@@ -37,6 +37,14 @@ class EntityListeners:
             )
         )
 
+        # Add do not disturb listener
+        dnd_device = "sensor." + config_entry.runtime_data.name
+
+        config_entry.async_on_unload(
+            async_track_state_change_event(
+                hass, dnd_device, self._async_on_dnd_device_state_change
+            )
+        )
     def update_entity(self):
         """Dispatch message that entity is listening for to update."""
         async_dispatcher_send(
@@ -90,6 +98,33 @@ class EntityListeners:
             status_icons.append("mediaplayer")
         elif not mp_mute_new_state and "mediaplayer" in status_icons:
             status_icons.remove("mediaplayer")
+
+        self.config_entry.runtime_data.status_icons = status_icons
+        self.update_entity()
+
+    @callback
+    def _async_on_dnd_device_state_change(
+        self, event: Event[EventStateChangedData]
+    ) -> None:
+        dnd_new_state = event.data["new_state"].attributes.get(
+            "do_not_disturb", False
+        )
+
+        # If not change to dnd state, exit function
+        if (
+            not event.data.get("old_state")
+            or event.data["old_state"].attributes.get("do_not_disturb")
+            == dnd_new_state
+        ):
+            return
+
+        _LOGGER.info("DND STATE: %s", dnd_new_state)
+        status_icons = self.config_entry.runtime_data.status_icons.copy()
+
+        if dnd_new_state and "dnd" not in status_icons:
+            status_icons.append("dnd")
+        elif not dnd_new_state and "dnd" in status_icons:
+            status_icons.remove("dnd")
 
         self.config_entry.runtime_data.status_icons = status_icons
         self.update_entity()
