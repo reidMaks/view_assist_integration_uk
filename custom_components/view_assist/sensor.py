@@ -115,7 +115,7 @@ class ViewAssistSensor(SensorEntity):
 
         # Add named attributes from runtime data
         for k in self.config.runtime_data.__dict__:
-            if not k.startswith("_") and not k.startswith("__") and k != "extra_data":
+            if not k.startswith(("_", "__")) and k != "extra_data":
                 attrs[k] = getattr(self.config.runtime_data, k)
 
         # Add extra_data attributes from runtime data
