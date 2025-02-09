@@ -20,7 +20,9 @@ class EntityListeners:
         self.config_entry = config_entry
 
         mic_device = self.config_entry.data["mic_device"]
-        mic_type = self.config_entry.options.get("mic_type")
+        mic_type = self.config_entry.options.get(
+            "mic_type", "Home Assistant Voice Satellite"
+        )
         mute_switch = self.get_mute_switch(mic_device, mic_type)
 
         mediaplayer_device = self.config_entry.data["mediaplayer_device"]
@@ -89,19 +91,16 @@ class EntityListeners:
         self.config_entry.runtime_data.status_icons = status_icons
         self.update_entity()
 
-    def get_mute_switch(self, target_device, mic_type):
+    def get_mute_switch(self, target_device: str, mic_type: str):
         """Get mute switch."""
+
         if mic_type == "Stream Assist":
-            target_device = target_device.replace("sensor", "switch").replace(
-                "_stt", "_mic"
-            )
-        elif mic_type == "HassMic":
-            target_device = target_device.replace("sensor", "switch").replace(
+            return target_device.replace("sensor", "switch").replace("_stt", "_mic")
+        if mic_type == "HassMic":
+            return target_device.replace("sensor", "switch").replace(
                 "simple_state", "microphone"
             )
-        elif mic_type == "Home Assistant Voice Satellite":
-            target_device = (
-                target_device.replace("assist_satellite", "switch") + "_mute"
-            )
+        if mic_type == "Home Assistant Voice Satellite":
+            return target_device.replace("assist_satellite", "switch") + "_mute"
 
-        return target_device
+        return None
