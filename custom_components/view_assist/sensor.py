@@ -40,33 +40,9 @@ class ViewAssistSensor(SensorEntity):
 
         self.config = config
 
-        self._attr_name = config.data["name"]
-        self._type = config.data["type"]
+        self._attr_name = config.runtime_data.name
+        self._type = config.runtime_data.type
         self._attr_unique_id = f"{self._attr_name}_vasensor"
-        self._mic_device = config.data["mic_device"]
-        self._mediaplayer_device = config.data["mediaplayer_device"]
-        self._musicplayer_device = config.data["musicplayer_device"]
-        self._mode = config.options.get("mode", "normal")
-        self._view_timeout = config.options.get("view_timeout", "20")
-        self._do_not_disturb = config.options.get("do_not_disturb", False)
-        self._status_icons = config.options.get("status_icons", "[]")
-        self._status_icons_size = config.options.get("status_icons_size", "8vw")
-        self._status_assist_prompt = config.options.get("assist_prompt", "blur pop up")
-        self._font_style = config.options.get("font_style", "Roboto")
-        self._use_24_hour_time = config.options.get("use_24_hour_time", False)
-        self._use_announce = config.options.get("use_announce", True)
-        self._background = config.options.get(
-            "background", "/local/viewassist/backgrounds/mybackground.jpg"
-        )
-        self._weather_entity = config.options.get("weather_entity", "weather.home")
-        self._mic_type = config.options.get(
-            "mic_type", "Home Assistant Voice Satellite"
-        )
-        self._display_type = config.options.get("display_type", "BrowserMod")
-        self._display_device = config.data.get(
-            "display_device"
-        )  # Optional for audio_only
-        self._browser_id = config.data.get("browser_id")  # Optional for audio_only
         self._attr_native_value = ""
 
     async def async_added_to_hass(self) -> None:
@@ -87,36 +63,32 @@ class ViewAssistSensor(SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return entity attributes."""
+        r = self.config.runtime_data
         attrs = {
-            "type": self._type,
-            "mic_device": self._mic_device,
-            "mediaplayer_device": self._mediaplayer_device,
-            "musicplayer_device": self._musicplayer_device,
-            # "mode": self._mode,
-            "view_timeout": self._view_timeout,
-            # "do_not_disturb": self._do_not_disturb,
-            # "status_icons": self._status_icons,
-            "status_icons_size": self._status_icons_size,
-            "status_assist_prompt": self._status_assist_prompt,
-            "font_style": self._font_style,
-            "use_24_hour_time": self._use_24_hour_time,
-            "use_announce": self._use_announce,
-            "background": self._background,
-            "weather_entity": self._weather_entity,
-            "mic_type": self._mic_type,
-            "display_type": self._display_type,
+            "type": r.type,
+            "mic_device": r.mic_device,
+            "mediaplayer_device": r.mediaplayer_device,
+            "musicplayer_device": r.musicplayer_device,
+            "mode": r.mode,
+            "view_timeout": r.view_timeout,
+            "do_not_disturb": r.do_not_disturb,
+            "status_icons": r.status_icons,
+            "status_icons_size": r.status_icons_size,
+            "status_assist_prompt": r.assist_prompt,
+            "font_style": r.font_style,
+            "use_24_hour_time": r.use_24h_time,
+            "use_announce": r.use_announce,
+            "background": r.background,
+            "weather_entity": r.weather_entity,
+            "mic_type": r.mic_type,
+            "display_type": r.display_type,
         }
 
         # Only add these attributes if they exist
-        if self._display_device:
-            attrs["display_device"] = self._display_device
-        if self._browser_id:
-            attrs["browser_id"] = self._browser_id
-
-        # Add named attributes from runtime data
-        for k in self.config.runtime_data.__dict__:
-            if not k.startswith(("_", "__")) and k != "extra_data":
-                attrs[k] = getattr(self.config.runtime_data, k)
+        if r.display_device:
+            attrs["display_device"] = r.display_device
+        if r.browser_id:
+            attrs["browser_id"] = r.browser_id
 
         # Add extra_data attributes from runtime data
         attrs.update(self.config.runtime_data.extra_data)

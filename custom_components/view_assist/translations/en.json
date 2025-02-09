@@ -55,7 +55,7 @@
           "musicplayer_device": "The music player device for this satellite",
           "display_device": "The display device for this satellite",
           "browser_id": "The browser id for this satellite"
-        }        
+        }
       },
       "dashboard_options": {
         "title": "Dashboard Options",
@@ -81,7 +81,7 @@
           "status_icons_size": "Size of the icons in the status icon display",
           "font_style": "The default font to use for this satellite device. Font name must match perfectly and be available",
           "status_icons": "Advanced option! List of custom launch icons to set on start up. Do not change this if you do not know what you are doing"
-        }        
+        }
       },
       "default_options": {
         "title": "Default Options",
@@ -99,11 +99,17 @@
         "data_description": {
           "mode": "The default mode for this satellite device",
           "view_timeout": "The default time out value for this satellite device in seconds before returning to default view"
-        }        
-      }      
+        }
+      }
     }
   },
   "selector": {
+    "type_selector": {
+      "options": {
+        "view_audio": "View Assist device with display",
+        "audio_only": "View Assist device with no display"
+      }
+    },
     "assist_prompt_selector": {
       "options": {
         "blur pop up": "Blurs the screen and shows pop up",
@@ -115,21 +121,21 @@
           "Small": "Small",
           "Medium": "Medium",
           "Large": "Large"
-        }      
+        }
     },
     "mic_type_selector": {
       "options": {
         "Home Assistant Voice Satellite": "Home Assistant Voice Satellite",
         "HassMic": "HassMic",
         "Stream Assist": "Stream Assist"
-      }      
+      }
     },
     "display_type_selector": {
       "options": {
         "BrowserMod": "BrowserMod",
         "Remote Assist Display": "Remote Assist Display",
         "Stream Assist": "Stream Assist"
-      }            
-    }        
-  }  
+      }
+    }
+  }
 }
