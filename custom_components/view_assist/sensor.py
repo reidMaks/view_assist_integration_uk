@@ -74,7 +74,7 @@ class ViewAssistSensor(SensorEntity):
             "do_not_disturb": r.do_not_disturb,
             "status_icons": r.status_icons,
             "status_icons_size": r.status_icons_size,
-            "status_assist_prompt": r.assist_prompt,
+            "assist_prompt": r.assist_prompt,
             "font_style": r.font_style,
             "use_24_hour_time": r.use_24h_time,
             "use_announce": r.use_announce,

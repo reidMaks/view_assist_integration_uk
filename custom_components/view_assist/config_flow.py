@@ -356,7 +356,7 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                     default=self.config_entry.options.get(
                         CONF_VIEW_TIMEOUT, DEFAULT_VIEW_TIMEOUT
                     ),
-                ): str,
+                ): int,
                 vol.Optional(
                     CONF_DO_NOT_DISTURB,
                     default=self.config_entry.options.get(
