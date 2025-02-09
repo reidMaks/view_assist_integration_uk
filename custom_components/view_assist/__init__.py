@@ -1,160 +1,31 @@
 import logging
 
-import voluptuous as vol
-
-from homeassistant.const import (
-    CONF_DEVICE,
-    CONF_PATH,
-    EVENT_HOMEASSISTANT_STARTED,
-    Platform,
-)
-from homeassistant.core import (
-    HomeAssistant,
-    ServiceCall,
-    ServiceResponse,
-    SupportsResponse,
-)
-from homeassistant.helpers import entity_registry as er, selector
-from homeassistant.helpers.event import partial
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
+from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, RuntimeData, VAConfigEntry
 from .entity_listeners import EntityListeners
 from .frontend import FrontendConfig
+from .helpers import ensure_list
+from .services import setup_services
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
-NAVIGATE_SERVICE_SCHEMA = vol.Schema(
-    {
-        vol.Required(CONF_DEVICE): selector.EntitySelector(
-            selector.EntitySelectorConfig(integration=DOMAIN)
-        ),
-        vol.Required(CONF_PATH): str,
-    }
-)
-
 
 async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     """Set up View Assist from a config entry."""
 
-    ##################
-    # Get Target Satellite
-    # Used to determine which VA satellite is being used based on its microphone device
-    #
-    # Sample usage
-    # action: view_assist.get_target_satellite
-    # data:
-    #   device_id: 4385828338e48103f63c9f91756321df
-
-    async def handle_get_target_satellite(call: ServiceCall) -> ServiceResponse:
-        """Handle a get target satellite lookup call."""
-        device_id = call.data.get("device_id")
-        entity_registry = er.async_get(hass)
-
-        entities = []
-
-        entry_ids = [
-            entry.entry_id for entry in hass.config_entries.async_entries(DOMAIN)
-        ]
-
-        for entry_id in entry_ids:
-            integration_entities = er.async_entries_for_config_entry(
-                entity_registry, entry_id
-            )
-            entity_ids = [entity.entity_id for entity in integration_entities]
-            entities.extend(entity_ids)
-
-        # Fetch the 'mic_device' attribute for each entity
-        # compare the device_id of mic_device to the value passed in to the service
-        # return the match for the satellite that contains that mic_device
-        target_satellite_devices = []
-        for entity_id in entities:
-            if state := hass.states.get(entity_id):
-                if mic_entity_id := state.attributes.get("mic_device"):
-                    if mic_entity := entity_registry.async_get(mic_entity_id):
-                        if mic_entity.device_id == device_id:
-                            target_satellite_devices.append(entity_id)
-
-        # Return the list of target_satellite_devices
-        # This should match only one VA device
-        return {"target_satellite": target_satellite_devices}
-
-    hass.services.async_register(
-        DOMAIN,
-        "get_target_satellite",
-        handle_get_target_satellite,
-        supports_response=SupportsResponse.ONLY,
-    )
-
-    #########
-
-    #########
-    # Handle Navigation
-    # Used to determine how to change the view on the VA device
-    #
-    # action: view_assist.navigate
-    # data:
-    #   target_display_device: sensor.viewassist_office_browser_path
-    #   target_display_type: browsermod
-    #   path: /dashboard-viewassist/weather
-    #
-    async def handle_navigate(call: ServiceCall):
-        """Handle a navigate to view call."""
-        va_entity_id = call.data.get("device")
-        path = call.data.get("path")
-
-        # get config entry from entity id to allow access to browser_id parameter
-        entity_registry = er.async_get(hass)
-        if entity := entity_registry.async_get(va_entity_id):
-            entity_config_entry = hass.config_entries.async_get_entry(
-                entity.config_entry_id
-            )
-            browser_id = entity_config_entry.data.get("browser_id")
-
-            if browser_id:
-                await browser_navigate(browser_id, path, "/view_assist/clock")
-
-    hass.services.async_register(
-        DOMAIN, "navigate", handle_navigate, schema=NAVIGATE_SERVICE_SCHEMA
-    )
-
-    async def browser_navigate(
-        browser_id: str,
-        path: str,
-        revert_path: str | None = None,
-        timeout: int = 10,
-    ):
-        """Navigate browser to defined view.
-
-        Optionally revert to another view after timeout.
-        """
-        _LOGGER.debug("Navigating: browser_id: %s, path: %s", browser_id, path)
-        await hass.services.async_call(
-            "browser_mod",
-            "navigate",
-            {"browser_id": browser_id, "path": path},
-        )
-
-        if revert_path and timeout:
-            _LOGGER.debug("Adding revert to %s in %ss", revert_path, timeout)
-            hass.loop.call_later(
-                10,
-                partial(
-                    hass.create_task,
-                    browser_navigate(browser_id, revert_path),
-                    f"Revert browser {browser_id}",
-                ),
-            )
-
     # Add runtime data to config entry to have place to store data and
     # make accessible throughout integration
     entry.runtime_data = RuntimeData()
-    initialise_runtime_variables(entry)
+    set_runtime_data_from_config(entry)
 
     # Request platform setup
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    # Add config change listener
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     # Run first display instance only functions
@@ -163,16 +34,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     # Load entity listeners
     EntityListeners(hass, entry)
 
-    # timers = VATimers(hass, entry)
-    # timers.add_timer(Timer(id=1, expires=(datetime.now() + timedelta(seconds=10))))
+    # Inisitialise service
+    await setup_services(hass)
 
     return True
-
-
-async def _async_update_listener(hass: HomeAssistant, config_entry: VAConfigEntry):
-    """Handle config options update."""
-    # Reload the integration when the options change.
-    await hass.config_entries.async_reload(config_entry.entry_id)
 
 
 async def run_if_first_display_instance(hass: HomeAssistant, entry: VAConfigEntry):
@@ -200,27 +65,24 @@ async def run_if_first_display_instance(hass: HomeAssistant, entry: VAConfigEntr
         hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, setup_frontend)
 
 
-def initialise_runtime_variables(config: VAConfigEntry):
-    """Set runtime variables initial values from config options with the same name."""
-    for k in config.runtime_data.__dict__:
-        if not k.startswith("_") and not k.startswith("__") and k != "extra_data":
-            if config.options.get(k):
-                try:
-                    if isinstance(
-                        getattr(config.runtime_data, k), list
-                    ) and not isinstance(config.options[k], list):
-                        # Make list
-                        v = (
-                            config.options[k]
-                            .replace("[", "")
-                            .replace("]", "")
-                            .replace('"', "")
-                        ).split(",")
-                    else:
-                        v = config.options[k]
-                    setattr(config.runtime_data, k, v)
-                except Exception as ex:
-                    _LOGGER.error("Unable to set runtime var %s due to %s", k, ex)
+def set_runtime_data_from_config(config_entry: VAConfigEntry):
+    """Set config.runtime_data attributes from matching config values."""
+
+    config_sources = [config_entry.data, config_entry.options]
+    for source in config_sources:
+        for k, v in source.items():
+            if hasattr(config_entry.runtime_data, k):
+                # This is a fix for config lists being a string
+                if isinstance(getattr(config_entry.runtime_data, k), list):
+                    setattr(config_entry.runtime_data, k, ensure_list(v))
+                else:
+                    setattr(config_entry.runtime_data, k, v)
+
+
+async def _async_update_listener(hass: HomeAssistant, config_entry: VAConfigEntry):
+    """Handle config options update."""
+    # Reload the integration when the options change.
+    await hass.config_entries.async_reload(config_entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: VAConfigEntry):
