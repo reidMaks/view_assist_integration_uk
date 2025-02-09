@@ -104,7 +104,7 @@ class ViewAssistConfigFlow(ConfigFlow, domain=DOMAIN):
         Remove this method and the ExampleOptionsFlowHandler class
         if you do not want any options for your integration.
         """
-        return ViewAssistOptionsFlowHandler(config_entry)
+        return ViewAssistOptionsFlowHandler()
 
     def __init__(self) -> None:
         """Initialise."""
@@ -158,11 +158,6 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
     Here we use an initial menu to select different options forms,
     and show how to use api data to populate a selector.
     """
-
-    def __init__(self) -> None:
-        """Initialize options flow."""
-        # self.options = dict(config_entry.options)
-        # self.type = self.config_entry.data[CONF_TYPE]
 
     async def async_step_init(self, user_input=None):
         """Handle options flow."""
