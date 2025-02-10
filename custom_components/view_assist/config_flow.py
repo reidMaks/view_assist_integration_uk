@@ -295,7 +295,15 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                     default=self.config_entry.options.get(
                         CONF_STATUS_ICONS, DEFAULT_STATUS_ICONS
                     ),
-                ): cv.string,
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        translation_key="status_icons_selector",
+                        options=[],
+                        mode=SelectSelectorMode.LIST,
+                        multiple=True,
+                        custom_value=True,
+                    )
+                ),
                 vol.Optional(
                     CONF_USE_24H_TIME,
                     default=self.config_entry.options.get(
