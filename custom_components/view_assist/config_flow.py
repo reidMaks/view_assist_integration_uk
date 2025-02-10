@@ -161,14 +161,14 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         """Handle options flow."""
-        va_type = self.config_entry.data[CONF_TYPE]
+        self.va_type = self.config_entry.data[CONF_TYPE]
 
         # Display an options menu if display device
         # Display reconfigure form if audio only
 
         # Also need to be in strings.json and translation files.
 
-        if va_type == VAType.VIEW_AUDIO:
+        if self.va_type == VAType.VIEW_AUDIO:
             return self.async_show_menu(
                 step_id="init",
                 menu_options=["main_config", "dashboard_options", "default_options"],
@@ -181,7 +181,7 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
 
         if user_input is not None:
             # This is just updating the core config so update config_entry.data
-            user_input[CONF_TYPE] = self.type
+            user_input[CONF_TYPE] = self.va_type
             self.hass.config_entries.async_update_entry(
                 self.config_entry, data=user_input
             )
@@ -204,7 +204,7 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
             ): EntitySelector(EntitySelectorConfig(domain=MEDIAPLAYER_DOMAIN)),
         }
 
-        if self.type == VAType.VIEW_AUDIO:
+        if self.va_type == VAType.VIEW_AUDIO:
             data_schema = vol.Schema(
                 {
                     **BASE_OPTIONS,
@@ -294,7 +294,7 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                     default=self.config_entry.options.get(
                         CONF_STATUS_ICONS, DEFAULT_STATUS_ICONS
                     ),
-                ): str,
+                ): cv.string,
                 vol.Optional(
                     CONF_USE_24H_TIME,
                     default=self.config_entry.options.get(

@@ -6,5 +6,6 @@ def ensure_list(value: str | list[str]):
     if isinstance(value, list):
         return value
     if isinstance(value, str):
-        return (value.replace("[", "").replace("]", "").replace('"', "")).split(",")
+        value = (value.replace("[", "").replace("]", "").replace('"', "")).split(",")
+        return value if value else []
     return []
