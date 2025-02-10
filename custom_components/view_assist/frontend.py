@@ -6,11 +6,13 @@ import logging
 from homeassistant.components import frontend
 from homeassistant.components.lovelace import (
     CONF_ICON,
+    CONF_SHOW_IN_SIDEBAR,
     CONF_TITLE,
     CONF_URL_PATH,
     LovelaceData,
     dashboard,
 )
+from homeassistant.const import EVENT_LOVELACE_UPDATED
 from homeassistant.core import HomeAssistant
 from homeassistant.util import slugify
 from homeassistant.util.yaml import load_yaml_dict
@@ -36,86 +38,76 @@ class FrontendConfig:
         """Initialise."""
         self.hass = hass
         self.files_path = f"{self.hass.config.config_dir}/custom_components/{DOMAIN}/{CONFIG_FILES_PATH}"
-        self.path = f"dashboard-{slugify(DASHBOARD_NAME)}"
+        self.path = DASHBOARD_NAME.replace(" ", "-").lower()
 
     async def async_config(self):
         """Create the view assist dashboard and views if they dont exist already.
 
         It will not overwrite modifications made to views
         """
-        # await self._config_dashboard()
-        # await self._config_views(VIEWS_TO_LOAD)
-        # await self._delete_home_view()
+        await self._config_dashboard()
+        await self._config_views(VIEWS_TO_LOAD)
+        await self._delete_home_view()
 
     async def _config_dashboard(self):
-        """Create dashboard if it doesn#t exist."""
-
-        # Path to dashboard config file
-        f = f"{self.files_path}/dashboard.yaml"
+        """Create dashboard."""
 
         # Get lovelace (frontend) config data
         lovelace: LovelaceData = self.hass.data["lovelace"]
 
-        _LOGGER.warning("LL: %s", lovelace.dashboards)
+        # Path to dashboard config file
+        f = f"{self.files_path}/dashboard.yaml"
+        dashboard_config = await self.hass.async_add_executor_job(load_yaml_dict, f)
+        dashboard_config["mode"] = "storage"
 
-        # If dashboard not in existing dashboard collection
-        if self.path not in lovelace.dashboards:
-            # Load dashboard config file
-            dashboard_config = await self.hass.async_add_executor_job(load_yaml_dict, f)
+        dc = dashboard.DashboardsCollection(self.hass)
+        await dc.async_load()
+        dashboard_exists = any([e["url_path"] == self.path for e in dc.async_items()])
 
-            dashboards_collection = dashboard.DashboardsCollection(self.hass)
-            await dashboards_collection.async_load()
-            _LOGGER.warning("DASH COL: %s", dashboards_collection.data)
-            await dashboards_collection.async_create_item(
+        if not dashboard_exists:
+            # Create entry in dashboard collection
+            await dc.async_create_item(
                 {
                     CONF_ICON: "mdi:glasses",
                     CONF_TITLE: DASHBOARD_NAME,
                     CONF_URL_PATH: self.path,
+                    CONF_SHOW_IN_SIDEBAR: True,
                 }
             )
 
-            c = {"id": slugify(DASHBOARD_NAME), CONF_URL_PATH: self.path}
-            dashboard_store = dashboard.LovelaceStorage(self.hass, c)
-            # await dashboard_store.async_save(dashboard_config)
-            # lovelace.dashboards[self.path] = dashboard_store
+            # Add dashboard entry to Lovelace storage
+            lovelace.dashboards[self.path] = dashboard.LovelaceStorage(
+                self.hass,
+                {
+                    "id": "view_assist",
+                    CONF_ICON: "mdi:glasses",
+                    CONF_TITLE: DASHBOARD_NAME,
+                    CONF_URL_PATH: self.path,
+                },
+            )
+            await lovelace.dashboards[self.path].async_save(dashboard_config)
 
-            # frontend.async_register_built_in_panel(
-            #    self.hass,
-            #    "lovelace",
-            #    "View Assist",
-            #    "mdi:glasses",
-            #    self.path,
-            #    dashboard_config,
-            # )
+            # Register panel
+            kwargs = {
+                "frontend_url_path": self.path,
+                "require_admin": False,
+                "config": dashboard_config,
+                "sidebar_title": DASHBOARD_NAME,
+                "sidebar_icon": "mdi:glasses",
+            }
+            frontend.async_register_built_in_panel(
+                self.hass, "lovelace", **kwargs, update=False
+            )
 
-            _LOGGER.warning("LL After: %s", lovelace.dashboards)
+            await dc.async_update_item("view_assist", {CONF_SHOW_IN_SIDEBAR: True})
 
-            # Create dashboard
-            # dashboards_collection: dashboard.DashboardsCollection = lovelace[
-            #    "dashboards_collection"
-            # ]
-            # await dashboards_collection.async_create_item(
-            #    {
-            #        CONF_ICON: "mdi:glasses",
-            #        CONF_TITLE: DASHBOARD_NAME,
-            #        CONF_URL_PATH: self.path,
-            #    }
-            # )
-
-            # Wait for dashboard to be registered in Hass object
-            # while not lovelace.dashboards.get(self.path):
-            #    await asyncio.sleep(0.1)
-
-            # dashboard_store: dashboard.LovelaceStorage = lovelace.dashboards[self.path]
-            await dashboard_store.async_save(dashboard_config)
-            lovelace.dashboards[self.path] = dashboard_config
-        else:
-            _LOGGER.info("View Assist dashboard already configured")
+            # TODO: Needs restart for lovelace to properly manage dashboard.  Must be some
+            # event that needs raising.
 
     async def _config_views(self, views_to_load: list[str]):
         """Create views from config files if not exist."""
         # Get lovelace (frontend) config data
-        lovelace = self.hass.data["lovelace"]
+        lovelace: LovelaceData = self.hass.data["lovelace"]
 
         # Get access to dashboard store
         dashboard_store: dashboard.LovelaceStorage = lovelace.dashboards.get(self.path)
