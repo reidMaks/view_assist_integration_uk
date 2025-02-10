@@ -8,6 +8,7 @@ from .entity_listeners import EntityListeners
 from .frontend import FrontendConfig
 from .helpers import ensure_list
 from .services import setup_services
+from .websocket import async_register_websockets
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,6 +37,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
 
     # Inisitialise service
     await setup_services(hass)
+
+    # Load websockets
+    await async_register_websockets(hass)
 
     return True
 
