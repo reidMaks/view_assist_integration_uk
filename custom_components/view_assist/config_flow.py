@@ -227,7 +227,8 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
         """Handle dashboard options flow."""
         if user_input is not None:
             # This is just updating the core config so update config_entry.data
-            return self.async_create_entry(data=user_input)
+            options = self.config_entry.options | user_input
+            return self.async_create_entry(data=options)
 
         data_schema = vol.Schema(
             {
@@ -313,7 +314,8 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
         """Handle default options flow."""
         if user_input is not None:
             # This is just updating the core config so update config_entry.data
-            return self.async_create_entry(data=user_input)
+            options = self.config_entry.options | user_input
+            return self.async_create_entry(data=options)
 
         data_schema = vol.Schema(
             {
