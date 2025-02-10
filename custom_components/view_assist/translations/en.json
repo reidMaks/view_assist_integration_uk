@@ -118,9 +118,9 @@
     },
       "status_icons_size_selector": {
         "options": {
-          "Small": "Small",
-          "Medium": "Medium",
-          "Large": "Large"
+          "6vw": "Small",
+          "7vw": "Medium",
+          "8vw": "Large"
         }
     },
     "mic_type_selector": {

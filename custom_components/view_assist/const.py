@@ -33,9 +33,9 @@ class VAAssistPrompt(StrEnum):
 class VAIconSizes(StrEnum):
     """Icon size options enum."""
 
-    SMALL = "Small"
-    MEDIUM = "Medium"
-    LARGE = "Large"
+    SMALL = "6vw"
+    MEDIUM = "7vw"
+    LARGE = "8vw"
 
 
 class VAMicType(StrEnum):
