@@ -3,10 +3,12 @@
 import asyncio
 import logging
 
+from homeassistant.components import frontend
 from homeassistant.components.lovelace import (
     CONF_ICON,
     CONF_TITLE,
     CONF_URL_PATH,
+    LovelaceData,
     dashboard,
 )
 from homeassistant.core import HomeAssistant
@@ -41,9 +43,9 @@ class FrontendConfig:
 
         It will not overwrite modifications made to views
         """
-        await self._config_dashboard()
-        await self._config_views(VIEWS_TO_LOAD)
-        await self._delete_home_view()
+        # await self._config_dashboard()
+        # await self._config_views(VIEWS_TO_LOAD)
+        # await self._delete_home_view()
 
     async def _config_dashboard(self):
         """Create dashboard if it doesn#t exist."""
@@ -52,17 +54,18 @@ class FrontendConfig:
         f = f"{self.files_path}/dashboard.yaml"
 
         # Get lovelace (frontend) config data
-        lovelace = self.hass.data["lovelace"]
+        lovelace: LovelaceData = self.hass.data["lovelace"]
+
+        _LOGGER.warning("LL: %s", lovelace.dashboards)
 
         # If dashboard not in existing dashboard collection
-        if self.path not in lovelace["dashboards"]:
+        if self.path not in lovelace.dashboards:
             # Load dashboard config file
             dashboard_config = await self.hass.async_add_executor_job(load_yaml_dict, f)
 
-            # Create dashboard
-            dashboards_collection: dashboard.DashboardsCollection = lovelace[
-                "dashboards_collection"
-            ]
+            dashboards_collection = dashboard.DashboardsCollection(self.hass)
+            await dashboards_collection.async_load()
+            _LOGGER.warning("DASH COL: %s", dashboards_collection.data)
             await dashboards_collection.async_create_item(
                 {
                     CONF_ICON: "mdi:glasses",
@@ -71,14 +74,41 @@ class FrontendConfig:
                 }
             )
 
-            # Wait for dashboard to be registered in Hass object
-            while not lovelace["dashboards"].get(self.path):
-                await asyncio.sleep(0.1)
+            c = {"id": slugify(DASHBOARD_NAME), CONF_URL_PATH: self.path}
+            dashboard_store = dashboard.LovelaceStorage(self.hass, c)
+            # await dashboard_store.async_save(dashboard_config)
+            # lovelace.dashboards[self.path] = dashboard_store
 
-            dashboard_store: dashboard.LovelaceStorage = lovelace["dashboards"][
-                self.path
-            ]
+            # frontend.async_register_built_in_panel(
+            #    self.hass,
+            #    "lovelace",
+            #    "View Assist",
+            #    "mdi:glasses",
+            #    self.path,
+            #    dashboard_config,
+            # )
+
+            _LOGGER.warning("LL After: %s", lovelace.dashboards)
+
+            # Create dashboard
+            # dashboards_collection: dashboard.DashboardsCollection = lovelace[
+            #    "dashboards_collection"
+            # ]
+            # await dashboards_collection.async_create_item(
+            #    {
+            #        CONF_ICON: "mdi:glasses",
+            #        CONF_TITLE: DASHBOARD_NAME,
+            #        CONF_URL_PATH: self.path,
+            #    }
+            # )
+
+            # Wait for dashboard to be registered in Hass object
+            # while not lovelace.dashboards.get(self.path):
+            #    await asyncio.sleep(0.1)
+
+            # dashboard_store: dashboard.LovelaceStorage = lovelace.dashboards[self.path]
             await dashboard_store.async_save(dashboard_config)
+            lovelace.dashboards[self.path] = dashboard_config
         else:
             _LOGGER.info("View Assist dashboard already configured")
 
@@ -88,9 +118,7 @@ class FrontendConfig:
         lovelace = self.hass.data["lovelace"]
 
         # Get access to dashboard store
-        dashboard_store: dashboard.LovelaceStorage = lovelace["dashboards"].get(
-            self.path
-        )
+        dashboard_store: dashboard.LovelaceStorage = lovelace.dashboards.get(self.path)
 
         # Load dashboard config data
         if dashboard_store:
@@ -131,9 +159,7 @@ class FrontendConfig:
         lovelace = self.hass.data["lovelace"]
 
         # Get access to dashboard store
-        dashboard_store: dashboard.LovelaceStorage = lovelace["dashboards"].get(
-            self.path
-        )
+        dashboard_store: dashboard.LovelaceStorage = lovelace.dashboards.get(self.path)
 
         # Load dashboard config data
         if dashboard_store:

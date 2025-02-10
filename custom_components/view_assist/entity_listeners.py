@@ -40,17 +40,17 @@ class EntityListeners:
         # Add do not disturb listener
         dnd_device = "sensor." + config_entry.runtime_data.name
 
-        config_entry.async_on_unload(
-            async_track_state_change_event(
-                hass, dnd_device, self._async_on_dnd_device_state_change
-            )
-        )
+        # config_entry.async_on_unload(
+        #    async_track_state_change_event(
+        #        hass, dnd_device, self._async_on_dnd_device_state_change
+        #    )
+        # )
+
     def update_entity(self):
         """Dispatch message that entity is listening for to update."""
         async_dispatcher_send(
             self.hass, f"{DOMAIN}_{self.config_entry.entry_id}_update"
         )
-
 
     @callback
     def _async_on_mic_change(self, event: Event[EventStateChangedData]) -> None:
@@ -59,8 +59,7 @@ class EntityListeners:
         # If not change to mic mute state, exit function
         if (
             not event.data.get("old_state")
-            or event.data["old_state"].state
-            == mic_mute_new_state
+            or event.data["old_state"].state == mic_mute_new_state
         ):
             return
 
@@ -73,7 +72,7 @@ class EntityListeners:
             status_icons.remove("mic")
 
         self.config_entry.runtime_data.status_icons = status_icons
-        self.update_entity()        
+        self.update_entity()
 
     @callback
     def _async_on_mediaplayer_device_mute_change(
@@ -92,7 +91,11 @@ class EntityListeners:
             return
 
         _LOGGER.info("MP MUTE: %s", mp_mute_new_state)
-        status_icons = self.config_entry.runtime_data.status_icons.copy()
+        status_icons = (
+            self.config_entry.runtime_data.status_icons.copy()
+            if self.config_entry.runtime_data.status_icons
+            else []
+        )
 
         if mp_mute_new_state and "mediaplayer" not in status_icons:
             status_icons.append("mediaplayer")
@@ -106,15 +109,12 @@ class EntityListeners:
     def _async_on_dnd_device_state_change(
         self, event: Event[EventStateChangedData]
     ) -> None:
-        dnd_new_state = event.data["new_state"].attributes.get(
-            "do_not_disturb", False
-        )
+        dnd_new_state = event.data["new_state"].attributes.get("do_not_disturb", False)
 
         # If not change to dnd state, exit function
         if (
             not event.data.get("old_state")
-            or event.data["old_state"].attributes.get("do_not_disturb")
-            == dnd_new_state
+            or event.data["old_state"].attributes.get("do_not_disturb") == dnd_new_state
         ):
             return
 
