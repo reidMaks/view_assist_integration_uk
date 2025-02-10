@@ -1,3 +1,5 @@
+from collections.abc import Callable
+from functools import partial
 import logging
 from typing import Any
 
@@ -10,7 +12,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.config_validation import make_entity_service_schema
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
-from .const import DOMAIN, VAConfigEntry
+from .const import DOMAIN, VA_ATTRIBUTE_UPDATE_EVENT, VAConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,6 +46,7 @@ class ViewAssistSensor(SensorEntity):
         self._type = config.runtime_data.type
         self._attr_unique_id = f"{self._attr_name}_vasensor"
         self._attr_native_value = ""
+        self._attribute_listeners: dict[str, Callable] = {}
 
     async def async_added_to_hass(self) -> None:
         """Run when entity is about to be added to hass."""
@@ -105,6 +108,19 @@ class ViewAssistSensor(SensorEntity):
             if k == "state":
                 self._attr_native_value = v
                 continue
+
+            # Fire event if value changes to entity listener
+            if hasattr(self.config.runtime_data, k):
+                old_val = getattr(self.config.runtime_data, k)
+            elif hasattr(self.config.runtime_data.extra_data, k):
+                old_val = getattr(self.config.runtime_data.extra_data, k)
+            else:
+                old_val = None
+            if v != old_val:
+                kwargs = {"attribute": k, "old_value": old_val, "new_value": v}
+                self.hass.bus.fire(
+                    VA_ATTRIBUTE_UPDATE_EVENT.format(self.config.entry_id), kwargs
+                )
 
             # Set the value of named vartiables or add/update to extra_data dict
             if hasattr(self.config.runtime_data, k):
