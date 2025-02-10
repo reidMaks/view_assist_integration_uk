@@ -112,8 +112,8 @@ class ViewAssistSensor(SensorEntity):
             # Fire event if value changes to entity listener
             if hasattr(self.config.runtime_data, k):
                 old_val = getattr(self.config.runtime_data, k)
-            elif hasattr(self.config.runtime_data.extra_data, k):
-                old_val = getattr(self.config.runtime_data.extra_data, k)
+            elif self.config.runtime_data.extra_data.get(k) is not None:
+                old_val = self.config.runtime_data.extra_data[k]
             else:
                 old_val = None
             if v != old_val:
