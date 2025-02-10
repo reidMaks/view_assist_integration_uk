@@ -6,6 +6,7 @@ from typing import Any
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.const import CONF_MODE
 
 from .const import CONF_DO_NOT_DISTURB, DOMAIN, VA_ATTRIBUTE_UPDATE_EVENT, VAConfigEntry
 
@@ -145,6 +146,9 @@ class EntityListeners:
         if attribute == CONF_DO_NOT_DISTURB:
             self._async_on_dnd_device_state_change(event)
 
+        if attribute == CONF_MODE:
+            self._async_on_mode_state_change(event)
+
     @callback
     def _async_on_dnd_device_state_change(self, event: Event) -> None:
         """Set dnd status icon."""
@@ -162,3 +166,26 @@ class EntityListeners:
 
         self.config_entry.runtime_data.status_icons = status_icons
         self.update_entity()
+    
+    @callback
+    def _async_on_mode_state_change(self, event: Event) -> None:
+        """Set mode status icon."""
+
+        mode_new_state = event.data["new_value"]
+
+        _LOGGER.info("MODE STATE: %s", mode_new_state)
+        status_icons = self.config_entry.runtime_data.status_icons.copy()
+
+        modes = ["hold","cycle"]
+
+        # Remove all mode icons
+        for mode in modes:
+            if mode in status_icons:
+                status_icons.remove(mode)
+
+        # Now add back any you want
+        if mode_new_state in modes and mode_new_state not in status_icons:
+            status_icons.append(mode_new_state)
+
+        self.config_entry.runtime_data.status_icons = status_icons
+        self.update_entity()        

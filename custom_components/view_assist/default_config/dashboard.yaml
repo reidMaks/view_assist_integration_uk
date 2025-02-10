@@ -548,7 +548,7 @@ button_card_templates:
     icon: mdi:hand-back-left
     tap_action:
       action: call-service
-      service: python_script.set_state
+      service: view_assist.set_state
       service_data:
         mode: normal
         entity_id: '[[[ return variables.var_assistsat_entity ]]]'
@@ -558,7 +558,7 @@ button_card_templates:
     icon: mdi:minus-circle
     tap_action:
       action: call-service
-      service: python_script.set_state
+      service: view_assist.set_state
       service_data:
         do_not_disturb: false
         entity_id: '[[[ return variables.var_assistsat_entity ]]]'
