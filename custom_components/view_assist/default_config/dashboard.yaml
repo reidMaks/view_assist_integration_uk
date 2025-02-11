@@ -391,7 +391,7 @@ button_card_templates:
                     }
                   }
 
-                  return buttonList;
+                  return buttonList.reverse();
                 }]]]
   assist_template:
     styles:
