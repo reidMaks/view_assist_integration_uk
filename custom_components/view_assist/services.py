@@ -1,6 +1,8 @@
 import logging
 import os
 import random
+import requests
+from datetime import datetime
 import voluptuous as vol
 
 from homeassistant.const import CONF_DEVICE, CONF_PATH
@@ -137,48 +139,124 @@ async def setup_services(hass: HomeAssistant):
                     f"Revert browser {browser_id}",
                 ),
             )
+    # async def handle_get_random_image(call: ServiceCall) -> ServiceResponse:
+    #     """yaml
+    #     name: View Assist Select Random Image
+    #     description: Selects a random image from the specified directory
+    #     """
+    #     directory = call.data.get("directory")
+    
+    #     valid_extensions = ('.jpeg', '.jpg', '.tif', '.png')
+
+    #     # Translate /local/ to /config/www/ for directory validation
+    #     if directory.startswith("/local/"):
+    #         filesystem_directory = directory.replace("/local/", "/config/www/", 1)
+    #     else:
+    #         filesystem_directory = directory
+
+    #     # Verify the directory exists
+    #     if not os.path.isdir(filesystem_directory):
+    #         return {"error": f"The directory '{filesystem_directory}' does not exist."}
+
+    #     # List only image files with the valid extensions
+    #     images = [f for f in os.listdir(filesystem_directory) if f.lower().endswith(valid_extensions)]
+
+    #     # Check if any images were found
+    #     if not images:
+    #         return {"error": f"No images found in the directory '{filesystem_directory}'."}
+
+    #     # Select a random image
+    #     selected_image = random.choice(images)
+
+    #     # Replace /config/www/ with /local/ for constructing the relative path
+    #     if filesystem_directory.startswith("/config/www/"):
+    #         relative_path = filesystem_directory.replace("/config/www/", "/local/")
+    #     else:
+    #         relative_path = directory
+
+
+    #     # Ensure trailing slash in the relative path
+    #     if not relative_path.endswith('/'):
+    #         relative_path += '/'
+
+    #     # Construct the image path
+    #     image_path = f"{relative_path}{selected_image}"
+
+    #     # Return the image path in a dictionary
+    #     return {"image_path": image_path}
+###
     async def handle_get_random_image(call: ServiceCall) -> ServiceResponse:
         """yaml
         name: View Assist Select Random Image
-        description: Selects a random image from the specified directory
+        description: Selects a random image from the specified directory or downloads a new image
         """
         directory = call.data.get("directory")
-    
+        source = call.data.get("source", "local")  # Default to "local" if source is not provided
+        
         valid_extensions = ('.jpeg', '.jpg', '.tif', '.png')
 
-        # Translate /local/ to /config/www/ for directory validation
-        if directory.startswith("/local/"):
-            filesystem_directory = directory.replace("/local/", "/config/www/", 1)
+        if source == "local":
+            # Translate /local/ to /config/www/ for directory validation
+            if directory.startswith("/local/"):
+                filesystem_directory = directory.replace("/local/", "/config/www/", 1)
+            else:
+                filesystem_directory = directory
+
+            # Verify the directory exists
+            if not os.path.isdir(filesystem_directory):
+                return {"error": f"The directory '{filesystem_directory}' does not exist."}
+
+            # List only image files with the valid extensions
+            images = [f for f in os.listdir(filesystem_directory) if f.lower().endswith(valid_extensions)]
+
+            # Check if any images were found
+            if not images:
+                return {"error": f"No images found in the directory '{filesystem_directory}'."}
+
+            # Select a random image
+            selected_image = random.choice(images)
+
+            # Replace /config/www/ with /local/ for constructing the relative path
+            if filesystem_directory.startswith("/config/www/"):
+                relative_path = filesystem_directory.replace("/config/www/", "/local/")
+            else:
+                relative_path = directory
+
+            # Ensure trailing slash in the relative path
+            if not relative_path.endswith('/'):
+                relative_path += '/'
+
+            # Construct the image path
+            image_path = f"{relative_path}{selected_image}"
+
+        elif source == "download":
+            url = "https://unsplash.it/640/425?random"
+            response = requests.get(url)
+
+            if response.status_code == 200:
+                current_time = datetime.now().strftime("%Y%m%d%H%M%S")
+                filename = f"random_{current_time}.jpg"
+                full_path = os.path.join(directory, filename)
+
+                with open(full_path, "wb") as file:
+                    file.write(response.content)
+
+                # Remove previous background image
+                for file in os.listdir(directory):
+                    if file.startswith("random_") and file != filename:
+                        os.remove(os.path.join(directory, file))
+
+                image_path = full_path
+            else:
+                # Return existing image if the download fails
+                existing_files = [os.path.join(directory, file) for file in os.listdir(directory) if file.startswith("random_")]
+                image_path = existing_files[0] if existing_files else None
+
+            if not image_path:
+                return {"error": "Failed to download a new image and no existing images found."}
+
         else:
-            filesystem_directory = directory
-
-        # Verify the directory exists
-        if not os.path.isdir(filesystem_directory):
-            return {"error": f"The directory '{filesystem_directory}' does not exist."}
-
-        # List only image files with the valid extensions
-        images = [f for f in os.listdir(filesystem_directory) if f.lower().endswith(valid_extensions)]
-
-        # Check if any images were found
-        if not images:
-            return {"error": f"No images found in the directory '{filesystem_directory}'."}
-
-        # Select a random image
-        selected_image = random.choice(images)
-
-        # Replace /config/www/ with /local/ for constructing the relative path
-        if filesystem_directory.startswith("/config/www/"):
-            relative_path = filesystem_directory.replace("/config/www/", "/local/")
-        else:
-            relative_path = directory
-
-
-        # Ensure trailing slash in the relative path
-        if not relative_path.endswith('/'):
-            relative_path += '/'
-
-        # Construct the image path
-        image_path = f"{relative_path}{selected_image}"
+            return {"error": "Invalid source specified. Use 'local' or 'download'."}
 
         # Return the image path in a dictionary
         return {"image_path": image_path}
