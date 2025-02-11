@@ -552,6 +552,16 @@ button_card_templates:
       service_data:
         mode: normal
         entity_id: '[[[ return variables.var_assistsat_entity ]]]'
+  cycle:
+    type: custom:button-card
+    template: icon_template
+    icon: mdi:sync
+    tap_action:
+      action: call-service
+      service: view_assist.set_state
+      service_data:
+        mode: normal
+        entity_id: '[[[ return variables.var_assistsat_entity ]]]'        
   dnd:
     type: custom:button-card
     template: icon_template
