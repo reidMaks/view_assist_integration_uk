@@ -24,6 +24,7 @@ NAVIGATE_SERVICE_SCHEMA = vol.Schema(
             selector.EntitySelectorConfig(integration=DOMAIN)
         ),
         vol.Required(CONF_PATH): str,
+        vol.Required(CONF_DISPLAY_TYPE): str,
     }
 )
 
@@ -95,6 +96,7 @@ async def setup_services(hass: HomeAssistant):
         """Handle a navigate to view call."""
         va_entity_id = call.data.get("device")
         path = call.data.get("path")
+        # display_type = call.data.get("display_type")
 
         # get config entry from entity id to allow access to browser_id parameter
         entity_registry = er.async_get(hass)
@@ -102,10 +104,10 @@ async def setup_services(hass: HomeAssistant):
             entity_config_entry = hass.config_entries.async_get_entry(
                 entity.config_entry_id
             )
-            browser_id = entity_config_entry.data.get("browser_id")
+            browser_id = entity_config_entry.runtime_data.browser_id
 
             if browser_id:
-                await browser_navigate(browser_id, path, "/view_assist/clock")
+                await browser_navigate(browser_id, path, "/view-assist/clock")
 
     hass.services.async_register(
         DOMAIN, "navigate", handle_navigate, schema=NAVIGATE_SERVICE_SCHEMA

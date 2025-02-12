@@ -15,10 +15,20 @@ navigate:
     path:
       name: View Path
       description: Path in dashboard view
-      example: "view_assist/clock"
+      example: "/view-assist/clock"
       required: true
       selector:
         text:
+    display_type:
+      name: Display Type
+      description: The integration used to control the display
+      example: "BrowserMod"
+      required: true
+      selector:
+        select:
+          options:
+            - "BrowserMod"
+            - "Remote Assist Display"        
 set_state:
   name: Set state or attributes
   description: >
