@@ -172,6 +172,7 @@ class EntityListeners:
         """Set mode status icon."""
 
         mode_new_state = event.data["new_value"]
+        mode_old_state = event.data["old_value"]
 
         _LOGGER.info("MODE STATE: %s", mode_new_state)
         status_icons = self.config_entry.runtime_data.status_icons.copy()
@@ -188,4 +189,15 @@ class EntityListeners:
             status_icons.append(mode_new_state)
 
         self.config_entry.runtime_data.status_icons = status_icons
-        self.update_entity()        
+        self.update_entity() 
+
+        if mode_new_state == "normal" and mode_old_state != "normal":
+            # Add navigate to default view
+            _LOGGER.info("NAVIGATE TO: %s", mode_new_state)
+        elif mode_new_state == "music" and mode_old_state != "music":
+            # Add navigate to music view
+            _LOGGER.info("NAVIGATE TO: %s", mode_new_state)
+        elif mode_new_state == "cycle" and mode_old_state != "cycle":
+            # Add start cycle mode
+            # Pull cycle_mode attribute
+            _LOGGER.info("START MODE: %s", mode_new_state)                                    
