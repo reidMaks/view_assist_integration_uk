@@ -31,7 +31,7 @@ from .const import (
     CONF_BROWSER_ID,
     CONF_DISPLAY_TYPE,
 )
-from .timers import VATimers, decode_time_sentence, CONF_BROWSER_ID, CONF_DISPLAY_TYPE
+from .timers import VATimers, decode_time_sentence
 
 _LOGGER = logging.getLogger(__name__)
 
