@@ -475,7 +475,7 @@ class VATimers:
             encoded_time = encode_datetime_to_human(
                 timer_info.__class__.__name__, timer.name, expiry
             )
-            return timer, encoded_time
+            return timer_id, timer, encoded_time
 
         return None, "already exists"
 
@@ -527,15 +527,17 @@ class VATimers:
         Optionally supply timer_id or device_id to filter the returned list
         """
         if timer_id:
-            return self.timers.get(timer_id)
+            return {"id": timer_id, "timer": self.timers.get(timer_id)}
 
         if device_id:
             return [
-                {"id": timer_id, **timer}
+                {"id": timer_id, "timer": timer}
                 for timer_id, timer in self.timers.items()
                 if timer.device_id == device_id
             ]
-        return self.timers
+        return [
+            {"id": timer_id, "timer": timer} for timer_id, timer in self.timers.items()
+        ]
 
     async def _timer_finished(self, timer_id: str) -> None:
         """Call event handlers when a timer finishes."""
