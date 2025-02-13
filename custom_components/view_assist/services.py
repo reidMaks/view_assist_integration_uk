@@ -96,7 +96,7 @@ async def setup_services(hass: HomeAssistant):
         """Handle a navigate to view call."""
         va_entity_id = call.data.get("device")
         path = call.data.get("path")
-        # display_type = call.data.get("display_type")
+        display_type = call.data.get("display_type")
 
         # get config entry from entity id to allow access to browser_id parameter
         entity_registry = er.async_get(hass)
@@ -107,7 +107,7 @@ async def setup_services(hass: HomeAssistant):
             browser_id = entity_config_entry.runtime_data.browser_id
 
             if browser_id:
-                await browser_navigate(browser_id, path, "/view-assist/clock")
+                await browser_navigate(browser_id, path, display_type, "/view-assist/clock")
 
     hass.services.async_register(
         DOMAIN, "navigate", handle_navigate, schema=NAVIGATE_SERVICE_SCHEMA
@@ -116,6 +116,7 @@ async def setup_services(hass: HomeAssistant):
     async def browser_navigate(
         browser_id: str,
         path: str,
+        display_type: str,
         revert_path: str | None = None,
         timeout: int = 10,
     ):
@@ -123,70 +124,32 @@ async def setup_services(hass: HomeAssistant):
 
         Optionally revert to another view after timeout.
         """
-        _LOGGER.debug("Navigating: browser_id: %s, path: %s", browser_id, path)
-        await hass.services.async_call(
-            "browser_mod",
-            "navigate",
-            {"browser_id": browser_id, "path": path},
-        )
+        _LOGGER.info("Navigating: browser_id: %s, path: %s, display_type: %s", browser_id, path, display_type)
 
+        if display_type == "BrowserMod":
+            await hass.services.async_call(
+                "browser_mod",
+                "navigate",
+                {"browser_id": browser_id, "path": path},
+            )
+        elif display_type == "Remote Assist Display":
+            await hass.services.async_call(
+                "remote_assist_display",
+                "navigate",
+                {"target": browser_id, "path": path},
+            )            
 
         if revert_path and timeout:
-            _LOGGER.debug("Adding revert to %s in %ss", revert_path, timeout)
+            _LOGGER.info("Adding revert to %s in %ss", revert_path, timeout)
             hass.loop.call_later(
                 10,
                 partial(
                     hass.create_task,
-                    browser_navigate(browser_id, revert_path),
+                    browser_navigate(browser_id, revert_path, display_type),
                     f"Revert browser {browser_id}",
                 ),
             )
-    # async def handle_get_random_image(call: ServiceCall) -> ServiceResponse:
-    #     """yaml
-    #     name: View Assist Select Random Image
-    #     description: Selects a random image from the specified directory
-    #     """
-    #     directory = call.data.get("directory")
-    
-    #     valid_extensions = ('.jpeg', '.jpg', '.tif', '.png')
 
-    #     # Translate /local/ to /config/www/ for directory validation
-    #     if directory.startswith("/local/"):
-    #         filesystem_directory = directory.replace("/local/", "/config/www/", 1)
-    #     else:
-    #         filesystem_directory = directory
-
-    #     # Verify the directory exists
-    #     if not os.path.isdir(filesystem_directory):
-    #         return {"error": f"The directory '{filesystem_directory}' does not exist."}
-
-    #     # List only image files with the valid extensions
-    #     images = [f for f in os.listdir(filesystem_directory) if f.lower().endswith(valid_extensions)]
-
-    #     # Check if any images were found
-    #     if not images:
-    #         return {"error": f"No images found in the directory '{filesystem_directory}'."}
-
-    #     # Select a random image
-    #     selected_image = random.choice(images)
-
-    #     # Replace /config/www/ with /local/ for constructing the relative path
-    #     if filesystem_directory.startswith("/config/www/"):
-    #         relative_path = filesystem_directory.replace("/config/www/", "/local/")
-    #     else:
-    #         relative_path = directory
-
-
-    #     # Ensure trailing slash in the relative path
-    #     if not relative_path.endswith('/'):
-    #         relative_path += '/'
-
-    #     # Construct the image path
-    #     image_path = f"{relative_path}{selected_image}"
-
-    #     # Return the image path in a dictionary
-    #     return {"image_path": image_path}
-###
     async def handle_get_random_image(call: ServiceCall) -> ServiceResponse:
         """yaml
         name: View Assist Select Random Image

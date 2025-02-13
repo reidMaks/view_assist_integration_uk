@@ -286,7 +286,7 @@ button_card_templates:
     triggers_update: all
     tap_action:
       action: call-service
-      service: python_script.set_state
+      service: view_assist.set_state
       service_data:
         entity_id: >-
           [[[ try { return variables.var_assistsat_entity } catch { return  ""
@@ -294,7 +294,7 @@ button_card_templates:
         mode: hold
     double_tap_action:
       action: call-service
-      service: python_script.set_state
+      service: view_assist.set_state
       service_data:
         entity_id: >-
           [[[ try { return variables.var_assistsat_entity } catch { return  "" }
