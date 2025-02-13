@@ -209,7 +209,7 @@ async def setup_services(hass: HomeAssistant, config: VAConfigEntry):
         sentence, timer_info = decode_time_sentence(timer_time)
         if timer_info:
             t: VATimers = config.runtime_data._timers  # noqa: SLF001
-            result = await t.add_timer(
+            timer, response = await t.add_timer(
                 timer_type,
                 device_id,
                 timer_info,
@@ -217,7 +217,7 @@ async def setup_services(hass: HomeAssistant, config: VAConfigEntry):
                 extra_info={"sentence": sentence},
             )
 
-            return {"result": result}
+            return {"timer": timer, "response": response}
         return {"error": "unable to decode time or interval information"}
 
     async def handle_cancel_timer(call: ServiceCall) -> ServiceResponse:

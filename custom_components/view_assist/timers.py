@@ -475,9 +475,9 @@ class VATimers:
             encoded_time = encode_datetime_to_human(
                 timer_info.__class__.__name__, timer.name, expiry
             )
-            return timer_id, device_id, timer_class, name, expiry, encoded_time
+            return timer, encoded_time
 
-        return 0, device_id, timer_class, name, expiry, "already exists"
+        return None, "already exists"
 
     async def start_timer(self, timer_id: str, timer: Timer):
         """Start timer running."""
