@@ -1,3 +1,5 @@
+"""Integration services."""
+
 import logging
 import os
 import random
@@ -5,7 +7,13 @@ import requests
 from datetime import datetime
 import voluptuous as vol
 
-from homeassistant.const import CONF_DEVICE, CONF_PATH
+from homeassistant.const import (
+    CONF_DEVICE,
+    CONF_DEVICE_ID,
+    CONF_NAME,
+    CONF_PATH,
+    CONF_TYPE,
+)
 from homeassistant.core import (
     HomeAssistant,
     ServiceCall,
@@ -15,7 +23,16 @@ from homeassistant.core import (
 from homeassistant.helpers import entity_registry as er, selector
 from homeassistant.helpers.event import partial
 
-from .const import DOMAIN, CONF_BROWSER_ID, CONF_DISPLAY_TYPE
+from .const import (
+    CONF_TIME,
+    CONF_TIMER_ID,
+    DOMAIN,
+    VAConfigEntry,
+    CONF_BROWSER_ID,
+    CONF_DISPLAY_TYPE,
+)
+from .timers import VATimers, decode_time_sentence, CONF_BROWSER_ID, CONF_DISPLAY_TYPE
+
 _LOGGER = logging.getLogger(__name__)
 
 NAVIGATE_SERVICE_SCHEMA = vol.Schema(
@@ -28,8 +45,30 @@ NAVIGATE_SERVICE_SCHEMA = vol.Schema(
     }
 )
 
+SET_TIMER_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_DEVICE_ID): str,
+        vol.Required(CONF_TYPE): str,
+        vol.Optional(CONF_NAME): str,
+        vol.Required(CONF_TIME): str,
+    }
+)
 
-async def setup_services(hass: HomeAssistant):
+CANCEL_TIMER_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_TIMER_ID): str,
+    }
+)
+
+GET_TIMERS_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_TIMER_ID): str,
+        vol.Optional(CONF_DEVICE_ID): str,
+    }
+)
+
+
+async def setup_services(hass: HomeAssistant, config: VAConfigEntry):
     """Initialise VA services."""
     ##################
     # Get Target Satellite
@@ -107,7 +146,9 @@ async def setup_services(hass: HomeAssistant):
             browser_id = entity_config_entry.runtime_data.browser_id
 
             if browser_id:
-                await browser_navigate(browser_id, path, display_type, "/view-assist/clock")
+                await browser_navigate(
+                    browser_id, path, display_type, "/view-assist/clock"
+                )
 
     hass.services.async_register(
         DOMAIN, "navigate", handle_navigate, schema=NAVIGATE_SERVICE_SCHEMA
@@ -124,7 +165,12 @@ async def setup_services(hass: HomeAssistant):
 
         Optionally revert to another view after timeout.
         """
-        _LOGGER.info("Navigating: browser_id: %s, path: %s, display_type: %s", browser_id, path, display_type)
+        _LOGGER.info(
+            "Navigating: browser_id: %s, path: %s, display_type: %s",
+            browser_id,
+            path,
+            display_type,
+        )
 
         if display_type == "BrowserMod":
             await hass.services.async_call(
@@ -137,7 +183,7 @@ async def setup_services(hass: HomeAssistant):
                 "remote_assist_display",
                 "navigate",
                 {"target": browser_id, "path": path},
-            )            
+            )
 
         if revert_path and timeout:
             _LOGGER.info("Adding revert to %s in %ss", revert_path, timeout)
@@ -150,15 +196,82 @@ async def setup_services(hass: HomeAssistant):
                 ),
             )
 
+    # ----------------------------------------------------------------
+    # TIMERS
+    # ----------------------------------------------------------------
+    async def handle_set_timer(call: ServiceCall) -> ServiceResponse:
+        """Handle a set timer service call."""
+        device_id = call.data.get(CONF_DEVICE_ID)
+        timer_type = call.data.get(CONF_TYPE)
+        name = call.data.get(CONF_NAME)
+        timer_time = call.data.get(CONF_TIME)
+
+        sentence, timer_info = decode_time_sentence(timer_time)
+        if timer_info:
+            t: VATimers = config.runtime_data._timers  # noqa: SLF001
+            result = await t.add_timer(
+                timer_type,
+                device_id,
+                timer_info,
+                name,
+                extra_info={"sentence": sentence},
+            )
+
+            return {"result": result}
+        return {"error": "unable to decode time or interval information"}
+
+    async def handle_cancel_timer(call: ServiceCall) -> ServiceResponse:
+        """Handle a cancel timer service call."""
+        if timer_id := call.data.get(CONF_TIMER_ID):
+            t: VATimers = config.runtime_data._timers  # noqa: SLF001
+            result = await t.cancel_timer(timer_id)
+            return {"result": result}
+        return {"error": "no timer id supplied"}
+
+    async def handle_get_timers(call: ServiceCall) -> ServiceResponse:
+        """Handle a cancel timer service call."""
+        device_id = call.data.get(CONF_DEVICE_ID)
+        timer_id = call.data.get(CONF_TIMER_ID)
+
+        t: VATimers = config.runtime_data._timers  # noqa: SLF001
+        result = await t.get_timers(timer_id, device_id)
+        return {"result": result}
+
+    hass.services.async_register(
+        DOMAIN,
+        "set_timer",
+        handle_set_timer,
+        schema=SET_TIMER_SERVICE_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "cancel_timer",
+        handle_cancel_timer,
+        schema=CANCEL_TIMER_SERVICE_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "get_timers",
+        handle_get_timers,
+        schema=GET_TIMERS_SERVICE_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+
     async def handle_get_random_image(call: ServiceCall) -> ServiceResponse:
         """yaml
         name: View Assist Select Random Image
         description: Selects a random image from the specified directory or downloads a new image
         """
         directory = call.data.get("directory")
-        source = call.data.get("source", "local")  # Default to "local" if source is not provided
-        
-        valid_extensions = ('.jpeg', '.jpg', '.tif', '.png')
+        source = call.data.get(
+            "source", "local"
+        )  # Default to "local" if source is not provided
+
+        valid_extensions = (".jpeg", ".jpg", ".tif", ".png")
 
         if source == "local":
             # Translate /local/ to /config/www/ for directory validation
@@ -169,14 +282,22 @@ async def setup_services(hass: HomeAssistant):
 
             # Verify the directory exists
             if not os.path.isdir(filesystem_directory):
-                return {"error": f"The directory '{filesystem_directory}' does not exist."}
+                return {
+                    "error": f"The directory '{filesystem_directory}' does not exist."
+                }
 
             # List only image files with the valid extensions
-            images = [f for f in os.listdir(filesystem_directory) if f.lower().endswith(valid_extensions)]
+            images = [
+                f
+                for f in os.listdir(filesystem_directory)
+                if f.lower().endswith(valid_extensions)
+            ]
 
             # Check if any images were found
             if not images:
-                return {"error": f"No images found in the directory '{filesystem_directory}'."}
+                return {
+                    "error": f"No images found in the directory '{filesystem_directory}'."
+                }
 
             # Select a random image
             selected_image = random.choice(images)
@@ -188,8 +309,8 @@ async def setup_services(hass: HomeAssistant):
                 relative_path = directory
 
             # Ensure trailing slash in the relative path
-            if not relative_path.endswith('/'):
-                relative_path += '/'
+            if not relative_path.endswith("/"):
+                relative_path += "/"
 
             # Construct the image path
             image_path = f"{relative_path}{selected_image}"
@@ -214,11 +335,17 @@ async def setup_services(hass: HomeAssistant):
                 image_path = full_path
             else:
                 # Return existing image if the download fails
-                existing_files = [os.path.join(directory, file) for file in os.listdir(directory) if file.startswith("random_")]
+                existing_files = [
+                    os.path.join(directory, file)
+                    for file in os.listdir(directory)
+                    if file.startswith("random_")
+                ]
                 image_path = existing_files[0] if existing_files else None
 
             if not image_path:
-                return {"error": "Failed to download a new image and no existing images found."}
+                return {
+                    "error": "Failed to download a new image and no existing images found."
+                }
 
         else:
             return {"error": "Invalid source specified. Use 'local' or 'download'."}

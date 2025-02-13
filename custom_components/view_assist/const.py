@@ -1,5 +1,6 @@
 """Integration classes and constants."""
 
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
@@ -53,12 +54,158 @@ class VADisplayType(StrEnum):
     REMOTE_ASSIST_DISPLAY = "Remote Assist Display"
 
 
+class TimerClass(StrEnum):
+    """Timer class."""
+
+    ALARM = "alarm"
+    REMINDER = "reminder"
+    TIMER = "timer"
+
+
+@dataclass
+class TimerInterval:
+    """Timer Interval."""
+
+    days: int = 0
+    hours: int = 0
+    minutes: int = 0
+    seconds: int = 0
+
+
+@dataclass
+class TimerTime:
+    """Timer Time."""
+
+    day: str = ""
+    hour: int = 0
+    minute: int = 0
+    second: int = 0
+    meridiem: str = ""
+
+
+class TimerStatus(StrEnum):
+    """Timer status."""
+
+    INACTIVE = "inactive"
+    RUNNING = "running"
+    EXPIRED = "expired"
+
+
+@dataclass
+class Timer:
+    """Class to hold timer."""
+
+    timer_class: TimerClass
+    expires_at: int
+    name: str | None = None
+    device_id: str | None = None
+    created_at: int = 0
+    updated_at: int = 0
+    status: TimerStatus = field(default_factory=TimerStatus.INACTIVE)
+    extra_info: dict[str, Any] | None = None
+
+
+# Config keys
+CONF_MIC_DEVICE = "mic_device"
+CONF_MEDIAPLAYER_DEVICE = "mediaplayer_device"
+CONF_MUSICPLAYER_DEVICE = "musicplayer_device"
+CONF_DISPLAY_DEVICE = "display_device"
+CONF_BROWSER_ID = "browser_id"
+CONF_DASHBOARD = "dashboard"
+CONF_HOME = "home"
+CONF_INTENT = "intent"
+CONF_MUSIC = "music"
+CONF_BACKGROUND = "background"
+CONF_ASSIST_PROMPT = "assist_prompt"
+CONF_STATUS_ICON_SIZE = "status_icons_size"
+CONF_FONT_STYLE = "font_style"
+CONF_STATUS_ICONS = "status_icons"
+CONF_USE_24H_TIME = "use_24_hour_time"
+CONF_WEATHER_ENTITY = "weather_entity"
+CONF_MIC_TYPE = "mic_type"
+CONF_DISPLAY_TYPE = "display_type"
+CONF_VIEW_TIMEOUT = "view_timeout"
+CONF_DO_NOT_DISTURB = "do_not_disturb"
+CONF_USE_ANNOUNCE = "use_announce"
+CONF_MIC_UNMUTE = "micunmute"
+CONF_TIME = "time"
+CONF_TIMER_ID = "timer_id"
+
+# Config default values
+DEFAULT_NAME = "View Assist"
+DEFAULT_TYPE = VAType.VIEW_AUDIO
+DEFAULT_DASHBOARD = "/dashboard-viewassist"
+DEFAULT_VIEW_HOME = "/dashboard-viewassist/clock"
+DEFAULT_VIEW_MUSIC = "/dashboard-viewassist/music"
+DEFAULT_VIEW_INTENT = "/dashboard-viewassist/intent"
+DEFAULT_VIEW_BACKGROUND = "/local/viewassist/backgrounds/mybackground.jpg"
+DEFAULT_ASSIST_PROMPT = VAAssistPrompt.BLUR_POPUP
+DEFAULT_STATUS_ICON_SIZE = VAIconSizes.LARGE
+DEFAULT_FONT_STYLE = "Roboto"
+DEFAULT_STATUS_ICONS = []
+DEFAULT_USE_24H_TIME = False
+DEFAULT_WEATHER_ENITITY = "weather.home"
+DEFAULT_MIC_TYPE = VAMicType.HA_VOICE_SATELLITE
+DEFAULT_DISPLAY_TYPE = VADisplayType.BROWSERMOD
+DEFAULT_MODE = "normal"
+DEFAULT_VIEW_TIMEOUT = 20
+DEFAULT_DND = False
+DEFAULT_USE_ANNOUNCE = True
+DEFAULT_MIC_UNMUTE = False
+
+VA_ATTRIBUTE_UPDATE_EVENT = "va_attr_update_event_{}"
+VA_TIMER_FINISHED_EVENT = "va_timer_finished"
+
+TIMERS_STORE_NAME = f"{DOMAIN}.timers"
+
+WEEKDAYS = [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+]
+SPECIAL_DAYS = [
+    "today",
+    "tomorrow",
+]  # To be added for alarms - ["every day", "weekends", "weekdays"]
+AMPM = ["am", "pm"]
+
+HOURS = {
+    "midnight": 0,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "noon": 12,
+}
+PAST_TO = {
+    "five": 5,
+    "ten": 10,
+    "quarter": 15,
+    "twenty": 20,
+    "twenty five": 25,
+    "half": 30,
+}
+
+
 class RuntimeData:
     """Class to hold your data."""
 
     def __init__(self) -> None:
         """Initialise runtime data."""
         # Runtime variables go here
+        self._timers = None
 
         # Default config
         self.type: VAType | None = None
@@ -93,52 +240,3 @@ class RuntimeData:
 
         # Extra data for holding key/value pairs passed in by set_state service call
         self.extra_data: dict[str, Any] = {}
-
-
-# Config keys
-CONF_MIC_DEVICE = "mic_device"
-CONF_MEDIAPLAYER_DEVICE = "mediaplayer_device"
-CONF_MUSICPLAYER_DEVICE = "musicplayer_device"
-CONF_DISPLAY_DEVICE = "display_device"
-CONF_BROWSER_ID = "browser_id"
-CONF_DASHBOARD = "dashboard"
-CONF_HOME = "home"
-CONF_INTENT = "intent"
-CONF_MUSIC = "music"
-CONF_BACKGROUND = "background"
-CONF_ASSIST_PROMPT = "assist_prompt"
-CONF_STATUS_ICON_SIZE = "status_icons_size"
-CONF_FONT_STYLE = "font_style"
-CONF_STATUS_ICONS = "status_icons"
-CONF_USE_24H_TIME = "use_24_hour_time"
-CONF_WEATHER_ENTITY = "weather_entity"
-CONF_MIC_TYPE = "mic_type"
-CONF_DISPLAY_TYPE = "display_type"
-CONF_VIEW_TIMEOUT = "view_timeout"
-CONF_DO_NOT_DISTURB = "do_not_disturb"
-CONF_USE_ANNOUNCE = "use_announce"
-CONF_MIC_UNMUTE = "micunmute"
-
-# Config default values
-DEFAULT_NAME = "View Assist"
-DEFAULT_TYPE = VAType.VIEW_AUDIO
-DEFAULT_DASHBOARD = "/dashboard-viewassist"
-DEFAULT_VIEW_HOME = "/dashboard-viewassist/clock"
-DEFAULT_VIEW_MUSIC = "/dashboard-viewassist/music"
-DEFAULT_VIEW_INTENT = "/dashboard-viewassist/intent"
-DEFAULT_VIEW_BACKGROUND = "/local/viewassist/backgrounds/mybackground.jpg"
-DEFAULT_ASSIST_PROMPT = VAAssistPrompt.BLUR_POPUP
-DEFAULT_STATUS_ICON_SIZE = VAIconSizes.LARGE
-DEFAULT_FONT_STYLE = "Roboto"
-DEFAULT_STATUS_ICONS = []
-DEFAULT_USE_24H_TIME = False
-DEFAULT_WEATHER_ENITITY = "weather.home"
-DEFAULT_MIC_TYPE = VAMicType.HA_VOICE_SATELLITE
-DEFAULT_DISPLAY_TYPE = VADisplayType.BROWSERMOD
-DEFAULT_MODE = "normal"
-DEFAULT_VIEW_TIMEOUT = 20
-DEFAULT_DND = False
-DEFAULT_USE_ANNOUNCE = True
-DEFAULT_MIC_UNMUTE = False
-
-VA_ATTRIBUTE_UPDATE_EVENT = "va_attr_update_event_{}"

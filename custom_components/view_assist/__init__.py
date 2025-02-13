@@ -1,5 +1,6 @@
 import logging
 
+from config.custom_components.view_assist.timers import Timer, TimerClass, VATimers
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.core import HomeAssistant
 
@@ -9,6 +10,7 @@ from .frontend import FrontendConfig
 from .helpers import ensure_list
 from .services import setup_services
 from .websocket import async_register_websockets
+import datetime as dt
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +38,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     EntityListeners(hass, entry)
 
     # Inisitialise service
-    await setup_services(hass)
+    await setup_services(hass, entry)
 
     # Load websockets
     await async_register_websockets(hass)
@@ -67,6 +69,12 @@ async def run_if_first_display_instance(hass: HomeAssistant, entry: VAConfigEntr
         await setup_frontend()
     else:
         hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, setup_frontend)
+
+    # Timers
+    # TODO: Implement a first config item setup to put this in.
+    timers = VATimers(hass, entry)
+    await timers.load()
+    entry.runtime_data._timers = timers  # noqa: SLF001
 
 
 def set_runtime_data_from_config(config_entry: VAConfigEntry):
