@@ -1,6 +1,6 @@
-import logging
+import logging  # noqa: I001
 
-from config.custom_components.view_assist.timers import Timer, TimerClass, VATimers
+from config.custom_components.view_assist.timers import VATimers
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.core import HomeAssistant
 
@@ -10,7 +10,7 @@ from .frontend import FrontendConfig
 from .helpers import ensure_list
 from .services import setup_services
 from .websocket import async_register_websockets
-import datetime as dt
+
 
 _LOGGER = logging.getLogger(__name__)
 
