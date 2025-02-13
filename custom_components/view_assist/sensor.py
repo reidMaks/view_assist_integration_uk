@@ -1,5 +1,4 @@
 from collections.abc import Callable
-from functools import partial
 import logging
 from typing import Any
 
