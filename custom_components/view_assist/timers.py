@@ -376,21 +376,22 @@ class VATimers:
         """Load data store."""
         timers: dict[str, Any] = await self._store.async_load()
 
-        # Load timer dict into Timer class objects
-        for timer_id, timer in timers.items():
-            self.timers[timer_id] = Timer(**timer)
+        if timers:
+            # Load timer dict into Timer class objects
+            for timer_id, timer in timers.items():
+                self.timers[timer_id] = Timer(**timer)
 
-        # Removed any in expired status on restart as event already got fired
-        expired_timers = [
-            timer_id
-            for timer_id, timer in self.timers.items()
-            if timer.status == TimerStatus.EXPIRED
-        ]
-        for timer_id in expired_timers:
-            self.timers.pop(timer_id, None)
+            # Removed any in expired status on restart as event already got fired
+            expired_timers = [
+                timer_id
+                for timer_id, timer in self.timers.items()
+                if timer.status == TimerStatus.EXPIRED
+            ]
+            for timer_id in expired_timers:
+                self.timers.pop(timer_id, None)
 
-        for timer_id, timer in self.timers.items():
-            await self.start_timer(timer_id, timer)
+            for timer_id, timer in self.timers.items():
+                await self.start_timer(timer_id, timer)
 
     async def save(self):
         """Save data store."""
