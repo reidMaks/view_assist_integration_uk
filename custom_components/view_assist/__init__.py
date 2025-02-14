@@ -7,7 +7,7 @@ from .const import DOMAIN, RuntimeData, VAConfigEntry
 from .entity_listeners import EntityListeners
 from .frontend import FrontendConfig
 from .helpers import ensure_list
-from .services import setup_services
+from .services import VAServices
 from .timers import VATimers
 from .websocket import async_register_websockets
 
@@ -38,7 +38,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     EntityListeners(hass, entry)
 
     # Inisitialise service
-    await setup_services(hass, entry)
+    services = VAServices(hass, entry)
+    await services.async_setup_services()
 
     # Load websockets
     await async_register_websockets(hass)
