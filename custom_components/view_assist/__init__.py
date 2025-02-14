@@ -42,10 +42,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     # Load entity listeners
     EntityListeners(hass, entry)
 
-    # Inisitialise service
-    services = VAServices(hass, entry)
-    await services.async_setup_services()
-
     # Load websockets
     await async_register_websockets(hass)
 
@@ -54,6 +50,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
 
 async def run_if_first_instance(hass: HomeAssistant, entry: VAConfigEntry):
     """Things to run only for first instance of integration."""
+
+    # Inisitialise service
+    services = VAServices(hass, entry)
+    await services.async_setup_services()
 
     # Setup Timers
     timers = VATimers(hass, entry)

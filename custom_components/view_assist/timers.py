@@ -10,6 +10,8 @@ import re
 import time
 from typing import Any
 
+import wordtodigits
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
@@ -103,7 +105,9 @@ REGEX_SUPER_TIME = (
 REGEX_SUPER_INTERVAL = (
     r"()(\d+|"
     + "|".join(HOURS)
-    + r")?[ ]?(?:and a)?[ ]?(1/4|1/2|3/4|quarter|half|three quarters)[ ](?:an|of an)?[ ]?(?:minutes?|hours?)()"
+    + r")?[ ]?(?:and a)?[ ]?("
+    + "|".join(HOUR_FRACTIONS)
+    + r")[ ](?:an|of an)?[ ]?(?:minutes?|hours?)()"
 )
 
 
@@ -112,7 +116,7 @@ def calc_days_add(day: str, dt_now: dt.datetime) -> int:
     day = day.lower()
     has_next = False
 
-    # Deal with th elikes of next wednesday
+    # Deal with the likes of next wednesday
     if "next" in day:
         has_next = True
         day = day.replace("next", "").strip()
@@ -155,11 +159,29 @@ def decode_time_sentence(sentence: str) -> dt.datetime | None:
 
         return input_list
 
+    # Preprocess sentence for known issues
+    # These are a bit fudgy but so far too small a number to write
+    # more regex's for them
+    _sentence = sentence.lower()
+
+    if _sentence == "an hour and a half":
+        _sentence = "1 hour and 30 minutes"
+
+    elif _sentence == "a day and a half":
+        _sentence = "1 day and 12 hours"
+
+    elif _sentence.startswith("an hour"):
+        _sentence = _sentence.replace("an hour", "1 hour")
+
+    # Convert all word numbers to ints
+    if not _sentence.startswith("three quarters"):
+        _sentence = wordtodigits.convert(_sentence)
+
     # Time search
-    set_time = re.findall(REGEX_TIME, sentence)
+    set_time = re.findall(REGEX_TIME, _sentence)
 
     # make sure not a super text statement by tesing for to or past in the senstence
-    if " to " in sentence.lower() or " past " in sentence.lower():
+    if " to " in _sentence or " past " in _sentence:
         set_time = None
 
     if set_time:
@@ -170,7 +192,7 @@ def decode_time_sentence(sentence: str) -> dt.datetime | None:
 
         # Get if day or special day in sentence
         # This is a second check incase first REGEX does not detect it.
-        if day_text := re.findall(REGEX_DAYS, sentence):
+        if day_text := re.findall(REGEX_DAYS, _sentence):
             _LOGGER.info("DAY TEXT: %s", day_text)
             set_time[0] = day_text[0]
 
@@ -187,7 +209,7 @@ def decode_time_sentence(sentence: str) -> dt.datetime | None:
         return sentence, time_info
 
     # Interval search
-    int_search = re.search(REGEX_INTERVAL, sentence)
+    int_search = re.search(REGEX_INTERVAL, _sentence)
     interval = int_search.groups()
 
     if any(interval):
@@ -204,52 +226,50 @@ def decode_time_sentence(sentence: str) -> dt.datetime | None:
         return sentence, interval_info
 
     # Super time search
-    spec_time = re.findall(REGEX_SUPER_TIME, sentence)
+    spec_time = re.findall(REGEX_SUPER_TIME, _sentence)
     if spec_time:
         set_time = list(spec_time[0])
         _LOGGER.info("SUPER TEXT: %s -> %s", sentence, set_time)
 
         # return None if not a full match
-        if not all(set_time[1:3]):
-            return sentence, interval, None
+        if all(set_time[1:3]):
+            # Get if day or special day in sentence
+            # This is a second check incase first REGEX does not detect it.
+            if day_text := re.findall(REGEX_DAYS, _sentence):
+                _LOGGER.info("DAY TEXT: %s", day_text)
+                set_time[0] = day_text[0]
 
-        # Get if day or special day in sentence
-        # This is a second check incase first REGEX does not detect it.
-        if day_text := re.findall(REGEX_DAYS, sentence):
-            _LOGGER.info("DAY TEXT: %s", day_text)
-            set_time[0] = day_text[0]
+            # now iterate and replace text numbers with numbers
+            for i, v in enumerate(set_time):
+                if i > 0:
+                    with contextlib.suppress(KeyError):
+                        set_time[i] = HOURS.get(v, PAST_TO.get(v, v))
 
-        # now iterate and replace text numbers with numbers
-        for i, v in enumerate(set_time):
-            if i > 0:
-                with contextlib.suppress(KeyError):
-                    set_time[i] = HOURS.get(v, PAST_TO.get(v, v))
+            # Set any string ints to int
+            if isinstance(set_time[1], str) and set_time[1].isnumeric():
+                set_time[1] = int(set_time[1])
+            if isinstance(set_time[3], str) and set_time[3].isnumeric():
+                set_time[3] = int(set_time[3])
 
-        # Set any string ints to int
-        if isinstance(set_time[1], str) and set_time[1].isnumeric():
-            set_time[1] = int(set_time[1])
-        if isinstance(set_time[3], str) and set_time[3].isnumeric():
-            set_time[3] = int(set_time[3])
+            _LOGGER.info("TRANSLATED: %s", set_time)
 
-        _LOGGER.info("TRANSLATED: %s", set_time)
+            # Amend for set_time[2] == "to"
+            if set_time[2] == "to":
+                set_time[3] = set_time[3] - 1 if set_time[3] != 0 else 23
+                set_time[1] = 60 - set_time[1]
 
-        # Amend for set_time[2] == "to"
-        if set_time[2] == "to":
-            set_time[3] = set_time[3] - 1 if set_time[3] != 0 else 23
-            set_time[1] = 60 - set_time[1]
-
-        # make set_time into a class object
-        time_info = TimerTime(
-            day=set_time[0],
-            hour=set_time[3],
-            minute=set_time[1],
-            second=0,
-            meridiem=set_time[4],
-        )
-        return sentence, time_info
+            # make set_time into a class object
+            time_info = TimerTime(
+                day=set_time[0],
+                hour=set_time[3],
+                minute=set_time[1],
+                second=0,
+                meridiem=set_time[4],
+            )
+            return sentence, time_info
 
     # Super interval search
-    interval = re.findall(REGEX_SUPER_INTERVAL, sentence)
+    interval = re.findall(REGEX_SUPER_INTERVAL, _sentence)
     if interval:
         interval = list(interval[0])
         _LOGGER.info("INTERVAL: %s -> %s", sentence, interval)
@@ -265,8 +285,8 @@ def decode_time_sentence(sentence: str) -> dt.datetime | None:
         interval = _convert_to_ints(interval)
 
         # Fix for interval in minutes not hours
-        if ("minute" in sentence or "minutes" in sentence) and not (
-            "hour" in sentence or "hours" in sentence
+        if ("minute" in _sentence or "minutes" in _sentence) and not (
+            "hour" in _sentence or "hours" in _sentence
         ):
             # Shift values right in list
             interval = interval[-1:] + interval[:-1]
@@ -280,7 +300,7 @@ def decode_time_sentence(sentence: str) -> dt.datetime | None:
         return sentence, interval_info
 
     _LOGGER.info("DECODE: NOT DECODED: %s -> %s", sentence, None)
-    return sentence, None
+    return sentence, _sentence
 
 
 def get_datetime_from_timer_interval(interval: TimerInterval) -> dt.datetime:
@@ -300,7 +320,13 @@ def get_datetime_from_timer_time(
     """Return datetime from TimerTime."""
     dt_now = dt.datetime.now()
     add_hours = 0
-    if set_time.meridiem.lower() in ["pm", "tonight"]:
+
+    # Don't set times between midnight and 6am unless set specifically
+    # assume they mean PM
+    if set_time.hour < 6 and not set_time.meridiem:
+        set_time.meridiem = "pm"
+
+    if set_time.hour <= 12 and set_time.meridiem in ["pm", "tonight"]:
         add_hours = 12
 
     # Add time context - set for next time 12h time comes around
@@ -308,7 +334,11 @@ def get_datetime_from_timer_time(
     # if 20 to 5 and it is 6pm, set for 04:40
     elif context_time and not set_time.meridiem:
         # Set for next 12h time match
-        if set_time.hour < (dt_now.hour % 12):
+        set_datetime = dt_now.replace(
+            hour=set_time.hour, minute=set_time.minute, second=set_time.second
+        )
+
+        if set_time.hour < 12 and set_datetime + dt.timedelta(hours=12) > dt_now:
             add_hours = 12
             _LOGGER.info("CONTEXT TIME: Adding %sh", add_hours)
 

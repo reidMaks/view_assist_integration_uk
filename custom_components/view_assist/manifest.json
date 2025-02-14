@@ -6,6 +6,6 @@
   "dependencies": ["lovelace"],
   "codeowners": ["@dinki"],
   "config_flow": true,
-  "requirements": []
+  "requirements": ["wordtodigits==1.0.2"]
 
 }
