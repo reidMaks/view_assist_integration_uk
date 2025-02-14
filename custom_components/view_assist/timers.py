@@ -240,8 +240,8 @@ def decode_time_sentence(sentence: str) -> dt.datetime | None:
             )
             return sentence, time_info
 
-    _LOGGER.info("DECODE: NOT DECODED: %s -> %s -> %s", sentence, None, None)
-    return sentence, None, None
+    _LOGGER.info("DECODE: NOT DECODED: %s -> %s", sentence, None)
+    return sentence, None
 
 
 def get_datetime_from_timer_interval(interval: TimerInterval) -> dt.datetime:
@@ -477,7 +477,7 @@ class VATimers:
             )
             return timer_id, timer, encoded_time
 
-        return None, "already exists"
+        return None, None, "already exists"
 
     async def start_timer(self, timer_id: str, timer: Timer):
         """Start timer running."""
