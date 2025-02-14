@@ -527,7 +527,7 @@ class VATimers:
                 if timer.device_id == device_id
             ]
         elif cancel_all:
-            timer_ids = self.timers.keys()
+            timer_ids = self.timers.copy().keys()
 
         if timer_ids:
             for timerid in timer_ids:
