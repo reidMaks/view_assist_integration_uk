@@ -97,7 +97,7 @@ cancel_timer:
       description: "Cancel all timers"
       required: false
       selector:
-        text:
+        boolean:
 get_timers:
   name: "Get timers"
   description: "Get all timers or by timer id or device id"
