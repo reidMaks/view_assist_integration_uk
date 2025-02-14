@@ -1,4 +1,4 @@
-"""Class to handle persistent storage."""
+"""Class to handle timers with persistent storage."""
 
 import asyncio
 from asyncio import Task
@@ -16,6 +16,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import ulid as ulid_util
 
 from .const import (
+    HOUR_FRACTIONS,
     HOURS,
     PAST_TO,
     SPECIAL_DAYS,
@@ -31,45 +32,15 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# TODO: TO BE REMOVED WHEN KNOWN WORKING!!!
-TESTDATA = [
-    "4:00 PM",
-    "1600",
-    "10:30 AM",
-    "11:30",
-    "23:48",
-    "Thursday 4:00 PM",
-    "Tuesday at 2300",
-    "Sunday at 9:15 PM",
-    "Sunday at 9:15 AM",
-    "4:13 PM on Thursday",
-    "1600 on Thursday",
-    "Tomorrow at 1245",
-    "Next Wednesday at 21:15",
-    "Next Monday at 08:15 AM",
-    "Next Friday at 1200",
-    "2 days 1 hour 20 minutes",
-    "1 day 20 minutes",
-    "5 hours",
-    "2 hours 30 minutes",
-    "30 seconds",
-    "5 minutes 30 seconds",
-    "5 minutes",
-    "2 1/2 hours",
-    "quarter past 11",
-    "20 past five",
-    "half past 12",
-    "half past twelve",
-    "twenty to four",
-    "twenty to four AM",
-    "twenty to four PM",
-    "20 to 4:00 PM",
-    "tuesday at ten past 4",
-    "half past nine tonight",
-]
-
-
-REGEX_DAYS = r"(?i)\b(" + ("|".join(WEEKDAYS + SPECIAL_DAYS)) + ")"
+REGEX_DAYS = (
+    r"(?i)\b("
+    + (
+        "|".join(WEEKDAYS + SPECIAL_DAYS)
+        + "|"
+        + "|".join(f"Next {weekday}" for weekday in WEEKDAYS)
+    )
+    + ")"
+)
 
 # Find a time in the string and split into day, hours, mins and secs
 # 10:15 AM
@@ -106,7 +77,7 @@ REGEX_INTERVAL = (
 # twenty to four AM
 # twenty to four PM
 # 20 to 4:00 PM
-REGEX_SUPER_TEXT = (
+REGEX_SUPER_TIME = (
     r"(?i)\b("
     + ("|".join(WEEKDAYS + SPECIAL_DAYS))
     + r")?[ ]?(?:at)?[ ]?(\d+|"
@@ -116,17 +87,43 @@ REGEX_SUPER_TEXT = (
     + r")(?::\d+)?[ ]?(am|pm|tonight)?\b"
 )
 
+# All natural language intervals
+# 2 1/2 hours
+# 2 and a half hours
+# two and a half hours
+# one and a quarter hours
+# 1 1/2 minutes
+
+# three quarters of an hour
+# 3/4 of an hour
+# half an hour
+# 1/2 an hour
+# quarter of an hour
+# 1/4 of an hour
+REGEX_SUPER_INTERVAL = (
+    r"()(\d+|"
+    + "|".join(HOURS)
+    + r")?[ ]?(?:and a)?[ ]?(1/4|1/2|3/4|quarter|half|three quarters)[ ](?:an|of an)?[ ]?(?:minutes?|hours?)()"
+)
+
 
 def calc_days_add(day: str, dt_now: dt.datetime) -> int:
     """Get number of days to add for required weekday from now."""
     day = day.lower()
+    has_next = False
+
+    # Deal with th elikes of next wednesday
+    if "next" in day:
+        has_next = True
+        day = day.replace("next", "").strip()
+
     if day in WEEKDAYS:
         # monday is weekday 0
         current_weekday = dt_now.weekday()
         set_weekday = WEEKDAYS.index(day)
 
         # Check for 'next' prefix to day or if day less than today (assume next week)
-        if set_weekday < current_weekday:  # "next" in sentence.lower() or
+        if set_weekday < current_weekday or has_next:
             return (7 - current_weekday) + set_weekday
 
         return set_weekday - current_weekday
@@ -147,8 +144,18 @@ def decode_time_sentence(sentence: str) -> dt.datetime | None:
     Return None if unable to decode
     """
 
-    # firstly look for a time
-    # returns tuple of day, hour, min, sec, am/pm
+    def _convert_to_ints(input_list: list) -> list[int]:
+        for i, entry in enumerate(input_list):
+            if isinstance(entry, str):
+                if entry.isnumeric():
+                    input_list[i] = int(entry)
+            # Set to 0 if None or ""
+            if not entry:
+                input_list[i] = 0
+
+        return input_list
+
+    # Time search
     set_time = re.findall(REGEX_TIME, sentence)
 
     # make sure not a super text statement by tesing for to or past in the senstence
@@ -158,10 +165,8 @@ def decode_time_sentence(sentence: str) -> dt.datetime | None:
     if set_time:
         set_time = list(set_time[0])
 
-        # Set any string ints to int
-        for i in range(1, 3):
-            if isinstance(set_time[i], str) and set_time[i].isnumeric():
-                set_time[i] = int(set_time[i])
+        # Convert h,r, min, sec to int
+        set_time = set_time[:1] + _convert_to_ints(set_time[1:4]) + set_time[-1:]
 
         # Get if day or special day in sentence
         # This is a second check incase first REGEX does not detect it.
@@ -181,64 +186,98 @@ def decode_time_sentence(sentence: str) -> dt.datetime | None:
         )
         return sentence, time_info
 
-    if int_search := re.search(REGEX_INTERVAL, sentence):
-        interval = int_search.groups()
-        # interval is tuple in (days, hours, minutes, seconds)
-        # make datetime
-        if any(interval):
-            _LOGGER.info("INTERVAL: %s -> %s", sentence, interval)
+    # Interval search
+    int_search = re.search(REGEX_INTERVAL, sentence)
+    interval = int_search.groups()
 
-            interval_info = TimerInterval(
-                days=0 if interval[0] is None else int(interval[0]),
-                hours=0 if interval[1] is None else int(interval[1]),
-                minutes=0 if interval[2] is None else int(interval[2]),
-                seconds=0 if interval[3] is None else int(interval[3]),
-            )
-            return sentence, interval_info
+    if any(interval):
+        _LOGGER.info("INTERVAL: %s -> %s", sentence, interval)
 
-        # Super text search
-        if spec_time := re.findall(REGEX_SUPER_TEXT, sentence):
-            set_time = list(spec_time[0])
-            _LOGGER.info("SUPER TEXT: %s -> %s", sentence, set_time)
+        interval = _convert_to_ints(list(interval))
 
-            # return None if not a full match
-            if not all(set_time[1:3]):
-                return sentence, interval, None
+        interval_info = TimerInterval(
+            days=interval[0],
+            hours=interval[1],
+            minutes=interval[2],
+            seconds=interval[3],
+        )
+        return sentence, interval_info
 
-            # Get if day or special day in sentence
-            # This is a second check incase first REGEX does not detect it.
-            if day_text := re.findall(REGEX_DAYS, sentence):
-                _LOGGER.info("DAY TEXT: %s", day_text)
-                set_time[0] = day_text[0]
+    # Super time search
+    spec_time = re.findall(REGEX_SUPER_TIME, sentence)
+    if spec_time:
+        set_time = list(spec_time[0])
+        _LOGGER.info("SUPER TEXT: %s -> %s", sentence, set_time)
 
-            # now iterate and replace text numbers with numbers
-            for i, v in enumerate(set_time):
-                if i > 0:
-                    with contextlib.suppress(KeyError):
-                        set_time[i] = HOURS.get(v, PAST_TO.get(v, v))
+        # return None if not a full match
+        if not all(set_time[1:3]):
+            return sentence, interval, None
 
-            # Set any string ints to int
-            if isinstance(set_time[1], str) and set_time[1].isnumeric():
-                set_time[1] = int(set_time[1])
-            if isinstance(set_time[3], str) and set_time[3].isnumeric():
-                set_time[3] = int(set_time[3])
+        # Get if day or special day in sentence
+        # This is a second check incase first REGEX does not detect it.
+        if day_text := re.findall(REGEX_DAYS, sentence):
+            _LOGGER.info("DAY TEXT: %s", day_text)
+            set_time[0] = day_text[0]
 
-            _LOGGER.info("TRANSLATED: %s", set_time)
+        # now iterate and replace text numbers with numbers
+        for i, v in enumerate(set_time):
+            if i > 0:
+                with contextlib.suppress(KeyError):
+                    set_time[i] = HOURS.get(v, PAST_TO.get(v, v))
 
-            # Amend for set_time[2] == "to"
-            if set_time[2] == "to":
-                set_time[3] = set_time[3] - 1 if set_time[3] != 0 else 23
-                set_time[1] = 60 - set_time[1]
+        # Set any string ints to int
+        if isinstance(set_time[1], str) and set_time[1].isnumeric():
+            set_time[1] = int(set_time[1])
+        if isinstance(set_time[3], str) and set_time[3].isnumeric():
+            set_time[3] = int(set_time[3])
 
-            # make set_time into a class object
-            time_info = TimerTime(
-                day=set_time[0],
-                hour=set_time[3],
-                minute=set_time[1],
-                second=0,
-                meridiem=set_time[4],
-            )
-            return sentence, time_info
+        _LOGGER.info("TRANSLATED: %s", set_time)
+
+        # Amend for set_time[2] == "to"
+        if set_time[2] == "to":
+            set_time[3] = set_time[3] - 1 if set_time[3] != 0 else 23
+            set_time[1] = 60 - set_time[1]
+
+        # make set_time into a class object
+        time_info = TimerTime(
+            day=set_time[0],
+            hour=set_time[3],
+            minute=set_time[1],
+            second=0,
+            meridiem=set_time[4],
+        )
+        return sentence, time_info
+
+    # Super interval search
+    interval = re.findall(REGEX_SUPER_INTERVAL, sentence)
+    if interval:
+        interval = list(interval[0])
+        _LOGGER.info("INTERVAL: %s -> %s", sentence, interval)
+
+        # Convert hours to numbers
+        if interval[1] in HOURS:
+            interval[1] = HOURS.get(interval[1])
+
+        # Convert hour fractions
+        if interval[2] in HOUR_FRACTIONS:
+            interval[2] = HOUR_FRACTIONS.get(interval[2])
+
+        interval = _convert_to_ints(interval)
+
+        # Fix for interval in minutes not hours
+        if ("minute" in sentence or "minutes" in sentence) and not (
+            "hour" in sentence or "hours" in sentence
+        ):
+            # Shift values right in list
+            interval = interval[-1:] + interval[:-1]
+
+        interval_info = TimerInterval(
+            days=interval[0],
+            hours=interval[1],
+            minutes=interval[2],
+            seconds=interval[3],
+        )
+        return sentence, interval_info
 
     _LOGGER.info("DECODE: NOT DECODED: %s -> %s", sentence, None)
     return sentence, None
@@ -306,8 +345,6 @@ def encode_datetime_to_human(
     delta_s = math.ceil(delta.total_seconds())
 
     if timer_type == "TimerInterval":
-        # if less than 60 mins, return mins
-        # if delta.total_seconds() < 3600:
         minutes, seconds = divmod(delta_s, 60)
         hours, minutes = divmod(minutes, 60)
         days, hours = divmod(hours, 24)
@@ -432,7 +469,6 @@ class VATimers:
     ) -> tuple:
         """Add timer to store."""
 
-        # TODO: Make this run only on first instance - part done
         timer_id = ulid_util.ulid_now()
 
         # calculate expiry time from TimerTime or TimerInterval

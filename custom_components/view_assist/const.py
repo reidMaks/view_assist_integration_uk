@@ -199,6 +199,14 @@ PAST_TO = {
     "twenty five": 25,
     "half": 30,
 }
+HOUR_FRACTIONS = {
+    "1/4": 15,
+    "quarter": 15,
+    "1/2": 30,
+    "half": 30,
+    "3/4": 45,
+    "three quarters": 45,
+}
 
 
 class RuntimeData:
