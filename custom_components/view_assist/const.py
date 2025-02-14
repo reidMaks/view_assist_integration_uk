@@ -169,34 +169,20 @@ WEEKDAYS = [
     "saturday",
     "sunday",
 ]
+
 SPECIAL_DAYS = [
     "today",
     "tomorrow",
-]  # To be added for alarms - ["every day", "weekends", "weekdays"]
+]
+
 AMPM = ["am", "pm"]
 
 HOURS = {
     "midnight": 0,
-    "one": 1,
-    "two": 2,
-    "three": 3,
-    "four": 4,
-    "five": 5,
-    "six": 6,
-    "seven": 7,
-    "eight": 8,
-    "nine": 9,
-    "ten": 10,
-    "eleven": 11,
-    "twelve": 12,
     "noon": 12,
 }
 PAST_TO = {
-    "five": 5,
-    "ten": 10,
     "quarter": 15,
-    "twenty": 20,
-    "twenty five": 25,
     "half": 30,
 }
 HOUR_FRACTIONS = {
