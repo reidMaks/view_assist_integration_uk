@@ -432,10 +432,6 @@ class VATimers:
         """Add timer to store."""
 
         # TODO: Make this run only on first instance - part done
-        # TODO: Create cancel service
-        # TODO: Add cancel
-        # TODO: Improve return senstence
-
         timer_id = ulid_util.ulid_now()
 
         # calculate expiry time from TimerTime or TimerInterval
@@ -469,8 +465,6 @@ class VATimers:
 
             if start:
                 await self.start_timer(timer_id, timer)
-
-            _LOGGER.warning("TIMERS: %s", self.timers)
 
             encoded_time = encode_datetime_to_human(
                 timer_info.__class__.__name__, timer.name, expiry
@@ -532,6 +526,7 @@ class VATimers:
         if timer_ids:
             for timerid in timer_ids:
                 if self.timers.pop(timerid, None):
+                    _LOGGER.info("Cancelled timer: %s", timerid)
                     if timer_task := self.timer_tasks.pop(timerid, None):
                         if not timer_task.cancelled():
                             timer_task.cancel()
