@@ -24,6 +24,7 @@ from homeassistant.helpers import entity_registry as er, selector
 from homeassistant.helpers.event import partial
 
 from .const import (
+    CONF_DISPLAY_DEVICE,
     CONF_TIME,
     CONF_TIMER_ID,
     DOMAIN,
@@ -42,6 +43,7 @@ NAVIGATE_SERVICE_SCHEMA = vol.Schema(
         ),
         vol.Required(CONF_PATH): str,
         vol.Required(CONF_DISPLAY_TYPE): str,
+        vol.Optional(CONF_DISPLAY_DEVICE): str,
     }
 )
 
@@ -133,21 +135,22 @@ async def setup_services(hass: HomeAssistant, config: VAConfigEntry):
     #
     async def handle_navigate(call: ServiceCall):
         """Handle a navigate to view call."""
-        va_entity_id = call.data.get("device")
-        path = call.data.get("path")
-        display_type = call.data.get("display_type")
+        va_entity_id = call.data.get(CONF_DEVICE)
+        path = call.data.get(CONF_PATH)
+        display_type = call.data.get(CONF_DISPLAY_TYPE)
+        display_device = call.data.get(CONF_DISPLAY_DEVICE)
 
         # get config entry from entity id to allow access to browser_id parameter
         entity_registry = er.async_get(hass)
         if entity := entity_registry.async_get(va_entity_id):
-            entity_config_entry = hass.config_entries.async_get_entry(
+            entity_config_entry: VAConfigEntry = hass.config_entries.async_get_entry(
                 entity.config_entry_id
             )
             browser_id = entity_config_entry.runtime_data.browser_id
 
             if browser_id:
                 await browser_navigate(
-                    browser_id, path, display_type, "/view-assist/clock"
+                    browser_id, path, display_device, display_type, "/view-assist/clock"
                 )
 
     hass.services.async_register(
@@ -157,6 +160,7 @@ async def setup_services(hass: HomeAssistant, config: VAConfigEntry):
     async def browser_navigate(
         browser_id: str,
         path: str,
+        display_device: str,
         display_type: str,
         revert_path: str | None = None,
         timeout: int = 10,
@@ -165,11 +169,16 @@ async def setup_services(hass: HomeAssistant, config: VAConfigEntry):
 
         Optionally revert to another view after timeout.
         """
+        entity_registry = er.async_get(hass)
+        display_entity = entity_registry.async_get(display_device)
+        # display_domain = display_entity.domain
+        # display_device_id = display_entity.device_id
         _LOGGER.info(
-            "Navigating: browser_id: %s, path: %s, display_type: %s",
+            "Navigating: browser_id: %s, path: %s, display_device: %s, display_entity: %s",
             browser_id,
             path,
-            display_type,
+            display_device,
+            display_entity,
         )
 
         if display_type == "BrowserMod":
@@ -191,7 +200,9 @@ async def setup_services(hass: HomeAssistant, config: VAConfigEntry):
                 10,
                 partial(
                     hass.create_task,
-                    browser_navigate(browser_id, revert_path, display_type),
+                    browser_navigate(
+                        browser_id, revert_path, display_device, display_type
+                    ),
                     f"Revert browser {browser_id}",
                 ),
             )
