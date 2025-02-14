@@ -32,44 +32,6 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# TODO: TO BE REMOVED WHEN KNOWN WORKING!!!
-TESTDATA = [
-    "4:00 PM",
-    "1600",
-    "10:30 AM",
-    "11:30",
-    "23:48",
-    "Thursday 4:00 PM",
-    "Tuesday at 2300",
-    "Sunday at 9:15 PM",
-    "Sunday at 9:15 AM",
-    "4:13 PM on Thursday",
-    "1600 on Thursday",
-    "Tomorrow at 1245",
-    "Next Wednesday at 21:15",
-    "Next Monday at 08:15 AM",
-    "Next Friday at 1200",
-    "2 days 1 hour 20 minutes",
-    "1 day 20 minutes",
-    "5 hours",
-    "2 hours 30 minutes",
-    "30 seconds",
-    "5 minutes 30 seconds",
-    "5 minutes",
-    "2 1/2 hours",
-    "quarter past 11",
-    "20 past five",
-    "half past 12",
-    "half past twelve",
-    "twenty to four",
-    "twenty to four AM",
-    "twenty to four PM",
-    "20 to 4:00 PM",
-    "tuesday at ten past 4",
-    "half past nine tonight",
-]
-
-
 REGEX_DAYS = (
     r"(?i)\b("
     + (
@@ -383,8 +345,6 @@ def encode_datetime_to_human(
     delta_s = math.ceil(delta.total_seconds())
 
     if timer_type == "TimerInterval":
-        # if less than 60 mins, return mins
-        # if delta.total_seconds() < 3600:
         minutes, seconds = divmod(delta_s, 60)
         hours, minutes = divmod(minutes, 60)
         days, hours = divmod(hours, 24)
@@ -509,7 +469,6 @@ class VATimers:
     ) -> tuple:
         """Add timer to store."""
 
-        # TODO: Make this run only on first instance - part done
         timer_id = ulid_util.ulid_now()
 
         # calculate expiry time from TimerTime or TimerInterval
