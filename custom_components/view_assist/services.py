@@ -28,6 +28,7 @@ from homeassistant.helpers.event import partial
 from .const import (
     CONF_DISPLAY_DEVICE,
     CONF_DISPLAY_TYPE,
+    CONF_REMOVE_ALL,
     CONF_TIME,
     CONF_TIMER_ID,
     DOMAIN,
@@ -59,7 +60,9 @@ SET_TIMER_SERVICE_SCHEMA = vol.Schema(
 
 CANCEL_TIMER_SERVICE_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_TIMER_ID): str,
+        vol.Optional(CONF_TIMER_ID): str,
+        vol.Optional(CONF_DEVICE_ID): str,
+        vol.Optional(CONF_REMOVE_ALL): bool,
     }
 )
 
@@ -295,9 +298,14 @@ class VAServices:
 
     async def async_handle_cancel_timer(self, call: ServiceCall) -> ServiceResponse:
         """Handle a cancel timer service call."""
-        if timer_id := call.data.get(CONF_TIMER_ID):
+        timer_id = call.data.get(CONF_TIMER_ID)
+        device_id = call.data.get(CONF_DEVICE_ID)
+        cancel_all = call.data.get(CONF_REMOVE_ALL, False)
+        if any([timer_id, device_id, cancel_all]):
             t: VATimers = self.config.runtime_data._timers  # noqa: SLF001
-            result = await t.cancel_timer(timer_id)
+            result = await t.cancel_timer(
+                timer_id=timer_id, device_id=device_id, cancel_all=cancel_all
+            )
             return {"result": result}
         return {"error": "no timer id supplied"}
 

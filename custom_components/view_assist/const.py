@@ -131,6 +131,7 @@ CONF_USE_ANNOUNCE = "use_announce"
 CONF_MIC_UNMUTE = "micunmute"
 CONF_TIME = "time"
 CONF_TIMER_ID = "timer_id"
+CONF_REMOVE_ALL = "remove_all"
 
 # Config default values
 DEFAULT_NAME = "View Assist"

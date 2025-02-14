@@ -511,14 +511,33 @@ class VATimers:
         except asyncio.CancelledError:
             pass  # expected when timer is updated
 
-    async def cancel_timer(self, timer_id: str) -> bool:
-        """Cancel timer by id."""
-        if self.timers.pop(timer_id, None):
-            if timer_task := self.timer_tasks.pop(timer_id, None):
-                if not timer_task.cancelled():
-                    timer_task.cancel()
+    async def cancel_timer(
+        self,
+        timer_id: str | None = None,
+        device_id: str | None = None,
+        cancel_all: bool = False,
+    ) -> bool:
+        """Cancel timer by timer id, device id or all."""
+        if timer_id:
+            timer_ids = [timer_id] if self.timers.get(timer_id) else []
+        elif device_id:
+            timer_ids = [
+                timer_id
+                for timer_id, timer in self.timers.items()
+                if timer.device_id == device_id
+            ]
+        elif cancel_all:
+            timer_ids = self.timers.keys()
+
+        if timer_ids:
+            for timerid in timer_ids:
+                if self.timers.pop(timerid, None):
+                    if timer_task := self.timer_tasks.pop(timerid, None):
+                        if not timer_task.cancelled():
+                            timer_task.cancel()
             await self.save()
             return True
+
         return False
 
     async def get_timers(self, timer_id: str = "", device_id: str = "") -> list[Timer]:
