@@ -3,7 +3,30 @@
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
-from .const import CONF_BROWSER_ID, DOMAIN
+from .const import CONF_BROWSER_ID, DOMAIN, VAConfigEntry, VAType
+
+
+def is_first_instance(
+    hass: HomeAssistant, config: VAConfigEntry, display_instance_only: bool = False
+):
+    """Return if first config entry.
+
+    Optional to return if first config entry for instance with type of view_audio
+    """
+    accepted_types = [VAType.VIEW_AUDIO]
+    if not display_instance_only:
+        accepted_types.append(VAType.AUDIO_ONLY)
+
+    entries = [
+        entry
+        for entry in hass.config_entries.async_entries(DOMAIN)
+        if entry.data["type"] in accepted_types and not entry.disabled_by
+    ]
+
+    # If first instance matches this entry id, return True
+    if entries and entries[0].entry_id == config.entry_id:
+        return True
+    return False
 
 
 def ensure_list(value: str | list[str]):

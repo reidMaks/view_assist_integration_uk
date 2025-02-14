@@ -1,6 +1,5 @@
 """Functions to configure Lovelace frontend with dashboard and views."""
 
-import asyncio
 import logging
 
 from homeassistant.components import frontend
@@ -12,9 +11,7 @@ from homeassistant.components.lovelace import (
     LovelaceData,
     dashboard,
 )
-from homeassistant.const import EVENT_LOVELACE_UPDATED
 from homeassistant.core import HomeAssistant
-from homeassistant.util import slugify
 from homeassistant.util.yaml import load_yaml_dict
 
 from .const import DOMAIN

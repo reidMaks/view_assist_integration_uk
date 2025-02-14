@@ -28,7 +28,7 @@ navigate:
         select:
           options:
             - "BrowserMod"
-            - "Remote Assist Display"        
+            - "Remote Assist Display"
 set_state:
   name: Set state or attributes
   description: >
@@ -44,3 +44,75 @@ set_state:
       description: "Entity state"
       selector:
         text:
+set_timer:
+  name: Set a timer
+  description: Set an alarm, timer or reminder
+  fields:
+    device_id:
+      name: "Device ID"
+      description: "Device id of the voice satellite"
+      required: true
+      selector:
+        text:
+    type:
+      name: "Timer type"
+      description: "The type of timer - alarm, timer or reminder"
+      required: true
+      selector:
+        select:
+          options:
+            - "Alarm"
+            - "Timer"
+            - "Reminder"
+    name:
+      name: "Name"
+      description: "The name of the timer"
+      required: false
+      selector:
+        text:
+    time:
+      name: "Time sentence"
+      description: "A spoken like time sentence"
+      required: true
+      selector:
+        text:
+cancel_timer:
+  name: "Cancel timer"
+  description: "Cancel running timer"
+  fields:
+    timer_id:
+      name: "Timer ID"
+      description: "The id of the timer"
+      required: false
+      selector:
+        text:
+    device_id:
+      name: "Device ID"
+      description: "The id of the voice satellite device to cancel all timers for"
+      required: false
+      selector:
+        text:
+    remove_all:
+      name: "Remove all"
+      description: "Cancel all timers"
+      required: false
+      selector:
+        boolean:
+get_timers:
+  name: "Get timers"
+  description: "Get all timers or by timer id or device id"
+  fields:
+    timer_id:
+      name: "Timer ID"
+      description: "The id of the timer"
+      required: false
+      selector:
+        text:
+    device_id:
+      name: "Device ID"
+      description: "The id of the voice satellite device to get all timers for"
+      required: false
+      selector:
+        text:
+
+

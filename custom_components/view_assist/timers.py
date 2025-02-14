@@ -240,8 +240,8 @@ def decode_time_sentence(sentence: str) -> dt.datetime | None:
             )
             return sentence, time_info
 
-    _LOGGER.info("DECODE: NOT DECODED: %s -> %s -> %s", sentence, None, None)
-    return sentence, None, None
+    _LOGGER.info("DECODE: NOT DECODED: %s -> %s", sentence, None)
+    return sentence, None
 
 
 def get_datetime_from_timer_interval(interval: TimerInterval) -> dt.datetime:
@@ -432,10 +432,6 @@ class VATimers:
         """Add timer to store."""
 
         # TODO: Make this run only on first instance - part done
-        # TODO: Create cancel service
-        # TODO: Add cancel
-        # TODO: Improve return senstence
-
         timer_id = ulid_util.ulid_now()
 
         # calculate expiry time from TimerTime or TimerInterval
@@ -470,14 +466,12 @@ class VATimers:
             if start:
                 await self.start_timer(timer_id, timer)
 
-            _LOGGER.warning("TIMERS: %s", self.timers)
-
             encoded_time = encode_datetime_to_human(
                 timer_info.__class__.__name__, timer.name, expiry
             )
             return timer_id, timer, encoded_time
 
-        return None, "already exists"
+        return None, None, "already exists"
 
     async def start_timer(self, timer_id: str, timer: Timer):
         """Start timer running."""
@@ -511,14 +505,34 @@ class VATimers:
         except asyncio.CancelledError:
             pass  # expected when timer is updated
 
-    async def cancel_timer(self, timer_id: str) -> bool:
-        """Cancel timer by id."""
-        if self.timers.pop(timer_id, None):
-            if timer_task := self.timer_tasks.pop(timer_id, None):
-                if not timer_task.cancelled():
-                    timer_task.cancel()
+    async def cancel_timer(
+        self,
+        timer_id: str | None = None,
+        device_id: str | None = None,
+        cancel_all: bool = False,
+    ) -> bool:
+        """Cancel timer by timer id, device id or all."""
+        if timer_id:
+            timer_ids = [timer_id] if self.timers.get(timer_id) else []
+        elif device_id:
+            timer_ids = [
+                timer_id
+                for timer_id, timer in self.timers.items()
+                if timer.device_id == device_id
+            ]
+        elif cancel_all:
+            timer_ids = self.timers.copy().keys()
+
+        if timer_ids:
+            for timerid in timer_ids:
+                if self.timers.pop(timerid, None):
+                    _LOGGER.info("Cancelled timer: %s", timerid)
+                    if timer_task := self.timer_tasks.pop(timerid, None):
+                        if not timer_task.cancelled():
+                            timer_task.cancel()
             await self.save()
             return True
+
         return False
 
     async def get_timers(self, timer_id: str = "", device_id: str = "") -> list[Timer]:
