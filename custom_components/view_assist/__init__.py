@@ -6,7 +6,7 @@ from homeassistant.core import HomeAssistant
 from .const import DOMAIN, RuntimeData, VAConfigEntry
 from .entity_listeners import EntityListeners
 from .frontend import FrontendConfig
-from .helpers import ensure_list
+from .helpers import ensure_list, is_first_instance
 from .services import VAServices
 from .timers import VATimers
 from .websocket import async_register_websockets
@@ -31,8 +31,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     # Add config change listener
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
+    # Run first instance only functions
+    if is_first_instance(hass, entry, display_instance_only=False):
+        await run_if_first_instance(hass, entry)
+
     # Run first display instance only functions
-    await run_if_first_display_instance(hass, entry)
+    if is_first_instance(hass, entry, display_instance_only=True):
+        await run_if_first_display_instance(hass, entry)
 
     # Load entity listeners
     EntityListeners(hass, entry)
@@ -47,19 +52,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     return True
 
 
+async def run_if_first_instance(hass: HomeAssistant, entry: VAConfigEntry):
+    """Things to run only for first instance of integration."""
+
+    # Setup Timers
+    timers = VATimers(hass, entry)
+    await timers.load()
+    entry.runtime_data._timers = timers  # noqa: SLF001
+
+
 async def run_if_first_display_instance(hass: HomeAssistant, entry: VAConfigEntry):
     """Things to run only one when multiple instances exist."""
-    entries = [
-        entry
-        for entry in hass.config_entries.async_entries(DOMAIN)
-        if entry.data["type"] == "view_audio" and not entry.disabled_by
-    ]
-
-    # If not first instance, return
-    if not entries or entries[0].entry_id != entry.entry_id:
-        return
-
-    # Things to run on first instance setup only go below here
 
     # Run dashboard and view setup
     async def setup_frontend(*args):
@@ -70,12 +73,6 @@ async def run_if_first_display_instance(hass: HomeAssistant, entry: VAConfigEntr
         await setup_frontend()
     else:
         hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, setup_frontend)
-
-    # Timers
-    # TODO: Implement a first config item setup to put this in.
-    timers = VATimers(hass, entry)
-    await timers.load()
-    entry.runtime_data._timers = timers  # noqa: SLF001
 
 
 def set_runtime_data_from_config(config_entry: VAConfigEntry):
