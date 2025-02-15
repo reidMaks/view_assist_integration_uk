@@ -627,7 +627,7 @@ class VATimers:
         self.timers[timer_id].status = TimerStatus.EXPIRED
         await self.save()
 
-        self.timer_tasks.pop(timer_id)
+        self.timer_tasks.pop(timer_id, None)
 
         _LOGGER.info("TIMER EXPIRED: %s", timer)
 
