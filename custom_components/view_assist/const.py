@@ -136,10 +136,10 @@ CONF_REMOVE_ALL = "remove_all"
 # Config default values
 DEFAULT_NAME = "View Assist"
 DEFAULT_TYPE = VAType.VIEW_AUDIO
-DEFAULT_DASHBOARD = "/dashboard-viewassist"
-DEFAULT_VIEW_HOME = "/dashboard-viewassist/clock"
-DEFAULT_VIEW_MUSIC = "/dashboard-viewassist/music"
-DEFAULT_VIEW_INTENT = "/dashboard-viewassist/intent"
+DEFAULT_DASHBOARD = "/view-assist"
+DEFAULT_VIEW_HOME = "/view-assist/clock"
+DEFAULT_VIEW_MUSIC = "/view-assist/music"
+DEFAULT_VIEW_INTENT = "/view-assist/intent"
 DEFAULT_VIEW_BACKGROUND = "/local/viewassist/backgrounds/mybackground.jpg"
 DEFAULT_ASSIST_PROMPT = VAAssistPrompt.BLUR_POPUP
 DEFAULT_STATUS_ICON_SIZE = VAIconSizes.LARGE
