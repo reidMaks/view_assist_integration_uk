@@ -1,14 +1,21 @@
 """Handles entity listeners."""
 
 import logging
-from typing import Any
 
+from homeassistant.const import CONF_DEVICE, CONF_MODE, CONF_PATH
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_state_change_event
-from homeassistant.const import CONF_MODE
+from homeassistant.util import slugify
 
-from .const import CONF_DO_NOT_DISTURB, DOMAIN, VA_ATTRIBUTE_UPDATE_EVENT, VAConfigEntry
+from .const import (
+    CONF_DISPLAY_DEVICE,
+    CONF_DISPLAY_TYPE,
+    CONF_DO_NOT_DISTURB,
+    DOMAIN,
+    VA_ATTRIBUTE_UPDATE_EVENT,
+    VAConfigEntry,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,7 +36,7 @@ class EntityListeners:
         # Add listener to set_state service to call sensor_attribute_changed
         hass.bus.async_listen(
             VA_ATTRIBUTE_UPDATE_EVENT.format(config_entry.entry_id),
-            self.set_state_changed_attribute,
+            self.async_set_state_changed_attribute,
         )
 
         config_entry.async_on_unload(
@@ -49,6 +56,24 @@ class EntityListeners:
         """Dispatch message that entity is listening for to update."""
         async_dispatcher_send(
             self.hass, f"{DOMAIN}_{self.config_entry.entry_id}_update"
+        )
+
+    async def browser_navigate(self, path: str):
+        """Call browser navigate option - temportary fix."""
+
+        # Get entity id of VA entity
+        entity_id = f"sensor.{slugify(self.config_entry.runtime_data.name)}"
+
+        # Call our navigate service
+        await self.hass.services.async_call(
+            DOMAIN,
+            "navigate",
+            {
+                CONF_DEVICE: entity_id,
+                CONF_PATH: path,
+                CONF_DISPLAY_TYPE: self.config_entry.runtime_data.display_type,
+                CONF_DISPLAY_DEVICE: self.config_entry.runtime_data.display_device,
+            },
         )
 
     # ---------------------------------------------------------------------------------------
@@ -126,8 +151,7 @@ class EntityListeners:
     # Actions for attributes changed via the set_state service
     # ---------------------------------------------------------------------------------------
 
-    @callback
-    def set_state_changed_attribute(self, event: Event):
+    async def async_set_state_changed_attribute(self, event: Event):
         """Call when a sensor attribute is changed by the set_state service."""
 
         # This function is only called if the new_value != old_value so no need to test
@@ -144,13 +168,12 @@ class EntityListeners:
         )
 
         if attribute == CONF_DO_NOT_DISTURB:
-            self._async_on_dnd_device_state_change(event)
+            await self._async_on_dnd_device_state_change(event)
 
         if attribute == CONF_MODE:
-            self._async_on_mode_state_change(event)
+            await self._async_on_mode_state_change(event)
 
-    @callback
-    def _async_on_dnd_device_state_change(self, event: Event) -> None:
+    async def _async_on_dnd_device_state_change(self, event: Event) -> None:
         """Set dnd status icon."""
 
         # This is called from our set_service event listener and therefore event data is
@@ -166,9 +189,8 @@ class EntityListeners:
 
         self.config_entry.runtime_data.status_icons = status_icons
         self.update_entity()
-    
-    @callback
-    def _async_on_mode_state_change(self, event: Event) -> None:
+
+    async def _async_on_mode_state_change(self, event: Event) -> None:
         """Set mode status icon."""
 
         mode_new_state = event.data["new_value"]
@@ -177,7 +199,7 @@ class EntityListeners:
         _LOGGER.info("MODE STATE: %s", mode_new_state)
         status_icons = self.config_entry.runtime_data.status_icons.copy()
 
-        modes = ["hold","cycle"]
+        modes = ["hold", "cycle"]
 
         # Remove all mode icons
         for mode in modes:
@@ -189,15 +211,31 @@ class EntityListeners:
             status_icons.append(mode_new_state)
 
         self.config_entry.runtime_data.status_icons = status_icons
-        self.update_entity() 
+        self.update_entity()
 
         if mode_new_state == "normal" and mode_old_state != "normal":
             # Add navigate to default view
             _LOGGER.info("NAVIGATE TO: %s", mode_new_state)
         elif mode_new_state == "music" and mode_old_state != "music":
             # Add navigate to music view
+
+            # --------------------------------------------
+            # browser navigate option - temportary fix
+            # --------------------------------------------
+
+            await self.browser_navigate(self.config_entry.runtime_data.music)
+
+            # --------------------------------------------
+            # Service call option
+            # --------------------------------------------
+            await self.hass.services.async_call(
+                "switch",
+                "turn_on",
+                {"entity_id": "switch.lounge_socket_1_state"},
+            )
+
             _LOGGER.info("NAVIGATE TO: %s", mode_new_state)
         elif mode_new_state == "cycle" and mode_old_state != "cycle":
             # Add start cycle mode
             # Pull cycle_mode attribute
-            _LOGGER.info("START MODE: %s", mode_new_state)                                    
+            _LOGGER.info("START MODE: %s", mode_new_state)

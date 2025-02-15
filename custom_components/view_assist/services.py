@@ -217,8 +217,8 @@ class VAServices:
                     path=path,
                     display_device=display_device,
                     display_type=display_type,
-                    revert_path="/view-assist/clock",
-                    timeout=self.config.runtime_data.view_timeout,
+                    revert_path=entity_config_entry.runtime_data.home,
+                    timeout=entity_config_entry.runtime_data.view_timeout,
                 )
 
     async def async_browser_navigate(
