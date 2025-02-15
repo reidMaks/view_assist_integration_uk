@@ -1,6 +1,12 @@
 type: custom:button-card
 variables:
-  var_forecast_entity: weather.home
+  var_weather_entity: |-
+    [[[
+      var assistbid = hass.states[variables.assist_group].attributes.entity_id
+       .find((eid) => hass.states[eid].attributes.browser_id === localStorage.getItem("browser_mod-browser-id")) ?? variables.default_satellite;
+      var weather_entity = hass.states[assistbid].attributes.weather_entity;
+      return `${weather_entity}`
+    ]]]   
   var_forecast_type: daily
   weathercardversion: 1.0.3
 template:
@@ -32,7 +38,7 @@ custom_fields:
   message:
     card:
       type: weather-forecast
-      entity: '[[[ return variables.var_forecast_entity ]]]'
+      entity: "[[[ return variables.var_weather_entity ]]]"
       forecast_type: '[[[ return variables.var_forecast_type ]]]'
       card_mod:
         style:
