@@ -215,12 +215,19 @@ class EntityListeners:
 
         if mode_new_state == "normal" and mode_old_state != "normal":
             # Add navigate to default view
+
+            # --------------------------------------------
+            # browser navigate option - temporary fix
+            # --------------------------------------------
+
+            await self.browser_navigate(self.config_entry.runtime_data.home)
+
             _LOGGER.info("NAVIGATE TO: %s", mode_new_state)
         elif mode_new_state == "music" and mode_old_state != "music":
             # Add navigate to music view
 
             # --------------------------------------------
-            # browser navigate option - temportary fix
+            # browser navigate option - temporary fix
             # --------------------------------------------
 
             await self.browser_navigate(self.config_entry.runtime_data.music)
