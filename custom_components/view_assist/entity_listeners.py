@@ -231,7 +231,7 @@ class EntityListeners:
             await self.hass.services.async_call(
                 "switch",
                 "turn_on",
-                {"entity_id": "switch.lounge_socket_1_state"},
+                {"entity_id": "switch.android_satellite_viewassist_office_wyoming_mute"},
             )
 
             _LOGGER.info("NAVIGATE TO: %s", mode_new_state)

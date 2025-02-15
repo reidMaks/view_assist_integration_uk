@@ -579,5 +579,12 @@ button_card_templates:
     tap_action:
       action: navigate
       navigation_path: weather
+  home:
+    type: custom:button-card
+    template: icon_template
+    icon: mdi:home
+    tap_action:
+      action: navigate
+      navigation_path: home      
 views:
   - title: Home
