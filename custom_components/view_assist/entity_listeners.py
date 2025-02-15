@@ -246,3 +246,14 @@ class EntityListeners:
             # Add start cycle mode
             # Pull cycle_mode attribute
             _LOGGER.info("START MODE: %s", mode_new_state)
+        elif mode_new_state == "rotate" and mode_old_state != "rotate":
+            #
+            # Test image rotate service
+            #
+            result = await self.hass.services.async_call(
+                "view_assist",
+                "get_random_image",
+                {"directory": "/config/www/viewassist/backgrounds", "type": "local"},
+            )
+            image_path = result
+            _LOGGER.info("START MODE: %s %s", mode_new_state, image_path)                      
