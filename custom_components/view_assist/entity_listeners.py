@@ -5,7 +5,7 @@ import logging
 from homeassistant.const import CONF_DEVICE, CONF_MODE, CONF_PATH
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.event import async_track_state_change_event, partial
 from homeassistant.util import slugify
 
 from .const import (
@@ -16,6 +16,7 @@ from .const import (
     VA_ATTRIBUTE_UPDATE_EVENT,
     VAConfigEntry,
 )
+from .helpers import get_random_image
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ class EntityListeners:
             self.hass, f"{DOMAIN}_{self.config_entry.entry_id}_update"
         )
 
-    async def browser_navigate(self, path: str):
+    async def browser_navigate(self, path: str, revert: bool = True, timeout: int = 0):
         """Call browser navigate option - temportary fix."""
 
         # Get entity id of VA entity
@@ -71,10 +72,40 @@ class EntityListeners:
             {
                 CONF_DEVICE: entity_id,
                 CONF_PATH: path,
-                CONF_DISPLAY_TYPE: self.config_entry.runtime_data.display_type,
-                CONF_DISPLAY_DEVICE: self.config_entry.runtime_data.display_device,
+                "revert": revert,
+                "timeout": timeout
+                if timeout
+                else self.config_entry.runtime_data.view_timeout,
             },
         )
+
+    async def rotate_display(self, views: list[str], timeout: int = 10):
+        """Rotate display."""
+
+        async def _interval_timer_expiry(view_index: int):
+            if self.config_entry.runtime_data.mode == "rotate":
+                # still in rotate mode
+                if view_index > (len(views) - 1):
+                    view_index = 0
+
+                # Navigate browser
+                await self.browser_navigate(
+                    f"{self.config_entry.runtime_data.dashboard}/{views[view_index]}",
+                    revert=False,
+                )
+
+                # Set next timeout
+                self.hass.loop.call_later(
+                    timeout,
+                    partial(
+                        self.hass.create_task, _interval_timer_expiry(view_index + 1)
+                    ),
+                )
+            else:
+                _LOGGER.info("Rotate display terminated")
+
+        await _interval_timer_expiry(0)
+        _LOGGER.info("Rotate display started")
 
     # ---------------------------------------------------------------------------------------
     # Actions for monitoring changes to external entities
@@ -238,7 +269,9 @@ class EntityListeners:
             await self.hass.services.async_call(
                 "switch",
                 "turn_on",
-                {"entity_id": "switch.android_satellite_viewassist_office_wyoming_mute"},
+                {
+                    "entity_id": "switch.android_satellite_viewassist_office_wyoming_mute"
+                },
             )
 
             _LOGGER.info("NAVIGATE TO: %s", mode_new_state)
@@ -250,10 +283,13 @@ class EntityListeners:
             #
             # Test image rotate service
             #
-            result = await self.hass.services.async_call(
-                "view_assist",
-                "get_random_image",
-                {"directory": "/config/www/viewassist/backgrounds", "type": "local"},
+            image_path = await self.hass.async_add_executor_job(
+                get_random_image,
+                self.hass,
+                "/config/www/viewassist/backgrounds",
+                "local",
             )
-            image_path = result
-            _LOGGER.info("START MODE: %s %s", mode_new_state, image_path)                      
+            await self.rotate_display(
+                views=["music", "info", "weather", "clock"], timeout=10
+            )
+            _LOGGER.info("START MODE: %s %s", mode_new_state, image_path)

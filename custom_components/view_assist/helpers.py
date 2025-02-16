@@ -1,7 +1,13 @@
 """Helper functions."""
 
+import os
+import random
+from typing import Any
+
+import requests
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import datetime
 
 from .const import CONF_BROWSER_ID, DOMAIN, VAConfigEntry, VAType
 
@@ -66,3 +72,101 @@ def get_entity_id_by_browser_id(hass: HomeAssistant, browser_id: str) -> str:
                 ):
                     return entity_id
     return None
+
+
+# ----------------------------------------------------------------
+# Images
+# ----------------------------------------------------------------
+def get_random_image(
+    hass: HomeAssistant, directory: str, source: str
+) -> dict[str, Any]:
+    """Return a random image from supplied directory or url."""
+
+    valid_extensions = (".jpeg", ".jpg", ".tif", ".png")
+
+    if source == "local":
+        config_dir = hass.config.config_dir
+        # Translate /local/ to /config/www/ for directory validation
+        if "local" in directory:
+            filesystem_directory = directory.replace("local", f"{config_dir}/www/", 1)
+        elif "config" in directory:
+            filesystem_directory = directory.replace("config", f"{config_dir}/")
+        else:
+            filesystem_directory = f"{config_dir}/{directory}"
+
+        # Remove any //
+        filesystem_directory = filesystem_directory.replace("//", "/")
+
+        # Verify the directory exists
+        if not os.path.isdir(filesystem_directory):
+            return {"error": f"The directory '{filesystem_directory}' does not exist."}
+
+        # List only image files with the valid extensions
+        dir_files = os.listdir(filesystem_directory)
+        images = [f for f in dir_files if f.lower().endswith(valid_extensions)]
+
+        # Check if any images were found
+        if not images:
+            return {
+                "error": f"No images found in the directory '{filesystem_directory}'."
+            }
+
+        # Select a random image
+        selected_image = random.choice(images)
+
+        # Replace /config/www/ with /local/ for constructing the relative path
+        if filesystem_directory.startswith(f"{config_dir}/www/"):
+            relative_path = filesystem_directory.replace(
+                f"{config_dir}/www/", "/local/"
+            )
+        else:
+            relative_path = directory
+
+        # Ensure trailing slash in the relative path
+        if not relative_path.endswith("/"):
+            relative_path += "/"
+
+        # Construct the image path
+        image_path = f"{relative_path}{selected_image}"
+
+        # Remove any //
+        image_path = image_path.replace("//", "/")
+
+    elif source == "download":
+        # TODO: Prevent blocking loop with requests
+        url = "https://unsplash.it/640/425?random"
+        response = requests.get(url)
+
+        if response.status_code == 200:
+            current_time = datetime.now().strftime("%Y%m%d%H%M%S")
+            filename = f"random_{current_time}.jpg"
+            full_path = os.path.join(directory, filename)
+
+            with open(full_path, "wb") as file:
+                file.write(response.content)
+
+            # Remove previous background image
+            for file in os.listdir(directory):
+                if file.startswith("random_") and file != filename:
+                    os.remove(os.path.join(directory, file))
+
+            image_path = full_path
+        else:
+            # Return existing image if the download fails
+            existing_files = [
+                os.path.join(directory, file)
+                for file in os.listdir(directory)
+                if file.startswith("random_")
+            ]
+            image_path = existing_files[0] if existing_files else None
+
+        if not image_path:
+            return {
+                "error": "Failed to download a new image and no existing images found."
+            }
+
+    else:
+        return {"error": "Invalid source specified. Use 'local' or 'download'."}
+
+    # Return the image path in a dictionary
+    return {"image_path": image_path}
