@@ -65,6 +65,7 @@ action:
     target_display_device: '{{ device_id(state_attr(target_satellite_device, ''display_device''))}}'
     target_mediaplayer_device: '{{ state_attr(target_satellite_device, ''mediaplayer_device'')}}'
     target_satellite_device_type: '{{ state_attr(target_satellite_device, ''type'')}}'
+    target_display_type: '{{ state_attr(target_satellite_device, ''display_type'')}}'
 - choose:
   - conditions:
     - condition: trigger
@@ -172,16 +173,16 @@ action:
         value_template: '{% if target_satellite_device_type != ''audio_only'' %}true{%
           else %}false{% endif %}'
       then:
-      - service: python_script.set_state
-        data:
+      - action: view_assist.set_state
+        target:
           entity_id: '{{ target_satellite_device }}'
+        data:
           title: '{{ state_attr(list_entity,''friendly_name'') }}'
           message_font_size: 4vw
-          list: '{{ list_entity }}'
-        enabled: true
-      - service: browser_mod.navigate
-        data:
+          list: '{{ list_entity }}'        
+      - data:
+          device: "{{ target_satellite_device }}"
+          display_type: "{{ target_display_type }}"
           path: '{{ view }}'
-        target:
-          device_id: '{{ target_display_device }}'
+        action: view_assist.navigate            
 mode: single

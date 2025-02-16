@@ -41,10 +41,8 @@ action:
     target_mediaplayer_device: '{{ state_attr(target_satellite_device, ''mediaplayer_device'')}}'
     target_satellite_device_type: '{{ state_attr(target_satellite_device, ''type'')}}'
     target_display_type: '{{ state_attr(target_satellite_device, ''display_type'')}}'      
-  enabled: true
 - set_conversation_response: Its {{ state_attr(weather_entity, 'temperature') }} degrees
     and {{states[weather_entity].state}}
-  enabled: true
 - if:
   - condition: template
     value_template: '{% if target_satellite_device_type != ''audio_only'' %}true{%
@@ -55,5 +53,4 @@ action:
       display_type: "{{ target_display_type }}"
       path: "{{ dashboard }}"
     action: view_assist.navigate
-  enabled: true
 mode: single
