@@ -12,7 +12,6 @@ from .const import (
     CONF_DISPLAY_DEVICE,
     CONF_DISPLAY_TYPE,
     CONF_DO_NOT_DISTURB,
-    CONF_VIEW_TIMEOUT,
     DOMAIN,
     VA_ATTRIBUTE_UPDATE_EVENT,
     VAConfigEntry,
