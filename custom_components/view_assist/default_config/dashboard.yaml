@@ -83,15 +83,10 @@ button_card_templates:
             return new Date().toLocaleString(userLocale, options);
           } catch { return ""; }          
         ]]]
-
       var_assistsat_entity: |-
         [[[
-          try {
-            return hass.states[variables.assist_group].attributes.entity_id
-             .find((eid) => hass.states[eid].attributes.browser_id === localStorage.getItem("browser_mod-browser-id")) ?? variables.default_satellite;
-            } catch { return  ""}
-          
-        ]]]
+          return localStorage.getItem("view_assist_sensor")
+        ]]]        
       var_assisting: |-
         [[[
           try 

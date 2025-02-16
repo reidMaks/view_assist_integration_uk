@@ -12,6 +12,7 @@ from .const import (
     CONF_DISPLAY_DEVICE,
     CONF_DISPLAY_TYPE,
     CONF_DO_NOT_DISTURB,
+    CONF_VIEW_TIMEOUT,
     DOMAIN,
     VA_ATTRIBUTE_UPDATE_EVENT,
     VAConfigEntry,
@@ -79,12 +80,12 @@ class EntityListeners:
             },
         )
 
-    async def rotate_display(self, views: list[str], timeout: int = 10):
-        """Rotate display."""
+    async def cycle_display(self, views: list[str], timeout: int = 10):
+        """Cycle display."""
 
         async def _interval_timer_expiry(view_index: int):
-            if self.config_entry.runtime_data.mode == "rotate":
-                # still in rotate mode
+            if self.config_entry.runtime_data.mode == "cycle":
+                # still in cycle mode
                 if view_index > (len(views) - 1):
                     view_index = 0
 
@@ -102,10 +103,10 @@ class EntityListeners:
                     ),
                 )
             else:
-                _LOGGER.info("Rotate display terminated")
+                _LOGGER.info("Cycle display terminated")
 
         await _interval_timer_expiry(0)
-        _LOGGER.info("Rotate display started")
+        _LOGGER.info("Cycle display started")
 
     # ---------------------------------------------------------------------------------------
     # Actions for monitoring changes to external entities
@@ -278,6 +279,9 @@ class EntityListeners:
         elif mode_new_state == "cycle" and mode_old_state != "cycle":
             # Add start cycle mode
             # Pull cycle_mode attribute
+            await self.cycle_display(
+                views=["music", "info", "weather", "clock"], timeout=self.config_entry.runtime_data.view_timeout
+            )            
             _LOGGER.info("START MODE: %s", mode_new_state)
         elif mode_new_state == "rotate" and mode_old_state != "rotate":
             #
@@ -288,8 +292,5 @@ class EntityListeners:
                 self.hass,
                 "/config/www/viewassist/backgrounds",
                 "local",
-            )
-            await self.rotate_display(
-                views=["music", "info", "weather", "clock"], timeout=10
             )
             _LOGGER.info("START MODE: %s %s", mode_new_state, image_path)
