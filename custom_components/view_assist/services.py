@@ -1,12 +1,8 @@
 """Integration services."""
 
 from asyncio import TimerHandle
-from datetime import datetime
 import logging
-import os
-import random
 
-import requests
 import voluptuous as vol
 
 from homeassistant.const import (
@@ -34,6 +30,7 @@ from .const import (
     DOMAIN,
     VAConfigEntry,
 )
+from .helpers import get_random_image
 from .timers import VATimers, decode_time_sentence
 
 _LOGGER = logging.getLogger(__name__)
@@ -44,8 +41,8 @@ NAVIGATE_SERVICE_SCHEMA = vol.Schema(
             selector.EntitySelectorConfig(integration=DOMAIN)
         ),
         vol.Required(CONF_PATH): str,
-        vol.Required(CONF_DISPLAY_TYPE): str,
-        vol.Optional(CONF_DISPLAY_DEVICE): str,
+        vol.Optional("revert", default=True): bool,
+        vol.Optional("timeout", default=0): int,
     }
 )
 
@@ -192,8 +189,8 @@ class VAServices:
 
         va_entity_id = call.data.get(CONF_DEVICE)
         path = call.data.get(CONF_PATH)
-        display_type = call.data.get(CONF_DISPLAY_TYPE)
-        display_device = call.data.get(CONF_DISPLAY_DEVICE)
+        revert = call.data.get("revert", True)
+        timeout = call.data.get("timeout")
 
         # get config entry from entity id to allow access to browser_id parameter
         entity_registry = er.async_get(self.hass)
@@ -202,6 +199,7 @@ class VAServices:
                 self.hass.config_entries.async_get_entry(entity.config_entry_id)
             )
             browser_id = entity_config_entry.runtime_data.browser_id
+            display_type = entity_config_entry.runtime_data.display_type
 
             if browser_id:
                 # Cancel any previous call later (revert display) task if new navigate request comes in
@@ -215,18 +213,20 @@ class VAServices:
                 await self.async_browser_navigate(
                     browser_id=browser_id,
                     path=path,
-                    display_device=display_device,
                     display_type=display_type,
-                    revert_path=entity_config_entry.runtime_data.home,
-                    timeout=entity_config_entry.runtime_data.view_timeout,
+                    revert_path=entity_config_entry.runtime_data.home
+                    if revert
+                    else None,
+                    timeout=timeout
+                    if timeout
+                    else entity_config_entry.runtime_data.view_timeout,
                 )
 
     async def async_browser_navigate(
         self,
         browser_id: str,
         path: str,
-        display_device: str,
-        display_type: str,
+        display_type: str = "BrowserMod",
         revert_path: str | None = None,
         timeout: int = 10,
     ):
@@ -234,16 +234,12 @@ class VAServices:
 
         Optionally revert to another view after timeout.
         """
-        entity_registry = er.async_get(self.hass)
-        display_entity = entity_registry.async_get(display_device)
-        # display_domain = display_entity.domain
-        # display_device_id = display_entity.device_id
+
         _LOGGER.info(
-            "Navigating: browser_id: %s, path: %s, display_device: %s, display_entity: %s",
+            "Navigating: browser_id: %s, path: %s, display_type: %s",
             browser_id,
             path,
-            display_device,
-            display_entity,
+            display_type,
         )
 
         if display_type == "BrowserMod":
@@ -265,9 +261,7 @@ class VAServices:
                 timeout,
                 partial(
                     self.hass.create_task,
-                    self.async_browser_navigate(
-                        browser_id, revert_path, display_device, display_type
-                    ),
+                    self.async_browser_navigate(browser_id, revert_path, display_type),
                     f"Revert browser {browser_id}",
                 ),
             )
@@ -318,98 +312,17 @@ class VAServices:
         result = await t.get_timers(timer_id, device_id)
         return {"result": result}
 
-    # ----------------------------------------------------------------
-    # Images
-    # ----------------------------------------------------------------
     async def async_handle_get_random_image(self, call: ServiceCall) -> ServiceResponse:
         """Handle random image selection.
 
         name: View Assist Select Random Image
         description: Selects a random image from the specified directory or downloads a new image
         """
-        directory = call.data.get("directory")
-        source = call.data.get(
+        directory: str = call.data.get("directory")
+        source: str = call.data.get(
             "source", "local"
         )  # Default to "local" if source is not provided
 
-        valid_extensions = (".jpeg", ".jpg", ".tif", ".png")
-
-        if source == "local":
-            # Translate /local/ to /config/www/ for directory validation
-            if directory.startswith("/local/"):
-                filesystem_directory = directory.replace("/local/", "/config/www/", 1)
-            else:
-                filesystem_directory = directory
-
-            # Verify the directory exists
-            if not os.path.isdir(filesystem_directory):
-                return {
-                    "error": f"The directory '{filesystem_directory}' does not exist."
-                }
-
-            # List only image files with the valid extensions
-            images = [
-                f
-                for f in os.listdir(filesystem_directory)
-                if f.lower().endswith(valid_extensions)
-            ]
-
-            # Check if any images were found
-            if not images:
-                return {
-                    "error": f"No images found in the directory '{filesystem_directory}'."
-                }
-
-            # Select a random image
-            selected_image = random.choice(images)
-
-            # Replace /config/www/ with /local/ for constructing the relative path
-            if filesystem_directory.startswith("/config/www/"):
-                relative_path = filesystem_directory.replace("/config/www/", "/local/")
-            else:
-                relative_path = directory
-
-            # Ensure trailing slash in the relative path
-            if not relative_path.endswith("/"):
-                relative_path += "/"
-
-            # Construct the image path
-            image_path = f"{relative_path}{selected_image}"
-
-        elif source == "download":
-            url = "https://unsplash.it/640/425?random"
-            response = requests.get(url)
-
-            if response.status_code == 200:
-                current_time = datetime.now().strftime("%Y%m%d%H%M%S")
-                filename = f"random_{current_time}.jpg"
-                full_path = os.path.join(directory, filename)
-
-                with open(full_path, "wb") as file:
-                    file.write(response.content)
-
-                # Remove previous background image
-                for file in os.listdir(directory):
-                    if file.startswith("random_") and file != filename:
-                        os.remove(os.path.join(directory, file))
-
-                image_path = full_path
-            else:
-                # Return existing image if the download fails
-                existing_files = [
-                    os.path.join(directory, file)
-                    for file in os.listdir(directory)
-                    if file.startswith("random_")
-                ]
-                image_path = existing_files[0] if existing_files else None
-
-            if not image_path:
-                return {
-                    "error": "Failed to download a new image and no existing images found."
-                }
-
-        else:
-            return {"error": "Invalid source specified. Use 'local' or 'download'."}
-
-        # Return the image path in a dictionary
-        return {"image_path": image_path}
+        return await self.hass.async_add_executor_job(
+            get_random_image, self.hass, directory, source
+        )

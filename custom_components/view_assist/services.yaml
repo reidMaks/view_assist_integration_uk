@@ -19,16 +19,18 @@ navigate:
       required: true
       selector:
         text:
-    display_type:
-      name: Display Type
-      description: The integration used to control the display
-      example: "BrowserMod"
-      required: true
+    revert:
+      name: Revert Display
+      description: Revert to home screen after display timeout - default is yes
+      required: false
       selector:
-        select:
-          options:
-            - "BrowserMod"
-            - "Remote Assist Display"
+        boolean:
+    timeout:
+      name: Timeout
+      description: Timeout to revert the screen in seconds
+      required: false
+      selector:
+        number:
 set_state:
   name: Set state or attributes
   description: >
