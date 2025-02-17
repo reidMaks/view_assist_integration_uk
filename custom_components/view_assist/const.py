@@ -7,6 +7,8 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 
 DOMAIN = "view_assist"
+BROWSERMOD_DOMAIN = "browser_mod"
+REMOTE_ASSIST_DISPLAY_DOMAIN = "remote_assist_display"
 URL_BASE = "/view_assist"
 JSMODULES = [
     {
@@ -34,7 +36,7 @@ VAMODE_REVERTS = {
     VAMode.NORMAL: {"revert": True, "view": "home"},
     VAMode.MUSIC: {"revert": True, "view": "music"},
     VAMode.CYCLE: {"revert": False},
-    VAMode.HOLD: {"revert": True, "view": "_previous_view"},
+    VAMode.HOLD: {"revert": False},
     VAMode.NIGHT: {"revert": True, "view": "home"},
 }
 
@@ -224,8 +226,6 @@ class RuntimeData:
         """Initialise runtime data."""
         # Runtime variables go here
         self._timers = None
-        self._current_view: str | None = None
-        self._previous_view: str | None = None
 
         # Default config
         self.type: VAType | None = None
