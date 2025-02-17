@@ -19,17 +19,9 @@ from homeassistant.core import (
     SupportsResponse,
 )
 from homeassistant.helpers import entity_registry as er, selector
-from homeassistant.helpers.event import partial
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from .const import (
-    CONF_DISPLAY_DEVICE,
-    CONF_DISPLAY_TYPE,
-    CONF_REMOVE_ALL,
-    CONF_TIME,
-    CONF_TIMER_ID,
-    DOMAIN,
-    VAConfigEntry,
-)
+from .const import CONF_REMOVE_ALL, CONF_TIME, CONF_TIMER_ID, DOMAIN, VAConfigEntry
 from .helpers import get_random_image
 from .timers import VATimers, decode_time_sentence
 
@@ -41,8 +33,6 @@ NAVIGATE_SERVICE_SCHEMA = vol.Schema(
             selector.EntitySelectorConfig(integration=DOMAIN)
         ),
         vol.Required(CONF_PATH): str,
-        vol.Optional("revert", default=True): bool,
-        vol.Optional("timeout", default=0): int,
     }
 )
 
@@ -181,7 +171,6 @@ class VAServices:
     # action: view_assist.navigate
     # data:
     #   target_display_device: sensor.viewassist_office_browser_path
-    #   target_display_type: browsermod
     #   path: /dashboard-viewassist/weather
     # ------------------------------------------------------------------------
     async def async_handle_navigate(self, call: ServiceCall):
@@ -189,8 +178,6 @@ class VAServices:
 
         va_entity_id = call.data.get(CONF_DEVICE)
         path = call.data.get(CONF_PATH)
-        revert = call.data.get("revert", True)
-        timeout = call.data.get("timeout")
 
         # get config entry from entity id to allow access to browser_id parameter
         entity_registry = er.async_get(self.hass)
@@ -198,72 +185,11 @@ class VAServices:
             entity_config_entry: VAConfigEntry = (
                 self.hass.config_entries.async_get_entry(entity.config_entry_id)
             )
-            browser_id = entity_config_entry.runtime_data.browser_id
-            display_type = entity_config_entry.runtime_data.display_type
 
-            if browser_id:
-                # Cancel any previous call later (revert display) task if new navigate request comes in
-                # for that browser id
-                if self.navigate_task and self.navigate_task.get(browser_id):
-                    if not self.navigate_task[browser_id].cancelled():
-                        self.navigate_task[browser_id].cancel()
-                    del self.navigate_task[browser_id]
-
-                # TODO: Remove fixed revert path and make dynamic based on logic/settings/mode
-                await self.async_browser_navigate(
-                    browser_id=browser_id,
-                    path=path,
-                    display_type=display_type,
-                    revert_path=entity_config_entry.runtime_data.home
-                    if revert
-                    else None,
-                    timeout=timeout
-                    if timeout
-                    else entity_config_entry.runtime_data.view_timeout,
-                )
-
-    async def async_browser_navigate(
-        self,
-        browser_id: str,
-        path: str,
-        display_type: str = "BrowserMod",
-        revert_path: str | None = None,
-        timeout: int = 10,
-    ):
-        """Navigate browser to defined view.
-
-        Optionally revert to another view after timeout.
-        """
-
-        _LOGGER.info(
-            "Navigating: browser_id: %s, path: %s, display_type: %s",
-            browser_id,
-            path,
-            display_type,
-        )
-
-        if display_type == "BrowserMod":
-            await self.hass.services.async_call(
-                "browser_mod",
-                "navigate",
-                {"browser_id": browser_id, "path": path},
-            )
-        elif display_type == "Remote Assist Display":
-            await self.hass.services.async_call(
-                "remote_assist_display",
-                "navigate",
-                {"target": browser_id, "path": path},
-            )
-
-        if revert_path and timeout:
-            _LOGGER.info("Adding revert to %s in %ss", revert_path, timeout)
-            self.navigate_task[browser_id] = self.hass.loop.call_later(
-                timeout,
-                partial(
-                    self.hass.create_task,
-                    self.async_browser_navigate(browser_id, revert_path, display_type),
-                    f"Revert browser {browser_id}",
-                ),
+            async_dispatcher_send(
+                self.hass,
+                f"{DOMAIN}_{entity_config_entry.entry_id}_browser_navigate",
+                {"path": path},
             )
 
     # ----------------------------------------------------------------

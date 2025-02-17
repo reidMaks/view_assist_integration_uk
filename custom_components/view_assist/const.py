@@ -7,6 +7,8 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 
 DOMAIN = "view_assist"
+BROWSERMOD_DOMAIN = "browser_mod"
+REMOTE_ASSIST_DISPLAY_DOMAIN = "remote_assist_display"
 URL_BASE = "/view_assist"
 JSMODULES = [
     {
@@ -15,6 +17,7 @@ JSMODULES = [
     },
 ]
 
+
 type VAConfigEntry = ConfigEntry[RuntimeData]
 
 
@@ -22,6 +25,20 @@ class VAMode(StrEnum):
     """View Assist modes."""
 
     NORMAL = "normal"
+    MUSIC = "music"
+    CYCLE = "cycle"
+    HOLD = "hold"
+    NIGHT = "night"
+    ROTATE = "rotate"
+
+
+VAMODE_REVERTS = {
+    VAMode.NORMAL: {"revert": True, "view": "home"},
+    VAMode.MUSIC: {"revert": True, "view": "music"},
+    VAMode.CYCLE: {"revert": False},
+    VAMode.HOLD: {"revert": False},
+    VAMode.NIGHT: {"revert": True, "view": "home"},
+}
 
 
 class VAType(StrEnum):

@@ -19,18 +19,6 @@ navigate:
       required: true
       selector:
         text:
-    revert:
-      name: Revert Display
-      description: Revert to home screen after display timeout - default is yes
-      required: false
-      selector:
-        boolean:
-    timeout:
-      name: Timeout
-      description: Timeout to revert the screen in seconds
-      required: false
-      selector:
-        number:
 set_state:
   name: Set state or attributes
   description: >
