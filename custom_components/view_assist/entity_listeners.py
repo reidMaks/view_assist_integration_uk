@@ -9,12 +9,13 @@ from homeassistant.helpers.event import async_track_state_change_event, partial
 from homeassistant.util import slugify
 
 from .const import (
-    CONF_DISPLAY_DEVICE,
-    CONF_DISPLAY_TYPE,
     CONF_DO_NOT_DISTURB,
     DOMAIN,
     VA_ATTRIBUTE_UPDATE_EVENT,
     VAConfigEntry,
+    VADisplayType,
+    VAMode,
+    VAType,
 )
 from .helpers import get_random_image
 
@@ -40,6 +41,24 @@ class EntityListeners:
             self.async_set_state_changed_attribute,
         )
 
+        # Add listener for browsermod or remote assist display
+        if config_entry.runtime_data.type == VAType.VIEW_AUDIO:
+            if config_entry.runtime_data.display_type == VADisplayType.BROWSERMOD:
+                view_entity = f"sensor.{slugify(config_entry.runtime_data.browser_id)}_browser_path"
+            elif (
+                config_entry.runtime_data.display_type
+                == VADisplayType.REMOTE_ASSIST_DISPLAY
+            ):
+                # TODO: Change this to be correct sensor for RAD
+                view_entity = f"sensor.{slugify(config_entry.runtime_data.browser_id)}_browser_path"
+
+            config_entry.async_on_unload(
+                async_track_state_change_event(
+                    hass, view_entity, self._async_on_view_change
+                )
+            )
+
+        # Add mic mute switch listener
         config_entry.async_on_unload(
             async_track_state_change_event(hass, mute_switch, self._async_on_mic_change)
         )
@@ -59,8 +78,8 @@ class EntityListeners:
             self.hass, f"{DOMAIN}_{self.config_entry.entry_id}_update"
         )
 
-    async def browser_navigate(self, path: str, revert: bool = True, timeout: int = 0):
-        """Call browser navigate option - temportary fix."""
+    async def browser_navigate(self, path: str):
+        """Call browser navigate option."""
 
         # Get entity id of VA entity
         entity_id = f"sensor.{slugify(self.config_entry.runtime_data.name)}"
@@ -72,18 +91,14 @@ class EntityListeners:
             {
                 CONF_DEVICE: entity_id,
                 CONF_PATH: path,
-                "revert": revert,
-                "timeout": timeout
-                if timeout
-                else self.config_entry.runtime_data.view_timeout,
             },
         )
 
-    async def cycle_display(self, views: list[str], timeout: int = 10):
+    async def cycle_display(self, views: list[str]):
         """Cycle display."""
 
         async def _interval_timer_expiry(view_index: int):
-            if self.config_entry.runtime_data.mode == "cycle":
+            if self.config_entry.runtime_data.mode == VAMode.CYCLE:
                 # still in cycle mode
                 if view_index > (len(views) - 1):
                     view_index = 0
@@ -91,7 +106,6 @@ class EntityListeners:
                 # Navigate browser
                 await self.browser_navigate(
                     f"{self.config_entry.runtime_data.dashboard}/{views[view_index]}",
-                    revert=False,
                 )
 
                 # Set next timeout
@@ -104,12 +118,23 @@ class EntityListeners:
             else:
                 _LOGGER.info("Cycle display terminated")
 
+        timeout = self.config_entry.runtime_data.view_timeout
         await _interval_timer_expiry(0)
         _LOGGER.info("Cycle display started")
 
     # ---------------------------------------------------------------------------------------
     # Actions for monitoring changes to external entities
     # ---------------------------------------------------------------------------------------
+
+    @callback
+    def _async_on_view_change(self, event: Event[EventStateChangedData]) -> None:
+        current_view = event.data["new_state"].state
+        previous_view = (
+            event.data["old_state"].state if event.data["old_state"] else None
+        )
+
+        # TODO: Decide when to save values to runtime_data._current_view and _previous_view for hold mode
+        # And then utilise these if navigate in that mode.
 
     @callback
     def _async_on_mic_change(self, event: Event[EventStateChangedData]) -> None:
@@ -224,13 +249,12 @@ class EntityListeners:
     async def _async_on_mode_state_change(self, event: Event) -> None:
         """Set mode status icon."""
 
-        mode_new_state = event.data["new_value"]
-        mode_old_state = event.data["old_value"]
+        new_mode = event.data["new_value"]
 
-        _LOGGER.info("MODE STATE: %s", mode_new_state)
+        _LOGGER.info("MODE STATE: %s", new_mode)
         status_icons = self.config_entry.runtime_data.status_icons.copy()
 
-        modes = ["hold", "cycle"]
+        modes = [VAMode.HOLD, VAMode.CYCLE]
 
         # Remove all mode icons
         for mode in modes:
@@ -238,29 +262,19 @@ class EntityListeners:
                 status_icons.remove(mode)
 
         # Now add back any you want
-        if mode_new_state in modes and mode_new_state not in status_icons:
-            status_icons.append(mode_new_state)
+        if new_mode in modes and new_mode not in status_icons:
+            status_icons.append(new_mode)
 
         self.config_entry.runtime_data.status_icons = status_icons
         self.update_entity()
 
-        if mode_new_state == "normal" and mode_old_state != "normal":
+        if new_mode == VAMode.NORMAL:
             # Add navigate to default view
-
-            # --------------------------------------------
-            # browser navigate option - temporary fix
-            # --------------------------------------------
-
             await self.browser_navigate(self.config_entry.runtime_data.home)
+            _LOGGER.info("NAVIGATE TO: %s", new_mode)
 
-            _LOGGER.info("NAVIGATE TO: %s", mode_new_state)
-        elif mode_new_state == "music" and mode_old_state != "music":
+        elif new_mode == VAMode.MUSIC:
             # Add navigate to music view
-
-            # --------------------------------------------
-            # browser navigate option - temporary fix
-            # --------------------------------------------
-
             await self.browser_navigate(self.config_entry.runtime_data.music)
 
             # --------------------------------------------
@@ -274,15 +288,16 @@ class EntityListeners:
                 },
             )
 
-            _LOGGER.info("NAVIGATE TO: %s", mode_new_state)
-        elif mode_new_state == "cycle" and mode_old_state != "cycle":
+            _LOGGER.info("NAVIGATE TO: %s", new_mode)
+
+        elif new_mode == VAMode.CYCLE:
             # Add start cycle mode
             # Pull cycle_mode attribute
             await self.cycle_display(
-                views=["music", "info", "weather", "clock"], timeout=self.config_entry.runtime_data.view_timeout
-            )            
-            _LOGGER.info("START MODE: %s", mode_new_state)
-        elif mode_new_state == "rotate" and mode_old_state != "rotate":
+                views=["music", "info", "weather", "clock"],
+            )
+            _LOGGER.info("START MODE: %s", new_mode)
+        elif new_mode == VAMode.ROTATE:
             #
             # Test image rotate service
             #
@@ -292,4 +307,4 @@ class EntityListeners:
                 "/config/www/viewassist/backgrounds",
                 "local",
             )
-            _LOGGER.info("START MODE: %s %s", mode_new_state, image_path)
+            _LOGGER.info("START MODE: %s %s", new_mode, image_path)

@@ -22,15 +22,14 @@ from homeassistant.helpers import entity_registry as er, selector
 from homeassistant.helpers.event import partial
 
 from .const import (
-    CONF_DISPLAY_DEVICE,
-    CONF_DISPLAY_TYPE,
     CONF_REMOVE_ALL,
     CONF_TIME,
     CONF_TIMER_ID,
     DOMAIN,
     VAConfigEntry,
+    VADisplayType,
 )
-from .helpers import get_random_image
+from .helpers import get_random_image, get_revert_settings_for_mode
 from .timers import VATimers, decode_time_sentence
 
 _LOGGER = logging.getLogger(__name__)
@@ -41,8 +40,6 @@ NAVIGATE_SERVICE_SCHEMA = vol.Schema(
             selector.EntitySelectorConfig(integration=DOMAIN)
         ),
         vol.Required(CONF_PATH): str,
-        vol.Optional("revert", default=True): bool,
-        vol.Optional("timeout", default=0): int,
     }
 )
 
@@ -189,8 +186,6 @@ class VAServices:
 
         va_entity_id = call.data.get(CONF_DEVICE)
         path = call.data.get(CONF_PATH)
-        revert = call.data.get("revert", True)
-        timeout = call.data.get("timeout")
 
         # get config entry from entity id to allow access to browser_id parameter
         entity_registry = er.async_get(self.hass)
@@ -209,59 +204,69 @@ class VAServices:
                         self.navigate_task[browser_id].cancel()
                     del self.navigate_task[browser_id]
 
-                # TODO: Remove fixed revert path and make dynamic based on logic/settings/mode
                 await self.async_browser_navigate(
+                    entity_config_entry=entity_config_entry,
                     browser_id=browser_id,
                     path=path,
                     display_type=display_type,
-                    revert_path=entity_config_entry.runtime_data.home
-                    if revert
-                    else None,
-                    timeout=timeout
-                    if timeout
-                    else entity_config_entry.runtime_data.view_timeout,
                 )
 
     async def async_browser_navigate(
         self,
+        entity_config_entry: VAConfigEntry,
         browser_id: str,
         path: str,
         display_type: str = "BrowserMod",
-        revert_path: str | None = None,
-        timeout: int = 10,
+        do_not_revert: bool = False,
     ):
         """Navigate browser to defined view.
 
         Optionally revert to another view after timeout.
         """
-
         _LOGGER.info(
-            "Navigating: browser_id: %s, path: %s, display_type: %s",
+            "Navigating: browser_id: %s, path: %s, display_type: %s, mode: %s",
             browser_id,
             path,
             display_type,
+            entity_config_entry.runtime_data.mode,
         )
 
-        if display_type == "BrowserMod":
+        if display_type == VADisplayType.BROWSERMOD:
             await self.hass.services.async_call(
                 "browser_mod",
                 "navigate",
                 {"browser_id": browser_id, "path": path},
             )
-        elif display_type == "Remote Assist Display":
+        elif display_type == VADisplayType.REMOTE_ASSIST_DISPLAY:
             await self.hass.services.async_call(
                 "remote_assist_display",
                 "navigate",
                 {"target": browser_id, "path": path},
             )
 
-        if revert_path and timeout:
+        if do_not_revert:
+            return
+
+        revert, revert_view = get_revert_settings_for_mode(
+            entity_config_entry.runtime_data.mode
+        )
+
+        revert_path = (
+            getattr(entity_config_entry.runtime_data, revert_view)
+            if revert_view
+            else None
+        )
+
+        if revert and path != revert_path:
+            timeout = entity_config_entry.runtime_data.view_timeout
             _LOGGER.info("Adding revert to %s in %ss", revert_path, timeout)
             self.navigate_task[browser_id] = self.hass.loop.call_later(
                 timeout,
                 partial(
                     self.hass.create_task,
-                    self.async_browser_navigate(browser_id, revert_path, display_type),
+                    self.async_browser_navigate(
+                        entity_config_entry, browser_id, revert_path, display_type, True
+                    ),
                     f"Revert browser {browser_id}",
                 ),
             )

@@ -15,6 +15,7 @@ JSMODULES = [
     },
 ]
 
+
 type VAConfigEntry = ConfigEntry[RuntimeData]
 
 
@@ -22,6 +23,20 @@ class VAMode(StrEnum):
     """View Assist modes."""
 
     NORMAL = "normal"
+    MUSIC = "music"
+    CYCLE = "cycle"
+    HOLD = "hold"
+    NIGHT = "night"
+    ROTATE = "rotate"
+
+
+VAMODE_REVERTS = {
+    VAMode.NORMAL: {"revert": True, "view": "home"},
+    VAMode.MUSIC: {"revert": True, "view": "music"},
+    VAMode.CYCLE: {"revert": False},
+    VAMode.HOLD: {"revert": True, "view": "_previous_view"},
+    VAMode.NIGHT: {"revert": True, "view": "home"},
+}
 
 
 class VAType(StrEnum):
@@ -209,6 +224,8 @@ class RuntimeData:
         """Initialise runtime data."""
         # Runtime variables go here
         self._timers = None
+        self._current_view: str | None = None
+        self._previous_view: str | None = None
 
         # Default config
         self.type: VAType | None = None

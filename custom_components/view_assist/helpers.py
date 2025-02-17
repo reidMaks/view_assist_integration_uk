@@ -9,7 +9,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import datetime
 
-from .const import CONF_BROWSER_ID, DOMAIN, VAConfigEntry, VAType
+from .const import (
+    CONF_BROWSER_ID,
+    DOMAIN,
+    VAMODE_REVERTS,
+    VAConfigEntry,
+    VAMode,
+    VAType,
+)
 
 
 def is_first_instance(
@@ -82,6 +89,13 @@ def get_entity_id_by_browser_id(hass: HomeAssistant, browser_id: str) -> str:
                 ):
                     return entity_id
     return None
+
+
+def get_revert_settings_for_mode(mode: VAMode) -> tuple:
+    """Get revert settings from VAMODE_REVERTS for mode."""
+    if mode in VAMODE_REVERTS:
+        return VAMODE_REVERTS[mode].get("revert"), VAMODE_REVERTS[mode].get("view")
+    return False, None
 
 
 # ----------------------------------------------------------------
