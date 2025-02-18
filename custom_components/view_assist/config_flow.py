@@ -6,11 +6,13 @@ from homeassistant.components.assist_satellite import DOMAIN as ASSIST_SAT_DOMAI
 from homeassistant.components.media_player import DOMAIN as MEDIAPLAYER_DOMAIN
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.weather import DOMAIN as WEATHER_DOMAIN
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
+from homeassistant.config_entries import ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_MODE, CONF_NAME, CONF_TYPE
 from homeassistant.core import callback
-from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.selector import (
+    DeviceSelector,
+    DeviceSelectorConfig,
+    EntityFilterSelectorConfig,
     EntitySelector,
     EntitySelectorConfig,
     SelectSelector,
@@ -19,12 +21,12 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import (
+    BROWSERMOD_DOMAIN,
     CONF_ASSIST_PROMPT,
     CONF_BACKGROUND,
-    CONF_BROWSER_ID,
     CONF_DASHBOARD,
+    CONF_DEV_MIMIC,
     CONF_DISPLAY_DEVICE,
-    CONF_DISPLAY_TYPE,
     CONF_DO_NOT_DISTURB,
     CONF_FONT_STYLE,
     CONF_HOME,
@@ -43,7 +45,6 @@ from .const import (
     CONF_WEATHER_ENTITY,
     DEFAULT_ASSIST_PROMPT,
     DEFAULT_DASHBOARD,
-    DEFAULT_DISPLAY_TYPE,
     DEFAULT_DND,
     DEFAULT_FONT_STYLE,
     DEFAULT_MIC_TYPE,
@@ -62,9 +63,8 @@ from .const import (
     DEFAULT_VIEW_TIMEOUT,
     DEFAULT_WEATHER_ENITITY,
     DOMAIN,
+    REMOTE_ASSIST_DISPLAY_DOMAIN,
     VAAssistPrompt,
-    VAConfigEntry,
-    VADisplayType,
     VAIconSizes,
     VAMicType,
     VAType,
@@ -84,10 +84,17 @@ BASE_SCHEMA = {
 }
 
 DISPLAY_SCHEMA = {
-    vol.Required(CONF_DISPLAY_DEVICE): EntitySelector(
-        EntitySelectorConfig(domain=SENSOR_DOMAIN)
+    vol.Required(CONF_DISPLAY_DEVICE): DeviceSelector(
+        DeviceSelectorConfig(
+            filter=[
+                EntityFilterSelectorConfig(integration=BROWSERMOD_DOMAIN),
+                EntityFilterSelectorConfig(
+                    integration=REMOTE_ASSIST_DISPLAY_DOMAIN,
+                ),
+            ],
+        )
     ),
-    vol.Required(CONF_BROWSER_ID): str,
+    vol.Required(CONF_DEV_MIMIC, default=False): bool,
 }
 
 
@@ -108,6 +115,7 @@ class ViewAssistConfigFlow(ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         """Initialise."""
+        super().__init__()
         self.type = None
 
     async def async_step_user(self, user_input=None):
@@ -211,10 +219,22 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                     vol.Required(
                         CONF_DISPLAY_DEVICE,
                         default=self.config_entry.data[CONF_DISPLAY_DEVICE],
-                    ): EntitySelector(EntitySelectorConfig(domain=SENSOR_DOMAIN)),
+                    ): DeviceSelector(
+                        DeviceSelectorConfig(
+                            filter=[
+                                EntityFilterSelectorConfig(
+                                    integration=BROWSERMOD_DOMAIN
+                                ),
+                                EntityFilterSelectorConfig(
+                                    integration=REMOTE_ASSIST_DISPLAY_DOMAIN,
+                                ),
+                            ],
+                        )
+                    ),
                     vol.Required(
-                        CONF_BROWSER_ID, default=self.config_entry.data[CONF_BROWSER_ID]
-                    ): str,
+                        CONF_DEV_MIMIC,
+                        default=self.config_entry.data.get(CONF_DEV_MIMIC),
+                    ): bool,
                 }
             )
         else:  # audio_only
@@ -342,18 +362,6 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                     SelectSelectorConfig(
                         translation_key="mic_type_selector",
                         options=[e.value for e in VAMicType],
-                        mode=SelectSelectorMode.DROPDOWN,
-                    )
-                ),
-                vol.Optional(
-                    CONF_DISPLAY_TYPE,
-                    default=self.config_entry.options.get(
-                        CONF_DISPLAY_TYPE, DEFAULT_DISPLAY_TYPE
-                    ),
-                ): SelectSelector(
-                    SelectSelectorConfig(
-                        translation_key="display_type_selector",
-                        options=[e.value for e in VADisplayType],
                         mode=SelectSelectorMode.DROPDOWN,
                     )
                 ),

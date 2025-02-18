@@ -9,9 +9,11 @@ from homeassistant.config_entries import ConfigEntry
 DOMAIN = "view_assist"
 BROWSERMOD_DOMAIN = "browser_mod"
 REMOTE_ASSIST_DISPLAY_DOMAIN = "remote_assist_display"
+
 URL_BASE = "/view_assist"
 JSMODULES = [
     {
+        "name": "View Assist Helper",
         "filename": "view_assist.js",
         "version": "1.0.0",
     },
@@ -134,7 +136,6 @@ CONF_MIC_DEVICE = "mic_device"
 CONF_MEDIAPLAYER_DEVICE = "mediaplayer_device"
 CONF_MUSICPLAYER_DEVICE = "musicplayer_device"
 CONF_DISPLAY_DEVICE = "display_device"
-CONF_BROWSER_ID = "browser_id"
 CONF_DASHBOARD = "dashboard"
 CONF_HOME = "home"
 CONF_INTENT = "intent"
@@ -147,8 +148,6 @@ CONF_STATUS_ICONS = "status_icons"
 CONF_USE_24H_TIME = "use_24_hour_time"
 CONF_WEATHER_ENTITY = "weather_entity"
 CONF_MIC_TYPE = "mic_type"
-CONF_DISPLAY_TYPE = "display_type"
-CONF_DISPLAY_DEVICE = "display_device"
 CONF_VIEW_TIMEOUT = "view_timeout"
 CONF_DO_NOT_DISTURB = "do_not_disturb"
 CONF_USE_ANNOUNCE = "use_announce"
@@ -156,6 +155,7 @@ CONF_MIC_UNMUTE = "micunmute"
 CONF_TIME = "time"
 CONF_TIMER_ID = "timer_id"
 CONF_REMOVE_ALL = "remove_all"
+CONF_DEV_MIMIC = "dev_mimic"
 
 # Config default values
 DEFAULT_NAME = "View Assist"
@@ -172,7 +172,6 @@ DEFAULT_STATUS_ICONS = []
 DEFAULT_USE_24H_TIME = False
 DEFAULT_WEATHER_ENITITY = "weather.home"
 DEFAULT_MIC_TYPE = VAMicType.HA_VOICE_SATELLITE
-DEFAULT_DISPLAY_TYPE = VADisplayType.BROWSERMOD
 DEFAULT_MODE = "normal"
 DEFAULT_VIEW_TIMEOUT = 20
 DEFAULT_DND = False
@@ -234,7 +233,7 @@ class RuntimeData:
         self.mediaplayer_device: str = ""
         self.musicplayer_device: str = ""
         self.display_device: str = ""
-        self.browser_id: str = ""
+        self.dev_mimic: bool = False
 
         # Dashboard options
         self.dashboard: str = DEFAULT_DASHBOARD
@@ -251,7 +250,6 @@ class RuntimeData:
         # Default options
         self.weather_entity: str = DEFAULT_WEATHER_ENITITY
         self.mic_type: VAMicType = DEFAULT_MIC_TYPE
-        self.display_type: VADisplayType = DEFAULT_DISPLAY_TYPE
         self.mode: str = DEFAULT_MODE
         self.view_timeout: int = DEFAULT_VIEW_TIMEOUT
         self.do_not_disturb: bool = DEFAULT_DND
