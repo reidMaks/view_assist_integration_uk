@@ -10,7 +10,7 @@ from homeassistant.components.websocket_api import (
 )
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN
+from .const import DOMAIN, VAType
 from .helpers import get_entity_id_by_browser_id
 
 
@@ -29,7 +29,9 @@ async def async_register_websockets(hass: HomeAssistant):
         hass: HomeAssistant, connection: ActiveConnection, msg: dict
     ) -> None:
         """Get entity id by browser id."""
-        output = get_entity_id_by_browser_id(hass, msg["browser_id"])
+        output = get_entity_id_by_browser_id(
+            hass, msg["browser_id"], return_dev_flagged_if_unmatched=True
+        )
         connection.send_result(msg["id"], output)
 
     async_register_command(hass, websocket_get_entity_by_browser_id)

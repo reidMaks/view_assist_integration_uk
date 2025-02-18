@@ -1,7 +1,7 @@
 """Handles entity listeners."""
 
 import asyncio
-from asyncio import Task, TimerHandle
+from asyncio import Task
 import logging
 
 from homeassistant.const import CONF_MODE
@@ -23,7 +23,12 @@ from .const import (
     VADisplayType,
     VAMode,
 )
-from .helpers import get_random_image, get_revert_settings_for_mode
+from .helpers import (
+    get_device_name_from_id,
+    get_display_type_from_browser_id,
+    get_random_image,
+    get_revert_settings_for_mode,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -110,8 +115,10 @@ class EntityListeners:
             self._cancel_display_revert_task()
 
         # Do navigation and set revert if needed
-        display_type = self.config_entry.runtime_data.display_type
-        browser_id = self.config_entry.runtime_data.browser_id
+        browser_id = get_device_name_from_id(
+            self.hass, self.config_entry.runtime_data.display_device
+        )
+        display_type = get_display_type_from_browser_id(self.hass, browser_id)
 
         _LOGGER.info(
             "Navigating: %s, browser_id: %s, path: %s, display_type: %s, mode: %s",

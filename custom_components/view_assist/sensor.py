@@ -83,14 +83,11 @@ class ViewAssistSensor(SensorEntity):
             "background": r.background,
             "weather_entity": r.weather_entity,
             "mic_type": r.mic_type,
-            "display_type": r.display_type,
         }
 
         # Only add these attributes if they exist
         if r.display_device:
             attrs["display_device"] = r.display_device
-        if r.browser_id:
-            attrs["browser_id"] = r.browser_id
 
         # Add extra_data attributes from runtime data
         attrs.update(self.config.runtime_data.extra_data)

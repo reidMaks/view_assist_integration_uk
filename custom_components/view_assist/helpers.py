@@ -1,22 +1,31 @@
 """Helper functions."""
 
+import logging
 import os
 import random
 from typing import Any
 
 import requests
+
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.util import datetime
 
 from .const import (
-    CONF_BROWSER_ID,
+    BROWSERMOD_DOMAIN,
+    CONF_DEV_MIMIC,
+    CONF_DISPLAY_DEVICE,
     DOMAIN,
+    REMOTE_ASSIST_DISPLAY_DOMAIN,
     VAMODE_REVERTS,
     VAConfigEntry,
+    VADisplayType,
     VAMode,
     VAType,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def is_first_instance(
@@ -62,32 +71,105 @@ def ensure_list(value: str | list[str]):
     return []
 
 
-def get_entity_id_by_browser_id(hass: HomeAssistant, browser_id: str) -> str:
+def get_device_name_from_id(hass: HomeAssistant, device_id: str) -> str:
+    """Get the browser_id for the device based on device domain."""
+    device_reg = dr.async_get(hass)
+    device = device_reg.async_get(device_id)
+
+    return device.name if device else None
+
+
+def get_device_id_from_name(hass: HomeAssistant, device_name: str) -> str:
+    """Get the device id of the device with the given name."""
+
+    def find_device_for_domain(domain: str, device_name: str) -> str | None:
+        entries = list(
+            hass.config_entries.async_entries(
+                domain, include_ignore=False, include_disabled=False
+            )
+        )
+
+        if entries:
+            device_reg = dr.async_get(hass)
+            for entry in entries:
+                devices = device_reg.devices.get_devices_for_config_entry_id(
+                    entry.entry_id
+                )
+                if devices:
+                    for device in devices:
+                        if device.name == device_name:
+                            return device.id
+        return None
+
+    supported_device_domains = [BROWSERMOD_DOMAIN, REMOTE_ASSIST_DISPLAY_DOMAIN]
+
+    for domain in supported_device_domains:
+        if device_id := find_device_for_domain(domain, device_name):
+            return device_id
+    return None
+
+
+def get_entity_id_by_browser_id(
+    hass: HomeAssistant, browser_id: str, return_dev_flagged_if_unmatched: bool = False
+) -> str:
     """Get entity id form browser id.
 
     Support websocket
     """
-    entity_registry = er.async_get(hass)
+    # Browser ID is same as device name, so get device id to VA device with display device
+    # set to this id
+    device_id = get_device_id_from_name(hass, browser_id)
 
-    # Get all instances of view assist
-    entry_ids = [entry.entry_id for entry in hass.config_entries.async_entries(DOMAIN)]
-
-    # For each instance, get list of entities
-    for entry_id in entry_ids:
-        integration_entities = er.async_entries_for_config_entry(
+    def _get_sensor_entity_from_instance(
+        entry_id: str,
+    ) -> str:
+        entity_registry = er.async_get(hass)
+        if integration_entities := er.async_entries_for_config_entry(
             entity_registry, entry_id
-        )
-        # Get entity ids
-        entity_ids = [entity.entity_id for entity in integration_entities if entity]
+        ):
+            for entity in integration_entities:
+                if entity.domain == Platform.SENSOR:
+                    return entity.entity_id
+        return None
 
-        # Get entity id state and check browser id attribute
-        for entity_id in entity_ids:
-            if state := hass.states.get(entity_id):
-                if (
-                    state.attributes.get(CONF_BROWSER_ID)
-                    and state.attributes[CONF_BROWSER_ID] == browser_id
-                ):
-                    return entity_id
+    # Get all instances of view assist for browser id
+    entry_ids = [
+        entry.entry_id
+        for entry in hass.config_entries.async_entries(DOMAIN)
+        if entry.data.get(CONF_DISPLAY_DEVICE) == device_id
+    ]
+
+    if entry_ids:
+        return _get_sensor_entity_from_instance(entry_ids[0])
+
+    # If we reach here, no match for browser_id was found
+    if return_dev_flagged_if_unmatched:
+        matched_entry_ids = [
+            entry.entry_id
+            for entry in hass.config_entries.async_entries(DOMAIN)
+            if entry.data.get(CONF_DEV_MIMIC)
+        ]
+        if matched_entry_ids:
+            return _get_sensor_entity_from_instance(matched_entry_ids[0])
+
+    return None
+
+
+def get_display_type_from_browser_id(
+    hass: HomeAssistant, browser_id: str
+) -> VADisplayType:
+    """Return VAType from a browser id."""
+    device_id = get_device_id_from_name(hass, browser_id)
+    if device_id:
+        device_reg = dr.async_get(hass)
+        device = device_reg.async_get(device_id)
+
+        entry = hass.config_entries.async_get_entry(device.primary_config_entry)
+        if entry:
+            if entry.domain == BROWSERMOD_DOMAIN:
+                return VADisplayType.BROWSERMOD
+            if entry.domain == REMOTE_ASSIST_DISPLAY_DOMAIN:
+                return VADisplayType.REMOTE_ASSIST_DISPLAY
     return None
 
 
