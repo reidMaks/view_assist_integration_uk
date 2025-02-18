@@ -89,6 +89,7 @@ action:
     views: !input views
     target_satellite_device: "{{ target_satellite.target_satellite[0] }}"
     target_mediaplayer_device: '{{ state_attr(target_satellite_device, ''mediaplayer_device'')}}'
+    target_musicplayer_device: '{{ state_attr(target_satellite_device, ''musicplayer_device'')}}'
     target_satellite_device_type: '{{ state_attr(target_satellite_device, ''type'')}}'
     target_display_type: '{{ state_attr(target_satellite_device, ''display_type'')}}' 
 - choose:
