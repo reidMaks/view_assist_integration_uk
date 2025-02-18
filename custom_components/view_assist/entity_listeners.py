@@ -349,13 +349,13 @@ class EntityListeners:
             # --------------------------------------------
             # Service call option
             # --------------------------------------------
-            await self.hass.services.async_call(
-                "switch",
-                "turn_on",
-                {
-                    "entity_id": "switch.android_satellite_viewassist_office_wyoming_mute"
-                },
-            )
+            # await self.hass.services.async_call(
+            #     "switch",
+            #     "turn_on",
+            #     {
+            #         "entity_id": "switch.android_satellite_viewassist_office_wyoming_mute"
+            #     },
+            # )
 
             _LOGGER.info("NAVIGATE TO: %s", new_mode)
 
