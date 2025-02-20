@@ -12,9 +12,10 @@ from typing import Any
 
 import wordtodigits
 
-from config.custom_components.view_assist.helpers import (
+from .helpers import (
     get_entity_id_from_conversation_device_id,
 )
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
