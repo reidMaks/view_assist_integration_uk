@@ -40,7 +40,6 @@ action:
     target_satellite_device: "{{ target_satellite.target_satellite[0] }}"
     target_mediaplayer_device: '{{ state_attr(target_satellite_device, ''mediaplayer_device'')}}'
     target_satellite_device_type: '{{ state_attr(target_satellite_device, ''type'')}}'
-    target_display_type: '{{ state_attr(target_satellite_device, ''display_type'')}}'      
 - set_conversation_response: Its {{ state_attr(weather_entity, 'temperature') }} degrees
     and {{states[weather_entity].state}}
 - if:
@@ -50,7 +49,6 @@ action:
   then:
   - data:
       device: "{{ target_satellite_device }}"
-      display_type: "{{ target_display_type }}"
       path: "{{ dashboard }}"
     action: view_assist.navigate
 mode: single
