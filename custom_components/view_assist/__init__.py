@@ -11,6 +11,7 @@ from .frontend import FrontendConfig
 from .helpers import ensure_list, get_loaded_instance_count, is_first_instance
 from .js_modules import JSModuleRegistration
 from .services import VAServices
+from .templates import setup_va_templates
 from .timers import VATimers
 from .websocket import async_register_websockets
 
@@ -65,6 +66,8 @@ async def run_if_first_instance(hass: HomeAssistant, entry: VAConfigEntry):
     # Load javascript modules
     jsloader = JSModuleRegistration(hass)
     await jsloader.async_register()
+
+    setup_va_templates(hass)
 
 
 async def run_if_first_display_instance(hass: HomeAssistant, entry: VAConfigEntry):
