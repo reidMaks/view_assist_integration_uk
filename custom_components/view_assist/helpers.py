@@ -180,6 +180,30 @@ def get_revert_settings_for_mode(mode: VAMode) -> tuple:
     return False, None
 
 
+def get_entities_by_attr_filter(
+    hass: HomeAssistant, filter: dict[str, Any] | None = None
+) -> list[str]:
+    """Get the entity ids of devices not in dnd mode."""
+    matched_entities = []
+    entry_ids = [entry.entry_id for entry in hass.config_entries.async_entries(DOMAIN)]
+    for entry_id in entry_ids:
+        entity_registry = er.async_get(hass)
+        entities = er.async_entries_for_config_entry(entity_registry, entry_id)
+        for entity in entities:
+            if filter:
+                if state := hass.states.get(entity.entity_id):
+                    for attr, value in filter.items():
+                        if state.attributes.get(attr) == value:
+                            add_entity = True
+                        else:
+                            add_entity = False
+                    if add_entity:
+                        matched_entities.append(entity.entity_id)
+            else:
+                matched_entities.append(entity.entity_id)
+    return matched_entities
+
+
 # ----------------------------------------------------------------
 # Images
 # ----------------------------------------------------------------
