@@ -109,6 +109,39 @@ def get_device_id_from_name(hass: HomeAssistant, device_name: str) -> str:
     return None
 
 
+def _get_sensor_entity_from_instance(
+    hass: HomeAssistant,
+    entry_id: str,
+) -> str:
+    entity_registry = er.async_get(hass)
+    if integration_entities := er.async_entries_for_config_entry(
+        entity_registry, entry_id
+    ):
+        for entity in integration_entities:
+            if entity.domain == Platform.SENSOR:
+                return entity.entity_id
+    return None
+
+
+def get_entity_id_from_conversation_device_id(
+    hass: HomeAssistant, device_id: str
+) -> str | None:
+    """Get the view assist entity id for a device id relating to the mic entity."""
+    entries = list(
+        hass.config_entries.async_entries(
+            DOMAIN, include_ignore=False, include_disabled=False
+        )
+    )
+    entry: VAConfigEntry
+    for entry in entries:
+        mic_entity_id = entry.runtime_data.mic_device
+        entity_registry = er.async_get(hass)
+        mic_entity = entity_registry.async_get(mic_entity_id)
+        if mic_entity.device_id == device_id:
+            return _get_sensor_entity_from_instance(hass, entry.entry_id)
+    return None
+
+
 def get_entity_id_by_browser_id(
     hass: HomeAssistant, browser_id: str, return_dev_flagged_if_unmatched: bool = False
 ) -> str:
@@ -120,18 +153,6 @@ def get_entity_id_by_browser_id(
     # set to this id
     device_id = get_device_id_from_name(hass, browser_id)
 
-    def _get_sensor_entity_from_instance(
-        entry_id: str,
-    ) -> str:
-        entity_registry = er.async_get(hass)
-        if integration_entities := er.async_entries_for_config_entry(
-            entity_registry, entry_id
-        ):
-            for entity in integration_entities:
-                if entity.domain == Platform.SENSOR:
-                    return entity.entity_id
-        return None
-
     # Get all instances of view assist for browser id
     entry_ids = [
         entry.entry_id
@@ -140,7 +161,7 @@ def get_entity_id_by_browser_id(
     ]
 
     if entry_ids:
-        return _get_sensor_entity_from_instance(entry_ids[0])
+        return _get_sensor_entity_from_instance(hass, entry_ids[0])
 
     # If we reach here, no match for browser_id was found
     if return_dev_flagged_if_unmatched:
