@@ -12,6 +12,9 @@ from typing import Any
 
 import wordtodigits
 
+from config.custom_components.view_assist.helpers import (
+    get_entity_id_from_conversation_device_id,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
@@ -515,6 +518,9 @@ class VATimers:
         if not self.is_duplicate_timer(device_id, name, expires_unix_ts):
             # Add timer_info to extra_info
             extra_info["timer_info"] = timer_info
+            extra_info["view_assist_entity_id"] = (
+                get_entity_id_from_conversation_device_id(self.hass, device_id)
+            )
 
             timer = Timer(
                 timer_class=timer_class,
