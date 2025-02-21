@@ -68,15 +68,20 @@ class VAAlarmRepeater:
         """Try and get currently playing media."""
 
         # If not playing then return None
-        # if media_entity.state != MediaPlayerState.PLAYING:
-        #    _LOGGER.warning("Not PLAYING! - %s", media_entity.state)
-        #    return None
+        if media_entity.state != MediaPlayerState.PLAYING:
+            _LOGGER.debug(
+                "%s is in %s state - will not attempt restore",
+                media_entity.entity_id,
+                media_entity.state,
+            )
+            return None
+
         data = None
 
         # Hook into integration data to get currently playing media
         media_integration = media_entity.platform.platform_name
 
-        _LOGGER.debug("MEDIA ENTITY PLATFORM: %s", media_integration)
+        _LOGGER.debug("Media entity platform: %s", media_integration)
         # Browermod
         if media_integration == BROWSERMOD_DOMAIN:
             _data = media_entity._data  # noqa: SLF001
@@ -98,7 +103,7 @@ class VAAlarmRepeater:
                 media_position=media_entity.media_position,
             )
 
-        _LOGGER.debug("MEDIA PLAYER DATA: %s", data)
+        _LOGGER.debug("Current playing media: %s", data)
         return data
 
     async def wait_for_state(
@@ -213,19 +218,23 @@ class VAAlarmRepeater:
             media_url = f"{get_url(self.hass)}/{media_url}"
 
         i = 1
-        while i <= max_repeats or not max_repeats:
-            await self.hass.services.async_call(
-                "media_player",
-                "play_media",
-                {
-                    "entity_id": media_entity.entity_id,
-                    "media_content_type": "music",
-                    "media_content_id": media_url,
-                },
-            )
-            await asyncio.sleep(0.5)
-            await self.wait_for_idle(media_entity)
-            i += 1
+        try:
+            while i <= max_repeats or not max_repeats:
+                await self.hass.services.async_call(
+                    "media_player",
+                    "play_media",
+                    {
+                        "entity_id": media_entity.entity_id,
+                        "media_content_type": "music",
+                        "media_content_id": media_url,
+                    },
+                )
+                await asyncio.sleep(0.5)
+                await self.wait_for_idle(media_entity)
+                i += 1
+        except Exception as ex:  # noqa: BLE001
+            _LOGGER.error("ERROR: %s", ex)
+            return
         _LOGGER.debug("Repeat media ended")
 
     async def cancel_alarm_sound(self, entity_id: str | None = None):
@@ -236,13 +245,13 @@ class VAAlarmRepeater:
             entities = list(self.alarm_tasks.keys())
 
         for mp_entity_id in entities:
+            await self.hass.services.async_call(
+                "media_player", "media_stop", {"entity_id": mp_entity_id}
+            )
             if (
                 self.alarm_tasks.get(mp_entity_id)
                 and not self.alarm_tasks[mp_entity_id].done()
             ):
-                await self.hass.services.async_call(
-                    "media_player", "media_stop", {"entity_id": mp_entity_id}
-                )
                 self.alarm_tasks[mp_entity_id].cancel()
 
     async def alarm_sound(
@@ -274,13 +283,15 @@ class VAAlarmRepeater:
                 # Sound alarm
                 self.alarm_tasks[entity_id] = self.config.async_create_background_task(
                     self.hass,
-                    self.repeat_media(entity_id, media_type, media_url, max_repeats),
+                    self.repeat_media(media_entity, media_type, media_url, max_repeats),
                     name=f"AlarmRepeat-{entity_id}",
                 )
 
                 # Wait for alarm media task to finish
                 while not self.alarm_tasks[entity_id].done():
                     await asyncio.sleep(0.2)
+
+                self.alarm_tasks.pop(entity_id)
 
                 if resume and playing_media:
                     _LOGGER.debug("Resuming media: %s", playing_media)
