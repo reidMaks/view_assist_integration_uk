@@ -4,7 +4,7 @@ import asyncio
 from dataclasses import dataclass
 import logging
 
-from config.custom_components.view_assist.const import BROWSERMOD_DOMAIN
+from .const import BROWSERMOD_DOMAIN
 from homeassistant.components.media_player import MediaPlayerEntity, MediaType
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
