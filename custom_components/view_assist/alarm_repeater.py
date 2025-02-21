@@ -112,7 +112,7 @@ class VAAlarmRepeater:
         data_var: str,
         attribute: str,
         wanted_state: Any,
-        timeout: float = 10.0,
+        timeout: float = 60.0,
     ) -> None:
         """Wait for an object attribute to reach the given state."""
         start_timestamp = time.time()
@@ -131,9 +131,10 @@ class VAAlarmRepeater:
                 wanted_state,
                 timeout,
             )
+            return False
         except Exception as ex:  # noqa: BLE001
             _LOGGER.error("ERROR: %s", ex)
-
+            return False
         elapsed_time = round(time.time() - start_timestamp, 2)
         _LOGGER.debug(
             "%s reached state %s within %s seconds",
@@ -141,8 +142,9 @@ class VAAlarmRepeater:
             wanted_state,
             elapsed_time,
         )
+        return True
 
-    async def wait_for_idle(self, media_entity: MediaPlayerEntity, timeout: int = 30):
+    async def wait_for_idle(self, media_entity: MediaPlayerEntity, timeout: int = 60):
         """Wait for media player to be idle."""
         start_timestamp = time.time()
         _LOGGER.debug("Waiting for %s to be idle", media_entity.entity_id)
@@ -157,15 +159,17 @@ class VAAlarmRepeater:
                 media_entity.entity_id,
                 timeout,
             )
+            return False
         except Exception as ex:  # noqa: BLE001
             _LOGGER.error("ERROR: %s", ex)
-
+            return False
         elapsed_time = round(time.time() - start_timestamp, 2)
         _LOGGER.debug(
             "%s reached idle state within %s seconds",
             media_entity.entity_id,
             elapsed_time,
         )
+        return True
 
     async def repeat_announce(
         self,
@@ -194,9 +198,14 @@ class VAAlarmRepeater:
                     )
                     # Wait for time for status to update
                     await asyncio.sleep(1)
-                    await self.wait_for_state(
+                    response = await self.wait_for_state(
                         media_entity, "player", "announcement_in_progress", False
                     )
+
+                    # If wait for state timed out or errored, exit
+                    if not response:
+                        return
+
                     # Added to try and keep playing media position
                     await asyncio.sleep(1)
                     i += 1
@@ -232,7 +241,12 @@ class VAAlarmRepeater:
                     },
                 )
                 await asyncio.sleep(0.5)
-                await self.wait_for_idle(media_entity)
+                response = await self.wait_for_idle(media_entity)
+
+                # If wait for state timed out or errored, exit
+                if not response:
+                    return
+
                 i += 1
         except Exception as ex:  # noqa: BLE001
             _LOGGER.error("ERROR: %s", ex)
@@ -247,14 +261,15 @@ class VAAlarmRepeater:
             entities = list(self.alarm_tasks.keys())
 
         for mp_entity_id in entities:
-            await self.hass.services.async_call(
-                "media_player", "media_stop", {"entity_id": mp_entity_id}
-            )
             if (
                 self.alarm_tasks.get(mp_entity_id)
                 and not self.alarm_tasks[mp_entity_id].done()
             ):
+                await self.hass.services.async_call(
+                    "media_player", "media_stop", {"entity_id": mp_entity_id}
+                )
                 self.alarm_tasks[mp_entity_id].cancel()
+                _LOGGER.debug("Alarm sound cancelled")
 
     async def alarm_sound(
         self,
