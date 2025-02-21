@@ -190,7 +190,7 @@ class VAAlarmRepeater:
                         "music_assistant",
                         "play_announcement",
                         service_data={"url": media_url},
-                        target={"entity_id": "media_player.snapweb_client"},
+                        target={"entity_id": media_entity.entity_id},
                     )
                     # Wait for time for status to update
                     await asyncio.sleep(1)
@@ -271,7 +271,7 @@ class VAAlarmRepeater:
         if media_entity := self._get_entity_from_entity_id(entity_id):
             media_integration = media_entity.platform.platform_name
 
-            if media_integration == "music_assistant":
+            if media_integration in ["music_assistant", "esphome"]:
                 self.alarm_tasks[entity_id] = self.config.async_create_background_task(
                     self.hass,
                     self.repeat_announce(
