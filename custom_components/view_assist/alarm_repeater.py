@@ -6,7 +6,11 @@ import logging
 import time
 from typing import Any
 
-from homeassistant.components.media_player import MediaPlayerEntity, MediaType
+from homeassistant.components.media_player import (
+    MediaPlayerEntity,
+    MediaPlayerState,
+    MediaType,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity, entity_registry as er
@@ -84,7 +88,7 @@ class VAAlarmRepeater:
             )
         # HA Voice Satellite
         elif media_integration == "esphome":
-            _LOGGER.debug("MUSIC ASSISTANT DATA: %s", media_entity._entry_data)  # noqa: SLF001
+            _LOGGER.debug("MUSIC ASSISTANT DATA: %s", media_entity._state)  # noqa: SLF001
 
         # An integration may populate these properties - most don't seem to
         elif content_id := media_entity.media_content_id:
@@ -133,6 +137,31 @@ class VAAlarmRepeater:
             elapsed_time,
         )
 
+    async def wait_for_idle(self, media_entity: MediaPlayerEntity, timeout: int = 30):
+        """Wait for media player to be idle."""
+        start_timestamp = time.time()
+        _LOGGER.debug("Waiting for %s to be idle", media_entity.entity_id)
+        try:
+            async with asyncio.timeout(timeout):
+                while media_entity.state != MediaPlayerState.IDLE:
+                    await asyncio.sleep(0.2)
+
+        except TimeoutError:
+            _LOGGER.debug(
+                "%s did not become idle within the timeout of %s seconds",
+                media_entity.entity_id,
+                timeout,
+            )
+        except Exception as ex:  # noqa: BLE001
+            _LOGGER.error("ERROR: %s", ex)
+
+        elapsed_time = round(time.time() - start_timestamp, 2)
+        _LOGGER.debug(
+            "%s reached idle state within %s seconds",
+            media_entity.entity_id,
+            elapsed_time,
+        )
+
     async def repeat_announce(
         self,
         integration: str,
@@ -170,10 +199,14 @@ class VAAlarmRepeater:
             _LOGGER.debug("Announce ended")
 
     async def repeat_media(
-        self, entity_id: str, media_type: str, media_url: str, max_repeats: int = 0
+        self,
+        media_entity: MediaPlayerEntity,
+        media_type: str,
+        media_url: str,
+        max_repeats: int = 0,
     ):
         """Repeat playing media file."""
-        # Format media url
+        _LOGGER.debug("Using repeat media for alarm")
 
         if media_url.startswith("/"):
             media_url = media_url.removeprefix("/")
@@ -185,13 +218,15 @@ class VAAlarmRepeater:
                 "media_player",
                 "play_media",
                 {
-                    "entity_id": entity_id,
+                    "entity_id": media_entity.entity_id,
                     "media_content_type": "music",
                     "media_content_id": media_url,
                 },
             )
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.5)
+            await self.wait_for_idle(media_entity)
             i += 1
+        _LOGGER.debug("Repeat media ended")
 
     async def cancel_alarm_sound(self, entity_id: str | None = None):
         """Cancel announcement."""
@@ -228,7 +263,9 @@ class VAAlarmRepeater:
             if media_integration == "music_assistant":
                 self.alarm_tasks[entity_id] = self.config.async_create_background_task(
                     self.hass,
-                    self.repeat_announce(media_integration, media_entity, media_url, 3),
+                    self.repeat_announce(
+                        media_integration, media_entity, media_url, max_repeats
+                    ),
                     name=f"AnnounceRepeat-{entity_id}",
                 )
             else:
