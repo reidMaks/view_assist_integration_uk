@@ -104,5 +104,41 @@ get_timers:
       required: false
       selector:
         text:
+sound_alarm:
+  name: "Sound alarm"
+  description: "Sound alarm on a media device with an attempt to restore any already playing media"
+  fields:
+    entity_id:
+      name: "Entity ID"
+      description: "The media player to play the alarm on"
+      required: true
+      selector:
+        entity:
+          domain:
+            - media_player
+    media_file:
+      name: "Media file"
+      description: "Media file to use for alarm"
+      required: true
+      selector:
+        text:
+    max_repeats:
+      name: "Max repeats"
+      description: "The maximun number of times to repeat the alarm media file"
+      required: false
+      selector:
+        number:
+cancel_sound_alarm:
+  name: "Cancel sound alarm"
+  description: "Cancel a sounding alarm"
+  fields:
+    entity_id:
+      name: "Entity ID"
+      description: "The media player to cancel the alarm on"
+      required: false
+      selector:
+        entity:
+          domain:
+            - media_player
 
 
