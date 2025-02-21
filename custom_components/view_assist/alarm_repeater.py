@@ -192,10 +192,12 @@ class VAAlarmRepeater:
                         service_data={"url": media_url},
                         target={"entity_id": "media_player.snapweb_client"},
                     )
+                    # Wait for time for status to update
                     await asyncio.sleep(1)
                     await self.wait_for_state(
                         media_entity, "player", "announcement_in_progress", False
                     )
+                    # Added to try and keep playing media position
                     await asyncio.sleep(1)
                     i += 1
                 except Exception as ex:  # noqa: BLE001
