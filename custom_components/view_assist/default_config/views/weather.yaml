@@ -2,11 +2,10 @@ type: custom:button-card
 variables:
   var_weather_entity: |-
     [[[
-      var assistbid = hass.states[variables.assist_group].attributes.entity_id
-       .find((eid) => hass.states[eid].attributes.browser_id === localStorage.getItem("browser_mod-browser-id")) ?? variables.default_satellite;
+      var assistbid = localStorage.getItem("view_assist_sensor") ?? variables.default_satellite;
       var weather_entity = hass.states[assistbid].attributes.weather_entity;
       return `${weather_entity}`
-    ]]]   
+    ]]]  
   var_forecast_type: daily
   weathercardversion: 1.0.3
 template:
