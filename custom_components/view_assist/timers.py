@@ -618,7 +618,7 @@ class VATimers:
 
         self.timer_tasks.pop(timer_id, None)
 
-        _LOGGER.info("Timer expired: %s", timer)
+        _LOGGER.debug("Timer expired: %s", timer)
 
         self.hass.bus.fire(
             VA_TIMER_FINISHED_EVENT,
