@@ -225,6 +225,7 @@ class RuntimeData:
         """Initialise runtime data."""
         # Runtime variables go here
         self._timers = None
+        self._alarm_repeater = None
 
         # Default config
         self.type: VAType | None = None

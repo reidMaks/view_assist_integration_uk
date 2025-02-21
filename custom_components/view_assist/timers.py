@@ -12,10 +12,6 @@ from typing import Any
 
 import wordtodigits
 
-from .helpers import (
-    get_entity_id_from_conversation_device_id,
-)
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
@@ -35,6 +31,7 @@ from .const import (
     TimerStatus,
     TimerTime,
 )
+from .helpers import get_entity_id_from_conversation_device_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -140,7 +137,7 @@ def calc_days_add(day: str, dt_now: dt.datetime) -> int:
     return 0
 
 
-def decode_time_sentence(sentence: str) -> dt.datetime | None:
+def decode_time_sentence(sentence: str) -> dt.datetime | None:  # noqa: C901
     """Convert senstence from assist into datetime.
 
     Sentence can be:
@@ -197,10 +194,7 @@ def decode_time_sentence(sentence: str) -> dt.datetime | None:
         # Get if day or special day in sentence
         # This is a second check incase first REGEX does not detect it.
         if day_text := re.findall(REGEX_DAYS, _sentence):
-            _LOGGER.info("DAY TEXT: %s", day_text)
             set_time[0] = day_text[0]
-
-        _LOGGER.info("TIME: %s -> %s", sentence, set_time)
 
         # make into a class object
         time_info = TimerTime(
@@ -217,8 +211,6 @@ def decode_time_sentence(sentence: str) -> dt.datetime | None:
     interval = int_search.groups()
 
     if any(interval):
-        _LOGGER.info("INTERVAL: %s -> %s", sentence, interval)
-
         interval = _convert_to_ints(list(interval))
 
         interval_info = TimerInterval(
@@ -233,14 +225,12 @@ def decode_time_sentence(sentence: str) -> dt.datetime | None:
     spec_time = re.findall(REGEX_SUPER_TIME, _sentence)
     if spec_time:
         set_time = list(spec_time[0])
-        _LOGGER.info("SUPER TEXT: %s -> %s", sentence, set_time)
 
         # return None if not a full match
         if all(set_time[1:3]):
             # Get if day or special day in sentence
             # This is a second check incase first REGEX does not detect it.
             if day_text := re.findall(REGEX_DAYS, _sentence):
-                _LOGGER.info("DAY TEXT: %s", day_text)
                 set_time[0] = day_text[0]
 
             # now iterate and replace text numbers with numbers
@@ -254,8 +244,6 @@ def decode_time_sentence(sentence: str) -> dt.datetime | None:
                 set_time[1] = int(set_time[1])
             if isinstance(set_time[3], str) and set_time[3].isnumeric():
                 set_time[3] = int(set_time[3])
-
-            _LOGGER.info("TRANSLATED: %s", set_time)
 
             # Amend for set_time[2] == "to"
             if set_time[2] == "to":
@@ -276,7 +264,6 @@ def decode_time_sentence(sentence: str) -> dt.datetime | None:
     interval = re.findall(REGEX_SUPER_INTERVAL, _sentence)
     if interval:
         interval = list(interval[0])
-        _LOGGER.info("INTERVAL: %s -> %s", sentence, interval)
 
         # Convert hours to numbers
         if interval[1] in HOURS:
@@ -303,7 +290,9 @@ def decode_time_sentence(sentence: str) -> dt.datetime | None:
         )
         return sentence, interval_info
 
-    _LOGGER.info("DECODE: NOT DECODED: %s -> %s", sentence, None)
+    _LOGGER.warning(
+        "Time senstence decoder - Unable to decode: %s -> %s", sentence, None
+    )
     return sentence, _sentence
 
 
@@ -344,7 +333,6 @@ def get_datetime_from_timer_time(
 
         if set_time.hour < 12 and set_datetime + dt.timedelta(hours=12) > dt_now:
             add_hours = 12
-            _LOGGER.info("CONTEXT TIME: Adding %sh", add_hours)
 
     # Now build datetime
     date = dt_now
@@ -358,12 +346,10 @@ def get_datetime_from_timer_time(
     # if day name in sentence
     if set_time.day:
         add_days = calc_days_add(set_time.day, dt_now)
-        _LOGGER.info("DAY INTERPRETATION: Adding %s days", add_days)
         date = date + dt.timedelta(days=add_days)
 
     # If time is less than now, add 1 day
     if date < dt.datetime.now():
-        _LOGGER.info("ADDING 1 DAY")
         date = date + dt.timedelta(days=1)
 
     return date
@@ -384,8 +370,8 @@ def encode_datetime_to_human(
         days, hours = divmod(hours, 24)
 
         response = []
-        _LOGGER.info(
-            "TIMER: %s days %s hours, %s mins, %s secs ", days, hours, minutes, seconds
+        _LOGGER.debug(
+            "Timer: %s days %s hours, %s mins, %s secs ", days, hours, minutes, seconds
         )
         if days:
             response.append(f"{days} days")
@@ -468,19 +454,14 @@ class VATimers:
         """Save data store."""
         await self._store.async_save(self.timers)
 
-    def make_unix_time(self, time_or_interval: TimerTime | TimerInterval) -> int:
-        """Return unix time from Time or Interval object."""
-        if isinstance(time_or_interval, TimerTime):
-            return
-
     def is_duplicate_timer(self, device_id: str, name: str, expires_at: int) -> bool:
         """Return if same timer already exists."""
 
         # Get timers for device_id
         existing_device_timers = [
             timer_id
-            for timer_id in self.timers
-            if self.timers[timer_id].device_id == device_id
+            for timer_id, timer in self.timers.items()
+            if timer.device_id == device_id
         ]
 
         if not existing_device_timers:
@@ -558,13 +539,14 @@ class VATimers:
         if total_seconds < 1:
             await self._timer_finished(timer_id)
         else:
-            self.timer_tasks[timer_id] = self.hass.async_create_background_task(
+            self.timer_tasks[timer_id] = self.config.async_create_background_task(
+                self.hass,
                 self._wait_for_timer(timer_id, total_seconds, timer.created_at),
                 name=f"Timer {timer_id}",
             )
             self.timers[timer_id].status = TimerStatus.RUNNING
             await self.save()
-            _LOGGER.info("STARTED %s TIMER FOR %s", timer.name, total_seconds)
+            _LOGGER.debug("Started %s timer for %s", timer.name, total_seconds)
 
     async def _wait_for_timer(
         self, timer_id: str, seconds: int, updated_at: int
@@ -600,9 +582,9 @@ class VATimers:
         if timer_ids:
             for timerid in timer_ids:
                 if self.timers.pop(timerid, None):
-                    _LOGGER.info("Cancelled timer: %s", timerid)
+                    _LOGGER.debug("Cancelled timer: %s", timerid)
                     if timer_task := self.timer_tasks.pop(timerid, None):
-                        if not timer_task.cancelled():
+                        if not timer_task.done():
                             timer_task.cancel()
             await self.save()
             return True
@@ -636,7 +618,7 @@ class VATimers:
 
         self.timer_tasks.pop(timer_id, None)
 
-        _LOGGER.info("TIMER EXPIRED: %s", timer)
+        _LOGGER.info("Timer expired: %s", timer)
 
         self.hass.bus.fire(
             VA_TIMER_FINISHED_EVENT,
