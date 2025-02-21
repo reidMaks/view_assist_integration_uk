@@ -5,6 +5,7 @@ import logging
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.core import HomeAssistant
 
+from .alarm_repeater import VAAlarmRepeater
 from .const import RuntimeData, VAConfigEntry
 from .entity_listeners import EntityListeners
 from .frontend import FrontendConfig
@@ -66,6 +67,8 @@ async def run_if_first_instance(hass: HomeAssistant, entry: VAConfigEntry):
     # Load javascript modules
     jsloader = JSModuleRegistration(hass)
     await jsloader.async_register()
+
+    entry.runtime_data._alarm_repeater = VAAlarmRepeater(hass, entry)  # noqa: SLF001
 
     setup_va_templates(hass)
 

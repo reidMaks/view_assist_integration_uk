@@ -8,6 +8,7 @@ import voluptuous as vol
 from homeassistant.const import (
     CONF_DEVICE,
     CONF_DEVICE_ID,
+    CONF_ENTITY_ID,
     CONF_NAME,
     CONF_PATH,
     CONF_TYPE,
@@ -26,6 +27,7 @@ from .helpers import get_random_image
 from .timers import VATimers, decode_time_sentence
 
 _LOGGER = logging.getLogger(__name__)
+
 
 NAVIGATE_SERVICE_SCHEMA = vol.Schema(
     {
@@ -57,6 +59,25 @@ GET_TIMERS_SERVICE_SCHEMA = vol.Schema(
     {
         vol.Optional(CONF_TIMER_ID): str,
         vol.Optional(CONF_DEVICE_ID): str,
+    }
+)
+
+ALARM_SOUND_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_ENTITY_ID): selector.EntitySelector(
+            selector.EntitySelectorConfig(integration=DOMAIN)
+        ),
+        vol.Required("media_file"): str,
+        vol.Optional("resume_media", default=True): bool,
+        vol.Optional("max_repeats", default=0): int,
+    }
+)
+
+STOP_ALARM_SOUND_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_ENTITY_ID): selector.EntitySelector(
+            selector.EntitySelectorConfig(integration=DOMAIN)
+        ),
     }
 )
 
@@ -119,6 +140,21 @@ class VAServices:
             supports_response=SupportsResponse.ONLY,
         )
 
+        self.hass.services.async_register(
+            DOMAIN,
+            "sound_alarm",
+            self.async_handle_alarm_sound,
+            schema=ALARM_SOUND_SERVICE_SCHEMA,
+            supports_response=SupportsResponse.OPTIONAL,
+        )
+
+        self.hass.services.async_register(
+            DOMAIN,
+            "cancel_sound_alarm",
+            self.async_handle_stop_alarm_sound,
+            schema=STOP_ALARM_SOUND_SERVICE_SCHEMA,
+        )
+
     # -----------------------------------------------------------------------
     # Get Target Satellite
     # Used to determine which VA satellite is being used based on its microphone device
@@ -128,6 +164,22 @@ class VAServices:
     # data:
     #   device_id: 4385828338e48103f63c9f91756321df
     # -----------------------------------------------------------------------
+
+    async def async_handle_alarm_sound(self, call: ServiceCall) -> ServiceResponse:
+        """Handle alarm sound."""
+        entity_id = call.data.get(CONF_ENTITY_ID)
+        media_file = call.data.get("media_file")
+        resume_media = call.data.get("resume_media")
+        max_repeats = call.data.get("max_repeats")
+
+        return await self.config.runtime_data._alarm_repeater.alarm_sound(  # noqa: SLF001
+            entity_id, media_file, "music", resume_media, max_repeats
+        )
+
+    async def async_handle_stop_alarm_sound(self, call: ServiceCall):
+        """Handle stop alarm sound."""
+        entity_id = call.data.get(CONF_ENTITY_ID)
+        await self.config.runtime_data._alarm_repeater.cancel_alarm_sound(entity_id)  # noqa: SLF001
 
     async def async_handle_get_target_satellite(
         self, call: ServiceCall
@@ -181,9 +233,9 @@ class VAServices:
 
         # get config entry from entity id to allow access to browser_id parameter
         entity_registry = er.async_get(self.hass)
-        if entity := entity_registry.async_get(va_entity_id):
+        if va_entity := entity_registry.async_get(va_entity_id):
             entity_config_entry: VAConfigEntry = (
-                self.hass.config_entries.async_get_entry(entity.config_entry_id)
+                self.hass.config_entries.async_get_entry(va_entity.config_entry_id)
             )
 
             async_dispatcher_send(
