@@ -46,7 +46,7 @@ set_timer:
         text:
     type:
       name: "Timer type"
-      description: "The type of timer - alarm, timer or reminder"
+      description: "The type of timer - alarm, timer, reminder, command"
       required: true
       selector:
         select:
@@ -54,6 +54,7 @@ set_timer:
             - "Alarm"
             - "Timer"
             - "Reminder"
+            - "Command"
     name:
       name: "Name"
       description: "The name of the timer"

@@ -44,7 +44,8 @@ SET_TIMER_SERVICE_SCHEMA = vol.Schema(
         vol.Required(CONF_TYPE): str,
         vol.Optional(CONF_NAME): str,
         vol.Required(CONF_TIME): str,
-    }
+    },
+    extra=vol.ALLOW_EXTRA,
 )
 
 CANCEL_TIMER_SERVICE_SCHEMA = vol.Schema(
@@ -253,8 +254,19 @@ class VAServices:
         timer_type = call.data.get(CONF_TYPE)
         name = call.data.get(CONF_NAME)
         timer_time = call.data.get(CONF_TIME)
+        extra_data = call.data.copy()
+
+        # Remove known
+        for key in (CONF_DEVICE_ID, CONF_TYPE, CONF_NAME, CONF_TIME):
+            if extra_data.get(key):
+                del extra_data[key]
 
         sentence, timer_info = decode_time_sentence(timer_time)
+
+        extra_info = {"sentence": sentence}
+        if extra_data:
+            extra_info.update(extra_data)
+
         if timer_info:
             t: VATimers = self.config.runtime_data._timers  # noqa: SLF001
             timer_id, timer, response = await t.add_timer(
@@ -262,7 +274,7 @@ class VAServices:
                 device_id,
                 timer_info,
                 name,
-                extra_info={"sentence": sentence},
+                extra_info=extra_info,
             )
 
             return {"timer_id": timer_id, "timer": timer, "response": response}

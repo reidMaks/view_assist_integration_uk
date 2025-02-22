@@ -86,6 +86,7 @@ class TimerClass(StrEnum):
     ALARM = "alarm"
     REMINDER = "reminder"
     TIMER = "timer"
+    COMMAND = "command"
 
 
 @dataclass
@@ -115,6 +116,7 @@ class TimerStatus(StrEnum):
     INACTIVE = "inactive"
     RUNNING = "running"
     EXPIRED = "expired"
+    SNOOZED = "snoozed"
 
 
 @dataclass
@@ -180,6 +182,7 @@ DEFAULT_MIC_UNMUTE = False
 
 VA_ATTRIBUTE_UPDATE_EVENT = "va_attr_update_event_{}"
 VA_TIMER_FINISHED_EVENT = "va_timer_finished"
+VA_COMMAND_EVENT = "va_command"
 
 TIMERS_STORE_NAME = f"{DOMAIN}.timers"
 

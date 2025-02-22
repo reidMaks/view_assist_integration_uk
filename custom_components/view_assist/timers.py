@@ -23,6 +23,7 @@ from .const import (
     PAST_TO,
     SPECIAL_DAYS,
     TIMERS_STORE_NAME,
+    VA_COMMAND_EVENT,
     VA_TIMER_FINISHED_EVENT,
     WEEKDAYS,
     Timer,
@@ -505,7 +506,7 @@ class VATimers:
             )
 
             timer = Timer(
-                timer_class=timer_class,
+                timer_class=timer_class.lower(),
                 expires_at=expires_unix_ts,
                 name=name,
                 device_id=device_id,
@@ -618,18 +619,20 @@ class VATimers:
 
         self.timer_tasks.pop(timer_id, None)
 
-        _LOGGER.info("Timer expired: %s", timer)
+        _LOGGER.debug("Timer expired: %s", timer)
 
         self.hass.bus.fire(
-            VA_TIMER_FINISHED_EVENT,
+            VA_COMMAND_EVENT
+            if timer.timer_class == TimerClass.COMMAND
+            else VA_TIMER_FINISHED_EVENT,
             {
                 "id": timer_id,
                 "device_id": timer.device_id,
                 "timer_class": timer.timer_class,
                 "name": timer.name,
-                "created_at": timer.created_at,
-                "updated_at": timer.updated_at,
-                "expires": timer.expires_at,
+                "created_at": dt.datetime.fromtimestamp(timer.created_at),
+                "updated_at": dt.datetime.fromtimestamp(timer.updated_at),
+                "expires": dt.datetime.fromtimestamp(timer.expires_at),
                 "extra_info": timer.extra_info,
             },
         )
