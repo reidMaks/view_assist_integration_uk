@@ -66,7 +66,7 @@ custom_fields:
       show_name: true
       tap_action:
         action: call-service
-        service: pyscript.broadcast_event
+        service: view_assist.broadcast_event
         service_data:
           event_name: viewassist
           event_data:
@@ -95,7 +95,7 @@ custom_fields:
       show_name: true
       tap_action:
         action: call-service
-        service: pyscript.broadcast_event
+        service: view_assist.broadcast_event
         service_data:
           event_name: viewassist
           event_data:

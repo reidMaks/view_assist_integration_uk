@@ -82,6 +82,12 @@ STOP_ALARM_SOUND_SERVICE_SCHEMA = vol.Schema(
     }
 )
 
+BROADCAST_EVENT_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Required("event_name"): str,
+        vol.Required("event_data"): dict,
+    }
+)
 
 class VAServices:
     """Class to manage services."""
@@ -160,7 +166,7 @@ class VAServices:
             DOMAIN,
             "broadcast_event",
             self.async_handle_broadcast_event,
-            # schema=STOP_ALARM_SOUND_SERVICE_SCHEMA,
+            schema=BROADCAST_EVENT_SERVICE_SCHEMA,
         )
 
     # -----------------------------------------------------------------------
@@ -179,9 +185,9 @@ class VAServices:
         description: Immediately fires an event with the provided name and data
         """
         event_name = call.data.get("event_name")
-        event_data = call.data.get("event_data")
+        event_data = call.data.get("event_data", {})
         # Fire the event
-        event.fire(event_name, **event_data)
+        self.hass.bus.fire(event_name, event_data)
 
     async def async_handle_alarm_sound(self, call: ServiceCall) -> ServiceResponse:
         """Handle alarm sound."""

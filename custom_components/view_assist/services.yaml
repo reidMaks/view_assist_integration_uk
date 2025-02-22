@@ -141,5 +141,20 @@ cancel_sound_alarm:
         entity:
           domain:
             - media_player
-
+broadcast_event:
+  name: "Broadcast Event"
+  description: "Send a custom event"
+  fields:
+    event_name:
+      name: "Event Name"
+      description: "The name of the event"
+      required: true
+      selector:
+        text:
+    event_data:
+      name: "Event Data"
+      description: "The event data variables to include in the event broadcast"
+      required: true
+      selector:
+        text:
 
