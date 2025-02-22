@@ -144,22 +144,11 @@ action:
               - turnoffalarm
         sequence:
           - variables:
-              target_satellite_device: >-
-                {% if trigger.event.data.entity_id is defined and
-                trigger.event.data.entity_id is not none %}
-                  {{ trigger.event.data.entity_id }}
-                {% else %}
-                  {% for sat in expand(group_entity) %}
-                    {% if (device_id(sat.attributes.mic_device)  == trigger.device_id) or (device_id(sat.attributes.display_device)  == trigger.device_id) %}
-                      {{ sat.entity_id }}
-                    {% endif %}
-                  {% endfor %}
-                {% endif %}
+              target_satellite_device: '{{ trigger.event.data.entity_id }}'
               target_display_device: >-
                 {{ device_id(state_attr(target_satellite_device,
                 'display_device')) }}
               target_mediaplayer_device: "{{ state_attr(target_satellite_device, 'mediaplayer_device') }}"
-            enabled: true
           - action: view_assist.set_state
             target:
               entity_id: '{{ target_satellite_device }}'
@@ -252,32 +241,26 @@ action:
               - listtimer
         sequence:
           - variables:
-              target_satellite_device: |-
-                {% for sat in expand(group_entity) %}
-                  {% if (device_id(sat.attributes.mic_device)  == trigger.device_id) or (device_id(sat.attributes.display_device)  == trigger.device_id) %}
-                    {{ sat.entity_id }}
-                  {% endif %}
-                {% endfor %}
-              target_display_device: >-
-                {{ device_id(state_attr(target_satellite_device,
-                'display_device')) }}
-              target_mediaplayer_device: "{{ state_attr(target_satellite_device, 'mediaplayer_device') }}"
-            enabled: true
+              device_id: "{{ trigger.device_id }}"
+          - action: view_assist.get_timers
+            data:
+              device_id: "{{ device_id }}"
+            response_variable: timer_info
+          - variables:
+              active_timers: "{{ timer_info['result'] | selectattr('timer.status', '!=', 'expired') | list }}"
+              count: "{{ active_timers | length }}"
+              type: "{{active_timers is string }}"
           - set_conversation_response: >
-              {% set timers = state_attr(target_satellite_device, 'timer_list')
-              %}
-
-              {% set timer_count = timers | length %}
-
-              {% if timer_count == 0 %}
-                You have no active timers.
-              {% elif timer_count == 1 %}
-                You have 1 active timer and it is called {{ timers[0].timer_id }}.
+              {% set active_timers = timer_info['result'] | selectattr('timer.status', '!=', 'expired') | list %}
+              {% set count = active_timers | length %}
+              {% if count == 0 %}
+              There are no active timers.
               {% else %}
-                {% set timer_names = timers | map(attribute='timer_id') | list %}
-                {% set last_timer = timer_names.pop() %}
-                You have {{ timer_count }} active timers and they are {{ timer_names | join(', ') }} and {{ last_timer }}.
-              {% endif %}
+              There {% if count == 1 %}is one active timer called {% else %}are {{ count }} active timers{% endif %}:
+              {% for timer in active_timers %}
+              - {{ timer['timer']['name'] if timer['timer']['name'] else 'unnamed' }} timer set for {{ timer['timer']['extra_info']['sentence'] }},
+              {% endfor %}
+              {% endif %}                        
       - conditions:
           - condition: trigger
             id:
@@ -289,55 +272,22 @@ action:
                 {{ device_id(state_attr(target_satellite_device,
                 'display_device')) }}
               target_mediaplayer_device: "{{ state_attr(target_satellite_device, 'mediaplayer_device') }}"
-              old_list: >-
-                {{ state_attr(target_satellite_device,'timer_list') |
-                rejectattr('unique_id', 'eq', trigger.event.data.unique_id) |
-                rejectattr('target_time', 'lt', now()|string) | list }}
-              unique_id: >-
-                {% set unique_id = 'va' + now().timestamp() | int | string +
-                (range(100, 999) | random | string) %}{{ unique_id | string}}
-              alarm_time: >-
-                {{ (now()|as_datetime +
-                timedelta(minutes=snooze_time)).strftime('%Y-%m-%d %H:%M:%S')
-                }}  
-              alarm_id: "{{ trigger.event.data.alarm_id | lower }}"
-              timer_list:
-                - unique_id: "{{ unique_id }}"
-                  alarm_type: Alarm
-                  alarm_id: Rescheduled Alarm
-                  target_satellite_device: "{{ target_satellite_device }}"
-                  target_mediaplayer_device: "{{ target_mediaplayer_device }}"
-                  target_display_device: "{{ target_display_device }}"
-                  target_time: "{{ alarm_time }}"
-          - data:
-              event_name: viewassist
-              event_data:
-                unique_id: "{{ unique_id }}"
-                timer_status: expired
-                alarm_type: Alarm
-                target_satellite_device: "{{ target_satellite_device }}"
-                target_mediaplayer_device: "{{ target_mediaplayer_device }}"
-                target_display_device: "{{ target_display_device }}"
-                alarm_id: Rescheduled Alarm
-              target_time: "{{ alarm_time }}"
-            action: pyscript.schedule_event_at_time
-          - data:
+              new_time: "{{ (now() + timedelta(minutes=snooze_time)).strftime('%H:%M:%S') }}"
+          - action: view_assist.set_state
+            target:
+              entity_id: '{{ target_satellite_device }}'
+            data:
               alarm: rescheduled
               mode: normal
-              entity_id: "{{ target_satellite_device }}"
-              timer_list: "{{ timer_list + old_list }}"
-            action: python_script.set_state
-            enabled: true
-          - action: media_player.media_stop
-            metadata: {}
-            data: {}
-            target:
+          - action: view_assist.cancel_sound_alarm
+            data:
               entity_id: "{{ target_mediaplayer_device }}"
-          - action: script.turn_off
-            metadata: {}
-            data: {}
-            target:
-              entity_id: script.play_sound_on_media_player_repeat
+          - action: view_assist.set_timer
+            data:
+              device_id: "{{ device_id(trigger.event.data.mic_device) }}"
+              type: "alarm"
+              time: "{{ new_time }}"
+              name: "Snoozed Alarm"
+            response_variable: timer_result               
           - set_conversation_response: ""
-            enabled: true
 mode: parallel
