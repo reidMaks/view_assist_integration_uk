@@ -156,6 +156,13 @@ class VAServices:
             schema=STOP_ALARM_SOUND_SERVICE_SCHEMA,
         )
 
+        self.hass.services.async_register(
+            DOMAIN,
+            "broadcast_event",
+            self.async_handle_broadcast_event,
+            # schema=STOP_ALARM_SOUND_SERVICE_SCHEMA,
+        )
+
     # -----------------------------------------------------------------------
     # Get Target Satellite
     # Used to determine which VA satellite is being used based on its microphone device
@@ -165,6 +172,16 @@ class VAServices:
     # data:
     #   device_id: 4385828338e48103f63c9f91756321df
     # -----------------------------------------------------------------------
+
+    async def async_handle_broadcast_event(self, call: ServiceCall):
+        """yaml
+        name: View Assist Broadcast Event
+        description: Immediately fires an event with the provided name and data
+        """
+        event_name = call.data.get("event_name")
+        event_data = call.data.get("event_data")
+        # Fire the event
+        event.fire(event_name, **event_data)
 
     async def async_handle_alarm_sound(self, call: ServiceCall) -> ServiceResponse:
         """Handle alarm sound."""
