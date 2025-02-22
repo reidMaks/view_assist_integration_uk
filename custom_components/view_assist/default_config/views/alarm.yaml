@@ -72,6 +72,7 @@ custom_fields:
           event_data:
             command: snooze alarm
             entity_id: "[[[ return variables.var_assistsat_entity ]]]"
+            mic_device: "[[[ return hass.states[variables.var_assistsat_entity].attributes.mic_device ]]]"
       styles:
         card:
           - display: flex
