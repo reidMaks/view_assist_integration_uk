@@ -210,3 +210,7 @@ or
 `va_timer_command_[action]` - for command timers
 
 where [action] is one of started, cancelled, warning, expired, snoozed
+
+## Outstanding TODOs
+- Create an expired timer clean up routine - they are currently only deleted by timer_cancel and restart of HA
+- Allow setting of timer expiry warning event when setting timer
