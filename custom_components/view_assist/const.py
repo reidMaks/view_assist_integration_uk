@@ -80,59 +80,6 @@ class VADisplayType(StrEnum):
     REMOTE_ASSIST_DISPLAY = "Remote Assist Display"
 
 
-class TimerClass(StrEnum):
-    """Timer class."""
-
-    ALARM = "alarm"
-    REMINDER = "reminder"
-    TIMER = "timer"
-    COMMAND = "command"
-
-
-@dataclass
-class TimerInterval:
-    """Timer Interval."""
-
-    days: int = 0
-    hours: int = 0
-    minutes: int = 0
-    seconds: int = 0
-
-
-@dataclass
-class TimerTime:
-    """Timer Time."""
-
-    day: str = ""
-    hour: int = 0
-    minute: int = 0
-    second: int = 0
-    meridiem: str = ""
-
-
-class TimerStatus(StrEnum):
-    """Timer status."""
-
-    INACTIVE = "inactive"
-    RUNNING = "running"
-    EXPIRED = "expired"
-    SNOOZED = "snoozed"
-
-
-@dataclass
-class Timer:
-    """Class to hold timer."""
-
-    timer_class: TimerClass
-    expires_at: int
-    name: str | None = None
-    device_id: str | None = None
-    created_at: int = 0
-    updated_at: int = 0
-    status: TimerStatus = field(default_factory=TimerStatus.INACTIVE)
-    extra_info: dict[str, Any] | None = None
-
-
 # Config keys
 CONF_MIC_DEVICE = "mic_device"
 CONF_MEDIAPLAYER_DEVICE = "mediaplayer_device"
@@ -158,6 +105,8 @@ CONF_TIME = "time"
 CONF_TIMER_ID = "timer_id"
 CONF_REMOVE_ALL = "remove_all"
 CONF_DEV_MIMIC = "dev_mimic"
+CONF_EXTRA = "extra"
+CONF_INCLUDE_EXPIRED = "include_expired"
 
 # Config default values
 DEFAULT_NAME = "View Assist"
@@ -181,44 +130,6 @@ DEFAULT_USE_ANNOUNCE = True
 DEFAULT_MIC_UNMUTE = False
 
 VA_ATTRIBUTE_UPDATE_EVENT = "va_attr_update_event_{}"
-VA_TIMER_FINISHED_EVENT = "va_timer_finished"
-VA_COMMAND_EVENT = "va_command"
-
-TIMERS_STORE_NAME = f"{DOMAIN}.timers"
-
-WEEKDAYS = [
-    "monday",
-    "tuesday",
-    "wednesday",
-    "thursday",
-    "friday",
-    "saturday",
-    "sunday",
-]
-
-SPECIAL_DAYS = [
-    "today",
-    "tomorrow",
-]
-
-AMPM = ["am", "pm"]
-
-HOURS = {
-    "midnight": 0,
-    "noon": 12,
-}
-PAST_TO = {
-    "quarter": 15,
-    "half": 30,
-}
-HOUR_FRACTIONS = {
-    "1/4": 15,
-    "quarter": 15,
-    "1/2": 30,
-    "half": 30,
-    "3/4": 45,
-    "three quarters": 45,
-}
 
 
 class RuntimeData:
@@ -227,7 +138,6 @@ class RuntimeData:
     def __init__(self) -> None:
         """Initialise runtime data."""
         # Runtime variables go here
-        self._timers = None
         self._alarm_repeater = None
 
         # Default config
