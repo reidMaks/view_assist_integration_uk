@@ -19,10 +19,22 @@ from homeassistant.core import (
     ServiceResponse,
     SupportsResponse,
 )
-from homeassistant.helpers import entity_registry as er, selector
+from homeassistant.helpers import (
+    config_validation as cv,
+    entity_registry as er,
+    selector,
+)
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from .const import CONF_REMOVE_ALL, CONF_TIME, CONF_TIMER_ID, DOMAIN, VAConfigEntry
+from .const import (
+    CONF_EXTRA,
+    CONF_INCLUDE_EXPIRED,
+    CONF_REMOVE_ALL,
+    CONF_TIME,
+    CONF_TIMER_ID,
+    DOMAIN,
+    VAConfigEntry,
+)
 from .helpers import get_random_image
 from .timers import VATimers, decode_time_sentence
 
@@ -44,8 +56,8 @@ SET_TIMER_SERVICE_SCHEMA = vol.Schema(
         vol.Required(CONF_TYPE): str,
         vol.Optional(CONF_NAME): str,
         vol.Required(CONF_TIME): str,
-    },
-    extra=vol.ALLOW_EXTRA,
+        vol.Optional(CONF_EXTRA): cv.Any,
+    }
 )
 
 CANCEL_TIMER_SERVICE_SCHEMA = vol.Schema(
@@ -56,10 +68,18 @@ CANCEL_TIMER_SERVICE_SCHEMA = vol.Schema(
     }
 )
 
+SNOOZE_TIMER_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_TIMER_ID): str,
+        vol.Required(CONF_TIME): str,
+    }
+)
+
 GET_TIMERS_SERVICE_SCHEMA = vol.Schema(
     {
         vol.Optional(CONF_TIMER_ID): str,
         vol.Optional(CONF_DEVICE_ID): str,
+        vol.Optional(CONF_INCLUDE_EXPIRED, default=False): bool,
     }
 )
 
@@ -121,7 +141,15 @@ class VAServices:
             "set_timer",
             self.async_handle_set_timer,
             schema=SET_TIMER_SERVICE_SCHEMA,
-            supports_response=SupportsResponse.ONLY,
+            supports_response=SupportsResponse.OPTIONAL,
+        )
+
+        self.hass.services.async_register(
+            DOMAIN,
+            "snooze_timer",
+            self.async_handle_snooze_timer,
+            schema=SNOOZE_TIMER_SERVICE_SCHEMA,
+            supports_response=SupportsResponse.OPTIONAL,
         )
 
         self.hass.services.async_register(
@@ -129,7 +157,7 @@ class VAServices:
             "cancel_timer",
             self.async_handle_cancel_timer,
             schema=CANCEL_TIMER_SERVICE_SCHEMA,
-            supports_response=SupportsResponse.ONLY,
+            supports_response=SupportsResponse.OPTIONAL,
         )
 
         self.hass.services.async_register(
@@ -152,7 +180,6 @@ class VAServices:
             "sound_alarm",
             self.async_handle_alarm_sound,
             schema=ALARM_SOUND_SERVICE_SCHEMA,
-            supports_response=SupportsResponse.OPTIONAL,
         )
 
         self.hass.services.async_register(
@@ -277,12 +304,7 @@ class VAServices:
         timer_type = call.data.get(CONF_TYPE)
         name = call.data.get(CONF_NAME)
         timer_time = call.data.get(CONF_TIME)
-        extra_data = call.data.copy()
-
-        # Remove known
-        for key in (CONF_DEVICE_ID, CONF_TYPE, CONF_NAME, CONF_TIME):
-            if extra_data.get(key):
-                del extra_data[key]
+        extra_data = call.data.get(CONF_EXTRA)
 
         sentence, timer_info = decode_time_sentence(timer_time)
 
@@ -291,7 +313,7 @@ class VAServices:
             extra_info.update(extra_data)
 
         if timer_info:
-            t: VATimers = self.config.runtime_data._timers  # noqa: SLF001
+            t: VATimers = self.hass.data[DOMAIN]["timers"]
             timer_id, timer, response = await t.add_timer(
                 timer_type,
                 device_id,
@@ -303,13 +325,30 @@ class VAServices:
             return {"timer_id": timer_id, "timer": timer, "response": response}
         return {"error": "unable to decode time or interval information"}
 
+    async def async_handle_snooze_timer(self, call: ServiceCall) -> ServiceResponse:
+        """Handle a set timer service call."""
+        timer_id = call.data.get(CONF_TIMER_ID)
+        timer_time = call.data.get(CONF_TIME)
+
+        _, timer_info = decode_time_sentence(timer_time)
+
+        if timer_info:
+            t: VATimers = self.hass.data[DOMAIN]["timers"]
+            timer_id, timer, response = await t.snooze_timer(
+                timer_id,
+                timer_info,
+            )
+
+            return {"timer_id": timer_id, "timer": timer, "response": response}
+        return {"error": "unable to decode time or interval information"}
+
     async def async_handle_cancel_timer(self, call: ServiceCall) -> ServiceResponse:
         """Handle a cancel timer service call."""
         timer_id = call.data.get(CONF_TIMER_ID)
         device_id = call.data.get(CONF_DEVICE_ID)
         cancel_all = call.data.get(CONF_REMOVE_ALL, False)
         if any([timer_id, device_id, cancel_all]):
-            t: VATimers = self.config.runtime_data._timers  # noqa: SLF001
+            t: VATimers = self.hass.data[DOMAIN]["timers"]
             result = await t.cancel_timer(
                 timer_id=timer_id, device_id=device_id, cancel_all=cancel_all
             )
@@ -320,9 +359,10 @@ class VAServices:
         """Handle a cancel timer service call."""
         device_id = call.data.get(CONF_DEVICE_ID)
         timer_id = call.data.get(CONF_TIMER_ID)
+        include_expired = call.data.get(CONF_INCLUDE_EXPIRED, False)
 
-        t: VATimers = self.config.runtime_data._timers  # noqa: SLF001
-        result = await t.get_timers(timer_id, device_id)
+        t: VATimers = self.hass.data[DOMAIN]["timers"]
+        result = t.get_timers(timer_id, device_id, include_expired=include_expired)
         return {"result": result}
 
     async def async_handle_get_random_image(self, call: ServiceCall) -> ServiceResponse:

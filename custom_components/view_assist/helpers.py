@@ -71,12 +71,33 @@ def ensure_list(value: str | list[str]):
     return []
 
 
+def get_entity_attribute(hass: HomeAssistant, entity_id: str, attribute: str) -> Any:
+    """Get attribute from entity by entity_id."""
+    if entity := hass.states.get(entity_id):
+        return entity.attributes.get(attribute)
+    return None
+
+
+def get_config_entry_by_entity_id(hass: HomeAssistant, entity_id: str) -> VAConfigEntry:
+    """Get config entry by entity id."""
+    entity_registry = er.async_get(hass)
+    entity = entity_registry.async_get(entity_id)
+    return hass.config_entries.async_get_entry(entity.config_entry_id)
+
+
 def get_device_name_from_id(hass: HomeAssistant, device_id: str) -> str:
     """Get the browser_id for the device based on device domain."""
     device_reg = dr.async_get(hass)
     device = device_reg.async_get(device_id)
 
     return device.name if device else None
+
+
+def get_device_id_from_entity_id(hass: HomeAssistant, entity_id: str) -> str:
+    """Get the device id of an entity by id."""
+    entity_registry = er.async_get(hass)
+    entity = entity_registry.async_get(entity_id)
+    return entity.device_id
 
 
 def get_device_id_from_name(hass: HomeAssistant, device_name: str) -> str:

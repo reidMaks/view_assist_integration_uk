@@ -6,7 +6,7 @@ from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.core import HomeAssistant
 
 from .alarm_repeater import VAAlarmRepeater
-from .const import RuntimeData, VAConfigEntry
+from .const import DOMAIN, RuntimeData, VAConfigEntry
 from .entity_listeners import EntityListeners
 from .frontend import FrontendConfig
 from .helpers import ensure_list, get_loaded_instance_count, is_first_instance
@@ -23,14 +23,12 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     """Set up View Assist from a config entry."""
+    hass.data.setdefault(DOMAIN, {})
 
     # Add runtime data to config entry to have place to store data and
     # make accessible throughout integration
     entry.runtime_data = RuntimeData()
     set_runtime_data_from_config(entry)
-
-    # Request platform setup
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # Add config change listener
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
@@ -49,6 +47,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     # Load websockets
     await async_register_websockets(hass)
 
+    # Request platform setup
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
     return True
 
 
@@ -62,7 +63,7 @@ async def run_if_first_instance(hass: HomeAssistant, entry: VAConfigEntry):
     # Setup Timers
     timers = VATimers(hass, entry)
     await timers.load()
-    entry.runtime_data._timers = timers  # noqa: SLF001
+    hass.data[DOMAIN]["timers"] = timers
 
     # Load javascript modules
     jsloader = JSModuleRegistration(hass)

@@ -1,9 +1,12 @@
+"""VA Sensors."""
+
 from collections.abc import Callable
 import logging
 from typing import Any
 
 import voluptuous as vol
 
+from config.custom_components.view_assist.helpers import get_device_id_from_entity_id
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_platform
@@ -20,7 +23,7 @@ async def async_setup_entry(
     hass: HomeAssistant, config_entry: VAConfigEntry, async_add_entities
 ):
     """Set up sensors from a config entry."""
-    sensors = [ViewAssistSensor(config_entry)]
+    sensors = [ViewAssistSensor(hass, config_entry)]
     platform = entity_platform.async_get_current_platform()
     platform.async_register_entity_service(
         name="set_state",
@@ -36,9 +39,10 @@ class ViewAssistSensor(SensorEntity):
 
     _attr_should_poll = False
 
-    def __init__(self, config: VAConfigEntry):
-        """Initialize the sensor."""
+    def __init__(self, hass: HomeAssistant, config: VAConfigEntry) -> None:
+        """Initialise the sensor."""
 
+        self.hass = hass
         self.config = config
 
         self._attr_name = config.runtime_data.name
@@ -47,19 +51,27 @@ class ViewAssistSensor(SensorEntity):
         self._attr_native_value = ""
         self._attribute_listeners: dict[str, Callable] = {}
 
+        self._voice_device_id = get_device_id_from_entity_id(
+            self.hass, self.config.runtime_data.mic_device
+        )
+
     async def async_added_to_hass(self) -> None:
         """Run when entity is about to be added to hass."""
         self.async_on_remove(
             async_dispatcher_connect(
                 self.hass,
                 f"{DOMAIN}_{self.config.entry_id}_update",
-                self.update,
+                self.va_update,
             )
         )
 
+        # Add listener to timer changes
+        self.hass.data[DOMAIN]["timers"].store.add_listener(self.va_update)
+
     @callback
-    def update(self, *args):
+    def va_update(self, *args):
         """Update entity."""
+        _LOGGER.debug("Updating: %s", self.entity_id)
         self.schedule_update_ha_state(True)
 
     @property
@@ -83,6 +95,7 @@ class ViewAssistSensor(SensorEntity):
             "background": r.background,
             "weather_entity": r.weather_entity,
             "mic_type": r.mic_type,
+            "voice_device_id": self._voice_device_id,
         }
 
         # Only add these attributes if they exist
@@ -91,6 +104,11 @@ class ViewAssistSensor(SensorEntity):
 
         # Add extra_data attributes from runtime data
         attrs.update(self.config.runtime_data.extra_data)
+
+        # display timers
+        attrs["timers"] = self.hass.data[DOMAIN]["timers"].get_timers(
+            device_id=self._voice_device_id, include_expired=True
+        )
 
         return attrs
 
@@ -124,7 +142,7 @@ class ViewAssistSensor(SensorEntity):
             else:
                 self.config.runtime_data.extra_data[k] = v
 
-        self.schedule_update_ha_state()
+        self.schedule_update_ha_state(True)
 
     @property
     def icon(self):
