@@ -153,28 +153,32 @@ class Timer:
         }
 
     @property
-    def dynamic_name(self) -> str:
+    def dynamic_remaining(self) -> str:
         """Generate dynamic name."""
         return encode_datetime_to_human(
             self.timer_type,
-            self.name,
             dt.datetime.fromtimestamp(self.expires_at),
-            append_name=False,
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return json output."""
+        dt_now = dt.datetime.now()
+        dt_expiry = dt.datetime.fromtimestamp(self.expires_at)
         return {
             "device_id": self.device_id,
             "timer_class": self.timer_class,
             "timer_type": self.timer_type,
             "name": self.name,
-            "expires": dt.datetime.fromtimestamp(self.expires_at),
+            "expires": dt_expiry,
             "original_expiry": dt.datetime.fromtimestamp(self.original_expires_at),
             "pre_expire_warning": self.pre_expire_warning,
-            "expires_in_seconds": math.ceil(self.expires_in_seconds),
-            "expires_in_interval": self.expires_in_interval,
-            "expires_in_text": self.dynamic_name,
+            "expiry": {
+                "seconds": math.ceil(self.expires_in_seconds),
+                "interval": self.expires_in_interval,
+                "expiry_day": get_named_day(dt_expiry, dt_now),
+                "expiry_time": get_formatted_time(dt_expiry),
+                "text": self.dynamic_remaining,
+            },
             "created_at": dt.datetime.fromtimestamp(self.created_at),
             "updated_at": dt.datetime.fromtimestamp(self.updated_at),
             "status": self.status,
@@ -502,14 +506,42 @@ def get_datetime_from_timer_time(
     return date
 
 
+def get_named_day(timer_dt: dt.datetime, dt_now: dt.datetime) -> str:
+    """Return a named day or date."""
+    days_diff = timer_dt.day - dt_now.day
+    if days_diff == 0:
+        return "Today"
+    if days_diff == 1:
+        return "Tomorrow"
+    if days_diff < 7:
+        return f"{WEEKDAYS[timer_dt.weekday()]}".title()
+    return timer_dt.strftime("%-d %B")
+
+
+def get_formatted_time(timer_dt: dt.datetime, h24format: bool = False) -> str:
+    """Format datetime to time."""
+
+    if h24format:
+        if timer_dt.second:
+            return timer_dt.strftime("%-H:%M:%S")
+        return timer_dt.strftime("%-H:%M")
+
+    if timer_dt.second:
+        return timer_dt.strftime("%-I:%M:%S %p")
+    return timer_dt.strftime("%-I:%M %p")
+
+
 def encode_datetime_to_human(
     timer_type: str,
-    timer_name: str,
     timer_dt: dt.datetime,
     h24format: bool = False,
-    append_name: bool = True,
 ) -> str:
     """Encode datetime into human speech sentence."""
+
+    def declension(term: str, qty: int) -> str:
+        if qty > 1:
+            return f"{term}s"
+        return term
 
     dt_now = dt.datetime.now()
     delta = timer_dt - dt_now
@@ -522,45 +554,29 @@ def encode_datetime_to_human(
 
         response = []
         if days:
-            response.append(f"{days} days")
+            response.append(f"{days} {declension('day', days)}")
         if hours:
-            response.append(f"{hours} hours")
+            response.append(f"{hours} {declension('hour', hours)}")
         if minutes:
-            response.append(f"{minutes} minutes")
+            response.append(f"{minutes} {declension('minute', minutes)}")
         if seconds:
-            response.append(f"{seconds} seconds")
+            response.append(f"{seconds} {declension('second', seconds)}")
 
-        duration = ", ".join(response)
-        if append_name and timer_name:
-            return f"{timer_name} in {duration}"
-        return duration
+        # Now create sentence
+        duration: str = ""
+        for i, entry in enumerate(response):
+            if i == len(response) - 1 and duration:
+                duration += " and " + entry
+            else:
+                duration += " " + entry
+
+        return duration.strip()
 
     if timer_type == "TimerTime":
         # do date bit - today, tomorrow, day of week if in next 7 days, date
-
-        days_diff = timer_dt.day - dt_now.day
-        named_output = True
-        if days_diff == 0:
-            output_date = "today"
-        elif days_diff == 1:
-            output_date = "tomorrow"
-        elif days_diff < 7:
-            output_date = f"{WEEKDAYS[timer_dt.weekday()]}"
-        else:
-            output_date = timer_dt.strftime("%-d %B")
-            named_output = False
-
-        if h24format:
-            output_time = timer_dt.strftime("%-H:%M")
-        else:
-            output_time = timer_dt.strftime("%-I:%M %p")
-
-        date_text = f"{output_date} at {output_time}"
-        if append_name and timer_name:
-            if named_output:
-                return f"{timer_name} for {date_text}"
-            return f"{timer_name} on {date_text}"
-        return date_text
+        output_date = get_named_day(timer_dt, dt_now)
+        output_time = get_formatted_time(timer_dt, h24format)
+        return f"{output_date} at {output_time}"
 
     return timer_dt
 
@@ -743,9 +759,7 @@ class VATimers:
             if start:
                 await self.start_timer(timer_id, timer)
 
-            encoded_time = encode_datetime_to_human(
-                timer_info_class, timer.name, expiry
-            )
+            encoded_time = encode_datetime_to_human(timer_info_class, expiry)
             return timer_id, timer.to_dict(), encoded_time
 
         return None, None, "already exists"
@@ -819,9 +833,7 @@ class VATimers:
             await self.start_timer(timer_id, timer)
             await self._fire_event(timer_id, TimerEvent.SNOOZED)
 
-            encoded_duration = encode_datetime_to_human(
-                "TimerInterval", timer.name, expiry
-            )
+            encoded_duration = encode_datetime_to_human("TimerInterval", expiry)
 
             return timer_id, timer.to_dict(), encoded_duration
         return None, None, "unable to snooze"
@@ -888,7 +900,7 @@ class VATimers:
             timers = [timer for timer in timers if timer["device_id"] == device_id]
 
         if sort and timers:
-            timers = sorted(timers, key=lambda d: d["expires_in_seconds"])
+            timers = sorted(timers, key=lambda d: d["expiry"]["seconds"])
 
         return timers
 
