@@ -175,8 +175,8 @@ class Timer:
             "expiry": {
                 "seconds": math.ceil(self.expires_in_seconds),
                 "interval": self.expires_in_interval,
-                "expiry_day": get_named_day(dt_expiry, dt_now),
-                "expiry_time": get_formatted_time(dt_expiry),
+                "day": get_named_day(dt_expiry, dt_now),
+                "time": get_formatted_time(dt_expiry),
                 "text": self.dynamic_remaining,
             },
             "created_at": dt.datetime.fromtimestamp(self.created_at),
