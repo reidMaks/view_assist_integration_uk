@@ -6,7 +6,7 @@ from typing import Any
 
 import voluptuous as vol
 
-from config.custom_components.view_assist.helpers import get_device_id_from_entity_id
+from .helpers import get_device_id_from_entity_id
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_platform
