@@ -78,11 +78,27 @@ def get_entity_attribute(hass: HomeAssistant, entity_id: str, attribute: str) ->
     return None
 
 
+def get_config_entry_by_config_data_value(
+    hass: HomeAssistant, value: str
+) -> VAConfigEntry:
+    """Get config entry from a config data param value."""
+    # Loop config entries
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        for param_value in entry.data.values():
+            if (
+                param_value == value
+                or get_device_id_from_entity_id(hass, param_value) == value
+            ):
+                return entry
+    return None
+
+
 def get_config_entry_by_entity_id(hass: HomeAssistant, entity_id: str) -> VAConfigEntry:
     """Get config entry by entity id."""
     entity_registry = er.async_get(hass)
-    entity = entity_registry.async_get(entity_id)
-    return hass.config_entries.async_get_entry(entity.config_entry_id)
+    if entity := entity_registry.async_get(entity_id):
+        return hass.config_entries.async_get_entry(entity.config_entry_id)
+    return None
 
 
 def get_device_name_from_id(hass: HomeAssistant, device_id: str) -> str:
@@ -96,8 +112,9 @@ def get_device_name_from_id(hass: HomeAssistant, device_id: str) -> str:
 def get_device_id_from_entity_id(hass: HomeAssistant, entity_id: str) -> str:
     """Get the device id of an entity by id."""
     entity_registry = er.async_get(hass)
-    entity = entity_registry.async_get(entity_id)
-    return entity.device_id
+    if entity := entity_registry.async_get(entity_id):
+        return entity.device_id
+    return None
 
 
 def get_device_id_from_name(hass: HomeAssistant, device_name: str) -> str:
@@ -130,10 +147,11 @@ def get_device_id_from_name(hass: HomeAssistant, device_name: str) -> str:
     return None
 
 
-def _get_sensor_entity_from_instance(
+def get_sensor_entity_from_instance(
     hass: HomeAssistant,
     entry_id: str,
 ) -> str:
+    """Get VA sensor entity from config entry."""
     entity_registry = er.async_get(hass)
     if integration_entities := er.async_entries_for_config_entry(
         entity_registry, entry_id
@@ -159,40 +177,39 @@ def get_entity_id_from_conversation_device_id(
         entity_registry = er.async_get(hass)
         mic_entity = entity_registry.async_get(mic_entity_id)
         if mic_entity.device_id == device_id:
-            return _get_sensor_entity_from_instance(hass, entry.entry_id)
+            return get_sensor_entity_from_instance(hass, entry.entry_id)
     return None
 
 
-def get_entity_id_by_browser_id(
-    hass: HomeAssistant, browser_id: str, return_dev_flagged_if_unmatched: bool = False
-) -> str:
+def get_mimic_entity_id(hass: HomeAssistant) -> str:
+    """Get mimic entity id."""
+    # If we reach here, no match for browser_id was found
+    if mimic_entry_ids := [
+        entry.entry_id
+        for entry in hass.config_entries.async_entries(DOMAIN)
+        if entry.data.get(CONF_DEV_MIMIC)
+    ]:
+        return get_sensor_entity_from_instance(hass, mimic_entry_ids[0])
+    return None
+
+
+def get_entity_id_by_browser_id(hass: HomeAssistant, browser_id: str) -> str:
     """Get entity id form browser id.
 
     Support websocket
     """
     # Browser ID is same as device name, so get device id to VA device with display device
     # set to this id
-    device_id = get_device_id_from_name(hass, browser_id)
-
-    # Get all instances of view assist for browser id
-    entry_ids = [
-        entry.entry_id
-        for entry in hass.config_entries.async_entries(DOMAIN)
-        if entry.data.get(CONF_DISPLAY_DEVICE) == device_id
-    ]
-
-    if entry_ids:
-        return _get_sensor_entity_from_instance(hass, entry_ids[0])
-
-    # If we reach here, no match for browser_id was found
-    if return_dev_flagged_if_unmatched:
-        matched_entry_ids = [
+    if device_id := get_device_id_from_name(hass, browser_id):
+        # Get all instances of view assist for browser id
+        entry_ids = [
             entry.entry_id
             for entry in hass.config_entries.async_entries(DOMAIN)
-            if entry.data.get(CONF_DEV_MIMIC)
+            if entry.data.get(CONF_DISPLAY_DEVICE) == device_id
         ]
-        if matched_entry_ids:
-            return _get_sensor_entity_from_instance(matched_entry_ids[0])
+
+        if entry_ids:
+            return get_sensor_entity_from_instance(hass, entry_ids[0])
 
     return None
 
@@ -220,6 +237,17 @@ def get_revert_settings_for_mode(mode: VAMode) -> tuple:
     if mode in VAMODE_REVERTS:
         return VAMODE_REVERTS[mode].get("revert"), VAMODE_REVERTS[mode].get("view")
     return False, None
+
+
+def get_assist_satellite_entity_id_from_device_id(
+    hass: HomeAssistant, device_id: str
+) -> str | None:
+    """Get assist satellite entity id from device id."""
+    device_entities = er.async_entries_for_device(er.async_get(hass), device_id)
+    for entity in device_entities:
+        if entity.domain == "assist_satellite":
+            return entity.entity_id
+    return None
 
 
 def get_entities_by_attr_filter(

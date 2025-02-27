@@ -12,10 +12,11 @@ import re
 import time
 from typing import Any
 
+import voluptuous as vol
 import wordtodigits
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, valid_entity_id
 from homeassistant.helpers.storage import Store
 from homeassistant.util import ulid as ulid_util
 
@@ -27,7 +28,6 @@ _LOGGER = logging.getLogger(__name__)
 # Event name prefixes
 VA_EVENT_PREFIX = "va_timer_{}"
 VA_COMMAND_EVENT_PREFIX = "va_timer_command_{}"
-
 
 TIMERS_STORE_NAME = f"{DOMAIN}.timers"
 
@@ -124,7 +124,7 @@ class Timer:
     expires_at: int
     timer_type: str = "TimerInterval"
     name: str | None = None
-    device_id: str | None = None
+    entity_id: str | None = None
     pre_expire_warning: int = 0
     created_at: int = 0
     updated_at: int = 0
@@ -165,7 +165,7 @@ class Timer:
         dt_now = dt.datetime.now()
         dt_expiry = dt.datetime.fromtimestamp(self.expires_at)
         return {
-            "device_id": self.device_id,
+            "entity_id": self.entity_id,
             "timer_class": self.timer_class,
             "timer_type": self.timer_type,
             "name": self.name,
@@ -593,6 +593,7 @@ class VATimerStore:
 
     def __init__(self, hass: HomeAssistant) -> None:
         """Initialise."""
+        self.hass = hass
         self.store = Store(hass, 1, TIMERS_STORE_NAME)
         self.listeners = []
         self.timers: dict[str, Timer] = {}
@@ -608,9 +609,26 @@ class VATimerStore:
         """Load tiers from store."""
         stored: dict[str, Any] = await self.store.async_load()
         if stored:
+            stored = await self.migrate(stored)
             for timer_id, timer in stored.items():
                 self.timers[timer_id] = Timer(**timer)
         self.dirty = False
+
+    async def migrate(self, stored: dict[str, Any]) -> dict[str, Any]:
+        """Migrate stored data."""
+        # Migrate to entity id from device id
+        migrated = False
+        for timer in stored.values():
+            if timer.get("device_id"):
+                migrated = True
+                timer["entity_id"] = get_entity_id_from_conversation_device_id(
+                    self.hass, timer["device_id"]
+                )
+                del timer["device_id"]
+
+        if migrated:
+            await self.save()
+        return stored
 
     async def updated(self, timer_id: str):
         """Store has been updated."""
@@ -687,14 +705,25 @@ class VATimers:
             self.hass.bus.async_fire(event_name, event_data)
             _LOGGER.debug("Timer event fired: %s - %s", event_name, event_data)
 
-    def is_duplicate_timer(self, device_id: str, name: str, expires_at: int) -> bool:
+    def _ensure_entity_id(self, device_or_entity_id: str) -> str:
+        """Ensure entity id."""
+        # ensure entity id
+        if valid_entity_id(device_or_entity_id.lower()):
+            entity_id = device_or_entity_id
+        else:
+            entity_id = get_entity_id_from_conversation_device_id(
+                self.hass, device_or_entity_id
+            )
+        return entity_id
+
+    def is_duplicate_timer(self, entity_id: str, name: str, expires_at: int) -> bool:
         """Return if same timer already exists."""
 
         # Get timers for device_id
         existing_device_timers = [
             timer_id
             for timer_id, timer in self.store.timers.items()
-            if timer.device_id == device_id
+            if timer.entity_id == entity_id
         ]
 
         if not existing_device_timers:
@@ -709,7 +738,7 @@ class VATimers:
     async def add_timer(
         self,
         timer_class: TimerClass,
-        device_id: str,
+        device_or_entity_id: str,
         timer_info: TimerTime | TimerInterval,
         name: str | None = None,
         pre_expire_warning: int = 10,
@@ -717,6 +746,11 @@ class VATimers:
         extra_info: dict[str, Any] | None = None,
     ) -> tuple:
         """Add timer to store."""
+
+        entity_id = self._ensure_entity_id(device_or_entity_id)
+
+        if not entity_id:
+            raise vol.Invalid("Invalid device or entity id")
 
         timer_id = ulid_util.ulid_now()
 
@@ -732,12 +766,9 @@ class VATimers:
         expires_unix_ts = time.mktime(expiry.timetuple())
         time_now_unix = time.mktime(dt.datetime.now().timetuple())
 
-        if not self.is_duplicate_timer(device_id, name, expires_unix_ts):
+        if not self.is_duplicate_timer(entity_id, name, expires_unix_ts):
             # Add timer_info to extra_info
             extra_info["timer_info"] = timer_info
-            extra_info["view_assist_entity_id"] = (
-                get_entity_id_from_conversation_device_id(self.hass, device_id)
-            )
 
             timer = Timer(
                 timer_class=timer_class.lower(),
@@ -745,7 +776,7 @@ class VATimers:
                 original_expires_at=expires_unix_ts,
                 expires_at=expires_unix_ts,
                 name=name,
-                device_id=device_id,
+                entity_id=entity_id,
                 pre_expire_warning=pre_expire_warning,
                 created_at=time_now_unix,
                 updated_at=time_now_unix,
@@ -841,18 +872,21 @@ class VATimers:
     async def cancel_timer(
         self,
         timer_id: str | None = None,
-        device_id: str | None = None,
+        device_or_entity_id: str | None = None,
         cancel_all: bool = False,
     ) -> bool:
         """Cancel timer by timer id, device id or all."""
         if timer_id:
             timer_ids = [timer_id] if self.store.timers.get(timer_id) else []
-        elif device_id:
-            timer_ids = [
-                timer_id
-                for timer_id, timer in self.store.timers.items()
-                if timer.device_id == device_id
-            ]
+        elif device_or_entity_id:
+            if entity_id := self._ensure_entity_id(device_or_entity_id):
+                timer_ids = [
+                    timer_id
+                    for timer_id, timer in self.store.timers.items()
+                    if timer.entity_id == entity_id
+                ]
+            else:
+                timer_ids = []
         elif cancel_all:
             timer_ids = self.store.timers.copy().keys()
 
@@ -870,7 +904,7 @@ class VATimers:
     def get_timers(
         self,
         timer_id: str = "",
-        device_id: str = "",
+        device_or_entity_id: str = "",
         include_expired: bool = False,
         sort: bool = True,
     ) -> list[Timer]:
@@ -896,8 +930,11 @@ class VATimers:
         if timer_id:
             timers = [timer for timer in timers if timer["id"] == timer_id]
 
-        elif device_id:
-            timers = [timer for timer in timers if timer["device_id"] == device_id]
+        elif device_or_entity_id:
+            if entity_id := self._ensure_entity_id(device_or_entity_id):
+                timers = [timer for timer in timers if timer["entity_id"] == entity_id]
+            else:
+                timers = []
 
         if sort and timers:
             timers = sorted(timers, key=lambda d: d["expiry"]["seconds"])

@@ -6,7 +6,6 @@ from typing import Any
 
 import voluptuous as vol
 
-from .helpers import get_device_id_from_entity_id
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_platform
@@ -15,6 +14,7 @@ from homeassistant.helpers.config_validation import make_entity_service_schema
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from .const import DOMAIN, VA_ATTRIBUTE_UPDATE_EVENT, VAConfigEntry
+from .helpers import get_device_id_from_entity_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -81,6 +81,7 @@ class ViewAssistSensor(SensorEntity):
         attrs = {
             "type": r.type,
             "mic_device": r.mic_device,
+            "mic_device_id": get_device_id_from_entity_id(self.hass, r.mic_device),
             "mediaplayer_device": r.mediaplayer_device,
             "musicplayer_device": r.musicplayer_device,
             "mode": r.mode,
@@ -107,7 +108,7 @@ class ViewAssistSensor(SensorEntity):
 
         # display timers
         attrs["timers"] = self.hass.data[DOMAIN]["timers"].get_timers(
-            device_id=self._voice_device_id, include_expired=True
+            device_or_entity_id=self.entity_id, include_expired=True
         )
 
         return attrs
