@@ -38,12 +38,21 @@ set_timer:
   name: Set a timer
   description: Set an alarm, timer or reminder
   fields:
+    entity_id:
+      name: "Entity ID"
+      description: "Entity id of the View Assist entity"
+      required: false
+      selector:
+        entity:
+          integration: view_assist
+          domain:
+            - sensor
     device_id:
       name: "Device ID"
       description: "Device id of the voice satellite"
-      required: true
+      required: false
       selector:
-        text:
+        device:
     type:
       name: "Timer type"
       description: "The type of timer - alarm, timer, reminder, command"
@@ -77,12 +86,21 @@ cancel_timer:
       required: false
       selector:
         text:
+    entity_id:
+      name: "Entity ID"
+      description: "Entity id of the View Assist entity"
+      required: false
+      selector:
+        entity:
+          integration: view_assist
+          domain:
+            - sensor
     device_id:
       name: "Device ID"
       description: "The id of the voice satellite device to cancel all timers for"
       required: false
       selector:
-        text:
+        device:
     remove_all:
       name: "Remove all"
       description: "Cancel all timers"
@@ -99,12 +117,21 @@ get_timers:
       required: false
       selector:
         text:
+    entity_id:
+      name: "Entity ID"
+      description: "Entity id of the View Assist entity"
+      required: false
+      selector:
+        entity:
+          integration: view_assist
+          domain:
+            - sensor
     device_id:
       name: "Device ID"
       description: "The id of the voice satellite device to get all timers for"
       required: false
       selector:
-        text:
+        device:
 sound_alarm:
   name: "Sound alarm"
   description: "Sound alarm on a media device with an attempt to restore any already playing media"

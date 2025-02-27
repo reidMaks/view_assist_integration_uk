@@ -35,7 +35,7 @@ from .const import (
     DOMAIN,
     VAConfigEntry,
 )
-from .helpers import get_random_image
+from .helpers import get_mimic_entity_id, get_random_image
 from .timers import VATimers, decode_time_sentence
 
 _LOGGER = logging.getLogger(__name__)
@@ -52,7 +52,8 @@ NAVIGATE_SERVICE_SCHEMA = vol.Schema(
 
 SET_TIMER_SERVICE_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_DEVICE_ID): str,
+        vol.Exclusive(CONF_ENTITY_ID, "target"): cv.entity_id,
+        vol.Exclusive(CONF_DEVICE_ID, "target"): vol.Any(cv.string, None),
         vol.Required(CONF_TYPE): str,
         vol.Optional(CONF_NAME): str,
         vol.Required(CONF_TIME): str,
@@ -60,11 +61,13 @@ SET_TIMER_SERVICE_SCHEMA = vol.Schema(
     }
 )
 
+
 CANCEL_TIMER_SERVICE_SCHEMA = vol.Schema(
     {
-        vol.Optional(CONF_TIMER_ID): str,
-        vol.Optional(CONF_DEVICE_ID): str,
-        vol.Optional(CONF_REMOVE_ALL): bool,
+        vol.Exclusive(CONF_TIMER_ID, "target"): str,
+        vol.Exclusive(CONF_ENTITY_ID, "target"): cv.entity_id,
+        vol.Exclusive(CONF_DEVICE_ID, "target"): vol.Any(cv.string, None),
+        vol.Exclusive(CONF_REMOVE_ALL, "target"): bool,
     }
 )
 
@@ -77,8 +80,9 @@ SNOOZE_TIMER_SERVICE_SCHEMA = vol.Schema(
 
 GET_TIMERS_SERVICE_SCHEMA = vol.Schema(
     {
-        vol.Optional(CONF_TIMER_ID): str,
-        vol.Optional(CONF_DEVICE_ID): str,
+        vol.Exclusive(CONF_TIMER_ID, "target"): str,
+        vol.Exclusive(CONF_ENTITY_ID, "target"): cv.entity_id,
+        vol.Exclusive(CONF_DEVICE_ID, "target"): vol.Any(cv.string, None),
         vol.Optional(CONF_INCLUDE_EXPIRED, default=False): bool,
     }
 )
@@ -108,6 +112,7 @@ BROADCAST_EVENT_SERVICE_SCHEMA = vol.Schema(
         vol.Required("event_data"): dict,
     }
 )
+
 
 class VAServices:
     """Class to manage services."""
@@ -207,7 +212,8 @@ class VAServices:
     # -----------------------------------------------------------------------
 
     async def async_handle_broadcast_event(self, call: ServiceCall):
-        """yaml
+        """Fire an event with the provided name and data.
+
         name: View Assist Broadcast Event
         description: Immediately fires an event with the provided name and data
         """
@@ -300,6 +306,7 @@ class VAServices:
     # ----------------------------------------------------------------
     async def async_handle_set_timer(self, call: ServiceCall) -> ServiceResponse:
         """Handle a set timer service call."""
+        entity_id = call.data.get(CONF_ENTITY_ID)
         device_id = call.data.get(CONF_DEVICE_ID)
         timer_type = call.data.get(CONF_TYPE)
         name = call.data.get(CONF_NAME)
@@ -307,6 +314,19 @@ class VAServices:
         extra_data = call.data.get(CONF_EXTRA)
 
         sentence, timer_info = decode_time_sentence(timer_time)
+        _LOGGER.debug("ENTITY: %s, DEVICE: %s", entity_id, device_id)
+
+        if entity_id is None and device_id is None:
+            mimic_device = get_mimic_entity_id(self.hass)
+            _LOGGER.debug("MIMIC DEVICE: %s", mimic_device)
+            if mimic_device:
+                entity_id = mimic_device
+                _LOGGER.warning(
+                    "Using the set mimic entity %s to set timer as no entity or device id provided to the set timer service",
+                    mimic_device,
+                )
+            else:
+                raise vol.InInvalid("entity_id or device_id is required")
 
         extra_info = {"sentence": sentence}
         if extra_data:
@@ -315,10 +335,10 @@ class VAServices:
         if timer_info:
             t: VATimers = self.hass.data[DOMAIN]["timers"]
             timer_id, timer, response = await t.add_timer(
-                timer_type,
-                device_id,
-                timer_info,
-                name,
+                timer_class=timer_type,
+                device_or_entity_id=entity_id if entity_id else device_id,
+                timer_info=timer_info,
+                name=name,
                 extra_info=extra_info,
             )
 
@@ -345,24 +365,32 @@ class VAServices:
     async def async_handle_cancel_timer(self, call: ServiceCall) -> ServiceResponse:
         """Handle a cancel timer service call."""
         timer_id = call.data.get(CONF_TIMER_ID)
+        entity_id = call.data.get(CONF_ENTITY_ID)
         device_id = call.data.get(CONF_DEVICE_ID)
         cancel_all = call.data.get(CONF_REMOVE_ALL, False)
         if any([timer_id, device_id, cancel_all]):
             t: VATimers = self.hass.data[DOMAIN]["timers"]
             result = await t.cancel_timer(
-                timer_id=timer_id, device_id=device_id, cancel_all=cancel_all
+                timer_id=timer_id,
+                device_or_entity_id=entity_id if entity_id else device_id,
+                cancel_all=cancel_all,
             )
             return {"result": result}
         return {"error": "no timer id supplied"}
 
     async def async_handle_get_timers(self, call: ServiceCall) -> ServiceResponse:
         """Handle a cancel timer service call."""
+        entity_id = call.data.get(CONF_ENTITY_ID)
         device_id = call.data.get(CONF_DEVICE_ID)
         timer_id = call.data.get(CONF_TIMER_ID)
         include_expired = call.data.get(CONF_INCLUDE_EXPIRED, False)
 
         t: VATimers = self.hass.data[DOMAIN]["timers"]
-        result = t.get_timers(timer_id, device_id, include_expired=include_expired)
+        result = t.get_timers(
+            timer_id=timer_id,
+            device_or_entity_id=entity_id if entity_id else device_id,
+            include_expired=include_expired,
+        )
         return {"result": result}
 
     async def async_handle_get_random_image(self, call: ServiceCall) -> ServiceResponse:
