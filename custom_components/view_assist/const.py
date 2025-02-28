@@ -1,6 +1,5 @@
 """Integration classes and constants."""
 
-from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
@@ -15,7 +14,7 @@ JSMODULES = [
     {
         "name": "View Assist Helper",
         "filename": "view_assist.js",
-        "version": "1.0.0",
+        "version": "1.0.1",
     },
 ]
 
