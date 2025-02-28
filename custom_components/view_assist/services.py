@@ -57,7 +57,7 @@ SET_TIMER_SERVICE_SCHEMA = vol.Schema(
         vol.Required(CONF_TYPE): str,
         vol.Optional(CONF_NAME): str,
         vol.Required(CONF_TIME): str,
-        vol.Optional(CONF_EXTRA): cv.Any,
+        vol.Optional(CONF_EXTRA): vol.Schema({}, extra=vol.ALLOW_EXTRA),
     }
 )
 
