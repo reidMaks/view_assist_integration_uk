@@ -14,7 +14,8 @@ This service creates the timer and provides a response.
 #### Service Name
 view_assist.set_timer
 #### Parameters
- - `device_id` (required) - this is the device id of the voice device which was passed in the sentence
+- `entity_id` (optional but must have this or device_id) - this is the entity id of the VA entity to tie the timer to
+ - `device_id` (optional but must have this or entity_id) - this is the device id of the voice device which was passed in the sentence
  - `type` (required) - this is the type of timer (alarm, timer, reminder, command)
  - `name` (optional) - a name for the timer
  - `time` (required) - a time sentence - see below for examples of supported sentences
@@ -24,35 +25,36 @@ view_assist.set_timer
 Returns the timer data and a sentence that can be used for a conversation response that is the interpretation of the requested time.
 
 ```json
-timer_id: 01JMWN5DBFPVEDT6H0SNXBJW3C
+timer_id: 01JN6FGMRGJHXHSP9J7HKWK7VA
 timer:
-  device_id: 4a3389dfdc31e0c0fe451396ea741118
-  timer_class: reminder
-  timer_type: TimerTime
-  name: Pick up the kids
-  expires: "2025-02-25T16:00:00"
-  original_expiry: "2025-02-25T16:00:00"
+  entity_id: sensor.display_test
+  timer_class: alarm
+  timer_type: TimerInterval
+  name: null
+  expires: "2025-02-28T14:41:37"
+  original_expiry: "2025-02-28T14:41:37"
   pre_expire_warning: 10
-  expires_in_seconds: 75724
-  expires_in_interval:
-    days: 0
-    hours: 21
-    minutes: 2
-    seconds: 4
-  expires_in_text: tomorrow at 4:00 PM
-  created_at: "2025-02-24T18:57:56"
-  updated_at: "2025-02-24T18:57:56"
+  expiry:
+    seconds: 600
+    interval:
+      days: 0
+      hours: 0
+      minutes: 10
+      seconds: 0
+    day: Today
+    time: 2:41:37 PM
+    text: 10 minutes
+  created_at: "2025-02-28T14:31:37"
+  updated_at: "2025-02-28T14:31:37"
   status: running
   extra_info:
-    sentence: tuesday at 4:00 pm
+    sentence: 10 minutes
     timer_info:
-      day: tuesday
-      hour: 4
-      minute: 0
-      second: 0
-      meridiem: pm
-    view_assist_entity_id: sensor.display_test
-response: Pick up the kids for tomorrow at 4:00 PM
+      days: 0
+      hours: 0
+      minutes: 10
+      seconds: 0
+response: 10 minutes
 ```
 
 ## Cancel Timer
@@ -62,6 +64,7 @@ This service cancels 1 or more timers and provides a response to confirm if time
 view_assist.cancel_timer
 #### Parameters
  - `timer_id` (optional) - this is the id of the individual timer you wish to cancel
+ - `entity_id  (optional) - the entity id of the VA sensor that the timers are attached to.  This will cancel all the timers for that VA entity
  - `device_id` (optional) - this is the device id of the voice device which was passed in when the timer was created.  This will cancel all timers for that device id.
  - `remove_all` (optional) - this will delete all timers
 
@@ -83,20 +86,21 @@ view_assist.snooze_timer
 ```json
 timer_id: 01JMWMYR7YQ1GVTT2TYBQM21Q6
 timer:
-  device_id: 4a3389dfdc31e0c0fe451396ea741118
+  entity_id: sensor.display_test
   timer_class: timer
   timer_type: TimerInterval
   name: ""
   expires: "2025-02-24T19:04:57"
   original_expiry: "2025-02-24T18:54:28"
   pre_expire_warning: 10
-  expires_in_seconds: 600
-  expires_in_interval:
-    days: 0
-    hours: 0
-    minutes: 10
-    seconds: 0
-  expires_in_text: 10 minutes
+  expiry:
+    seconds: 600
+    interval:
+      days: 0
+      hours: 0
+      minutes: 10
+      seconds: 0
+    text: 10 minutes
   created_at: "2025-02-24T18:54:18"
   updated_at: "2025-02-24T18:54:57"
   status: snoozed
@@ -124,6 +128,7 @@ This service retrieves a list of timers.  With no parameters it will return all 
 view_assist.get_timers
 #### Parameters
  - `timer_id` (optional) - this is the id of the individual timer you wish to view
+ - `entity_id` (optional) - the entity id of the VA device.  This will return all timers for that VA device.
  - `device_id` (optional) - this is the device id of the voice device which was passed in when the timer was created.  This will return all timers for that device id.
  - `include_expired` (optional) - this will include/exclude expired timers
 
@@ -131,20 +136,21 @@ view_assist.get_timers
 ```json
 result:
   - id: 01JMWK41PTEZ2JFKD9FSFERHRR
-    device_id: 4a3389dfdc31e0c0fe451396ea741118
+    entity_id: display.test
     timer_class: reminder
     timer_type: TimerTime
     name: do the chores
     expires: "2025-02-25T14:30:00"
     original_expiry: "2025-02-25T14:30:00"
     pre_expire_warning: 10
-    expires_in_seconds: 70612
-    expires_in_interval:
-      days: 0
-      hours: 19
-      minutes: 36
-      seconds: 52
-    expires_in_text: tomorrow at 2:30 PM
+    expiry:
+      seconds: 70612
+      interval:
+        days: 0
+        hours: 19
+        minutes: 36
+        seconds: 52
+      text: tomorrow at 2:30 PM
     created_at: "2025-02-24T18:22:14"
     updated_at: "2025-02-24T18:22:14"
     status: running
@@ -158,20 +164,21 @@ result:
         meridiem: ""
       view_assist_entity_id: sensor.display_test
   - id: 01JMWKVP7PXDZ38MD6CV62NYW3
-    device_id: 4a3389dfdc31e0c0fe451396ea741118
+    entity_id: display.test
     timer_class: alarm
     timer_type: TimerTime
     name: ""
     expires: "2025-02-25T23:30:00"
     original_expiry: "2025-02-25T23:30:00"
     pre_expire_warning: 10
-    expires_in_seconds: 103012
-    expires_in_interval:
-      days: 1
-      hours: 4
-      minutes: 36
-      seconds: 52
-    expires_in_text: tomorrow at 11:30 PM
+    expiry:
+      seconds: 103012
+      interval:
+        days: 1
+        hours: 4
+        minutes: 36
+        seconds: 52
+      text: tomorrow at 11:30 PM
     created_at: "2025-02-24T18:35:09"
     updated_at: "2025-02-24T18:35:09"
     status: running

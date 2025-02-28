@@ -19,6 +19,114 @@ export async function hass() {
   return base.hass;
 }
 
+function strftime(sFormat, date) {
+  if (!(date instanceof Date)) date = new Date();
+  var nDay = date.getDay(),
+    nDate = date.getDate(),
+    nMonth = date.getMonth(),
+    nYear = date.getFullYear(),
+    nHour = date.getHours(),
+    aDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+    aMonths = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+    aDayCount = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334],
+    isLeapYear = function() {
+      if ((nYear&3)!==0) return false;
+      return nYear%100!==0 || nYear%400===0;
+    },
+    getThursday = function() {
+      var target = new Date(date);
+      target.setDate(nDate - ((nDay+6)%7) + 3);
+      return target;
+    },
+    zeroPad = function(nNum, nPad) {
+      return ('' + (Math.pow(10, nPad) + nNum)).slice(1);
+    };
+  return sFormat.replace(/%[a-z]/gi, function(sMatch) {
+    return {
+      '%a': aDays[nDay].slice(0,3),
+      '%A': aDays[nDay],
+      '%b': aMonths[nMonth].slice(0,3),
+      '%B': aMonths[nMonth],
+      '%c': date.toUTCString(),
+      '%C': Math.floor(nYear/100),
+      '%d': zeroPad(nDate, 2),
+      '%e': nDate,
+      '%F': date.toISOString().slice(0,10),
+      '%G': getThursday().getFullYear(),
+      '%g': ('' + getThursday().getFullYear()).slice(2),
+      '%H': zeroPad(nHour, 2),
+      '%I': zeroPad((nHour+11)%12 + 1, 2),
+      '%j': zeroPad(aDayCount[nMonth] + nDate + ((nMonth>1 && isLeapYear()) ? 1 : 0), 3),
+      '%k': '' + nHour,
+      '%l': (nHour+11)%12 + 1,
+      '%m': zeroPad(nMonth + 1, 2),
+      '%M': zeroPad(date.getMinutes(), 2),
+      '%p': (nHour<12) ? 'AM' : 'PM',
+      '%P': (nHour<12) ? 'am' : 'pm',
+      '%s': Math.round(date.getTime()/1000),
+      '%S': zeroPad(date.getSeconds(), 2),
+      '%u': nDay || 7,
+      '%V': (function() {
+              var target = getThursday(),
+                n1stThu = target.valueOf();
+              target.setMonth(0, 1);
+              var nJan1 = target.getDay();
+              if (nJan1!==4) target.setMonth(0, 1 + ((4-nJan1)+7)%7);
+              return zeroPad(1 + Math.ceil((n1stThu-target)/604800000), 2);
+            })(),
+      '%w': '' + nDay,
+      '%x': date.toLocaleDateString(),
+      '%X': date.toLocaleTimeString(),
+      '%y': ('' + nYear).slice(2),
+      '%Y': nYear,
+      '%z': date.toTimeString().replace(/.+GMT([+-]\d+).+/, '$1'),
+      '%Z': date.toTimeString().replace(/.+\((.+?)\)$/, '$1')
+    }[sMatch] || sMatch;
+  });
+}
+
+class Clock extends HTMLElement {
+  static observedAttributes = ["server_time", "format"];
+
+  constructor() {
+    super();
+  }
+
+  connectedCallback() {
+    const shadow = this.shadowRoot || this.attachShadow({ mode: 'open' });
+    // Create span
+    this.shadowRoot.innerHTML = '';
+    const el = document.createElement("span");
+    el.setAttribute("class", "clock");
+    shadow.appendChild(el);
+
+
+    const server_time = this.getAttribute("server_time");
+
+    this.run_clock(el, server_time);
+  }
+
+  display_time(el, server_time) {
+
+    const dt_now = new Date();
+    var format = this.getAttribute("format") ? this.getAttribute("format") : '%H:%M'
+
+    if (server_time) {
+      el.textContent = strftime(format, new Date(dt_now.getTime() + window.viewassist_time_delta));
+    } else {
+      el.textContent = strftime(format,dt_now);
+    }
+  }
+
+  run_clock(el, server_time) {
+    var t = this;
+    t.display_time(el, server_time);
+    const x = setInterval(function () {
+      t.display_time(el, server_time);
+    }, 1000);
+  }
+}
+
 class CountdownTimer extends HTMLElement {
   static observedAttributes = ["expires"];
 
@@ -27,37 +135,23 @@ class CountdownTimer extends HTMLElement {
   }
 
   connectedCallback() {
-    //console.log("Custom element added to page.");
     const shadow = this.shadowRoot || this.attachShadow({ mode: 'open' });
-    // Create spans
+    // Create span
     this.shadowRoot.innerHTML = '';
-    const info = document.createElement("span");
-    info.setAttribute("class", "info");
-    shadow.appendChild(info);
+    const el = document.createElement("span");
+    el.setAttribute("class", "countdown");
+    shadow.appendChild(el);
 
 
     const expires = this.getAttribute("expires");
-    this.start_timer(info, expires);
+    this.start_timer(el, expires);
   }
 
-  disconnectedCallback() {
-    this.s
-    console.log("Custom element removed from page.");
-  }
-
-  adoptedCallback() {
-    console.log("Custom element moved to new page.");
-  }
-
-  attributeChangedCallback(name, oldValue, newValue) {
-    console.log(`Attribute ${name} has changed.`);
-  }
-
-  display_countdown(info, expires) {
+  display_countdown(el, expires) {
     // Get today's date and time
     var now = new Date().getTime();
+
     var expire = new Date(expires).getTime();
-    console.log("NOW: " + now + ", EXPIRE: " + expire)
 
     // Find the distance between now and the count down date
     var distance = expire - now;
@@ -68,29 +162,29 @@ class CountdownTimer extends HTMLElement {
     var minutes = String(Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60))).padStart(2,'0');
     var seconds = String(Math.floor((distance % (1000 * 60)) / 1000)).padStart(2,'0');
 
-    // Display the result in the element with id="demo"
+    // Display the result in the element
     if (days) {
-      info.textContent = days + "d " + hours + ":" + minutes + ":" + seconds;
+      el.textContent = days + "d " + hours + ":" + minutes + ":" + seconds;
     } else {
-      info.textContent = hours + ":" + minutes + ":" + seconds;
+      el.textContent = hours + ":" + minutes + ":" + seconds;
     }
     return distance
   }
 
-  start_timer(info, expires) {
+  start_timer(el, expires) {
     if (expires != 0) {
       var t = this;
-      t.display_countdown(info, expires)
+      t.display_countdown(el, expires)
       const x = setInterval(function () {
-        var distance = t.display_countdown(info, expires);
+        var distance = t.display_countdown(el, expires);
         if (distance < 0) {
           clearInterval(x);
-          info.textContent = "Expired";
+          el.textContent = "Expired";
         }
-      }, 250);
+      }, 500);
     } else {
       if (typeof x !== 'undefined') { clearInterval(x) };
-      info.textContent = "No Timers";
+      el.textContent = "No Timers";
     }
   }
 }
@@ -99,6 +193,7 @@ class CountdownTimer extends HTMLElement {
 class ViewAssist {
   constructor(hass) {
     this.hass = hass
+    this.va_entity = '';
     this.initializeWhenReady();
   }
 
@@ -110,6 +205,16 @@ class ViewAssist {
 
     try {
       await this.set_va_entity();
+      await this.set_time_delta();
+
+      console.info(
+        `%cVIEW ASSIST ${version} IS INSTALLED
+          %cView Assist Entity: ${this.va_entity}
+          Time Delta: ${window.viewassist_time_delta}`,
+          "color: green; font-weight: bold",
+          ""
+      );
+
 
       const bc = await Promise.resolve(customElements.whenDefined("button-card"))
       if (!bc) {
@@ -117,6 +222,7 @@ class ViewAssist {
       }
 
       customElements.define("viewassist-countdown", CountdownTimer)
+      customElements.define("viewassist-clock", Clock)
 
     } catch (e) {
       console.log("Initialization retry:", e.message);
@@ -125,19 +231,20 @@ class ViewAssist {
   }
 
   async set_va_entity() {
-    const va_entity = await this.hass.callWS({
+    this.va_entity = await this.hass.callWS({
       type: 'view_assist/get_entity_id',
       browser_id: localStorage.getItem("browser_mod-browser-id")
     })
-    localStorage.setItem("view_assist_sensor", va_entity);
+    localStorage.setItem("view_assist_sensor", this.va_entity);
 
-    console.info(
-      `%cVIEW ASSIST ${version} IS INSTALLED
-        %cView Assist Entity: ${va_entity}`,
-        "color: green; font-weight: bold",
-        ""
-    );
+  }
 
+  async set_time_delta() {
+    const delta = await this.hass.callWS({
+      type: 'view_assist/get_server_time_delta',
+      epoch: new Date().getTime()
+    })
+    window.viewassist_time_delta = delta;
   }
 }
 
