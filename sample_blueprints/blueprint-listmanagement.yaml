@@ -37,7 +37,7 @@ blueprint:
       default: todo.shopping_list
   source_url: https://raw.githubusercontent.com/dinki/View-Assist/main/View%20Assist%20custom%20sentences/List%20Management/blueprint-listmanagement.yaml
 alias: View Assist - List Management
-description: ''
+description: ""
 trigger:
 - platform: conversation
   command:
@@ -62,10 +62,10 @@ action:
     list_entity: !input list_entity
     view: !input view
     target_satellite_device: "{{ target_satellite.target_satellite[0] }}"
-    target_display_device: '{{ device_id(state_attr(target_satellite_device, ''display_device''))}}'
-    target_mediaplayer_device: '{{ state_attr(target_satellite_device, ''mediaplayer_device'')}}'
-    target_satellite_device_type: '{{ state_attr(target_satellite_device, ''type'')}}'
-    target_display_type: '{{ state_attr(target_satellite_device, ''display_type'')}}'
+    target_display_device: "{{ device_id(state_attr(target_satellite_device, 'display_device') )}}"
+    target_mediaplayer_device: "{{ state_attr(target_satellite_device, 'mediaplayer_device') }}"
+    target_satellite_device_type: "{{ state_attr(target_satellite_device, 'type') }}"
+    target_display_type: "{{ state_attr(target_satellite_device, 'display_type') }}"
 - choose:
   - conditions:
     - condition: trigger
@@ -73,116 +73,106 @@ action:
     sequence:
     - service: todo.get_items
       data:
-        entity_id: '{{ list_entity }}'
+        entity_id: "{{ list_entity }}"
         status: needs_action
       response_variable: list_items
     - if:
       - condition: template
-        value_template: '{{ trigger.slots.item | lower in (list_items[list_entity]["items"]
-          | map(attribute=''summary'') | map(''lower'')| list)}} '
+        value_template: "{{ trigger.slots.item | lower in (list_items[list_entity]['items'] | map(attribute='summary') | map('lower')| list) }}"
       then:
-      - set_conversation_response: '{{ trigger.slots.item }} is already in your {{
-          state_attr(list_entity,''friendly_name'') }}'
-        enabled: true
+      - set_conversation_response: "{{ trigger.slots.item }} is already in your {{ state_attr(list_entity,'friendly_name') }}"
       else:
       - service: todo.add_item
         data:
-          item: '{{trigger.slots.item | title}}'
+          item: "{{trigger.slots.item | title}}"
         target:
-          entity_id: '{{ list_entity }}'
-      - set_conversation_response: '{{ trigger.slots.item }} added to your {{ state_attr(list_entity,''friendly_name'')
-          }}'
-        enabled: true
+          entity_id: "{{ list_entity }}"
+      - set_conversation_response: "{{ trigger.slots.item }} added to your {{ state_attr(list_entity,'friendly_name') }}"
     - if:
       - condition: template
-        value_template: '{% if target_satellite_device_type != ''audio_only'' %}true{%
-          else %}false{% endif %}'
+        value_template: "{% if target_satellite_device_type != 'audio_only' %}true{% else %}false{% endif %}"
       then:
         - action: view_assist.set_state
           target:
-            entity_id: '{{ target_satellite_device }}'
+            entity_id: "{{ target_satellite_device }}"
           data:
-            title: '{{ state_attr(list_entity,''friendly_name'') }}'
+            title: "{{ state_attr(list_entity,'friendly_name') }}"
             message_font_size: 4vw
-            list: '{{ list_entity }}'  
+            list: "{{ list_entity }}"  
         - action: view_assist.navigate    
           data:
             device: "{{ target_satellite_device }}"
             display_type: "{{ target_display_type }}"
-            path: '{{ view }}'
+            path: "{{ view }}"
   - conditions:
     - condition: trigger
       id: remove_item
     sequence:
     - service: todo.get_items
       data:
-        entity_id: '{{ list_entity }}'
+        entity_id: "{{ list_entity }}"
         status: needs_action
       response_variable: list_items
     - if:
       - condition: template
-        value_template: '{{ trigger.slots.item | lower in (list_items[list_entity]["items"]
-          | map(attribute=''summary'') | map(''lower'')| list) }}'
+        value_template: "{{ trigger.slots.item | lower in (list_items[list_entity]['items'] | map(attribute='summary') | map('lower')| list) }}"
       then:
       - service: todo.remove_item
         data:
-          item: '{{list_items[list_entity]["items"] | map(attribute=''summary'') |
-            list | select(''search'', trigger.slots.item, ignorecase=true) | list
-            | first | default }}'
+          item: "{{list_items[list_entity]['items'] | map(attribute='summary') |
+            list | select('search', trigger.slots.item, ignorecase=true) | list
+            | first | default }}"
         target:
-          entity_id: '{{ list_entity }}'
-      - set_conversation_response: '{{ trigger.slots.item }} removed from {{ state_attr(list_entity,''friendly_name'')}}'
-        enabled: true
+          entity_id: "{{ list_entity }}"
+      - set_conversation_response: "{{ trigger.slots.item }} removed from {{ state_attr(list_entity,'friendly_name') }}"
       else:
-      - set_conversation_response: '{{ trigger.slots.item }} is not in {{ state_attr(list_entity,''friendly_name'')}}'
-        enabled: true
+      - set_conversation_response: "{{ trigger.slots.item }} is not in {{ state_attr(list_entity,'friendly_name') }}"
     - if:
       - condition: template
-        value_template: '{% if target_satellite_device_type != ''audio_only'' %}true{%
-          else %}false{% endif %}'
+        value_template: "{% if target_satellite_device_type != 'audio_only' %}true{% else %}false{% endif %}"
       then:
       - service: python_script.set_state
         data:
-          entity_id: '{{ target_satellite_device }}'
-          title: '{{ state_attr(list_entity,''friendly_name'') }}'
+          entity_id: "{{ target_satellite_device }}"
+          title: "{{ state_attr(list_entity,'friendly_name') }}"
           message_font_size: 4vw
-          list: '{{ list_entity }}'
-        enabled: true
+          list: "{{ list_entity }}"
       - service: browser_mod.navigate
         data:
-          path: '{{ view }}'
+          path: "{{ view }}"
         target:
-          device_id: '{{ target_display_device }}'
+          device_id: "{{ target_display_device }}"
   default:
   - sequence:
     - service: todo.get_items
       data:
-        entity_id: '{{ list_entity }}'
+        entity_id: "{{ list_entity }}"
         status: needs_action
       response_variable: list_items
-    - set_conversation_response: "{% if int(states(list_entity)) == 0 %}\n  There
-        are no unchecked items on your  {{ state_attr(list_entity,'friendly_name')
-        }}\n{% elif int(states(list_entity)) == 1 %}\n  There is 1 unchecked item
-        on your {{ state_attr(list_entity,'friendly_name') }} \n  It is {{ list_items[list_entity][\"items\"][0].summary
-        }}\n{% else %}\n  There are {{ states(list_entity) }} items on your {{ state_attr(list_entity,'friendly_name')
-        }}\n  They are \n    {{ list_items[list_entity][\"items\"] | map(attribute='summary')
-        | list | join(', ') }}\n{% endif %}\n"
-      enabled: true
+    - set_conversation_response: >-
+        {% if int(states(list_entity)) == 0 %}
+          There are no unchecked items on your  {{ state_attr(list_entity,'friendly_name') }}
+        {% elif int(states(list_entity)) == 1 %}
+          There is 1 unchecked item on your {{ state_attr(list_entity,'friendly_name') }}
+          It is {{ list_items[list_entity]['items'][0].summary }}
+        {% else %}
+          There are {{ states(list_entity) }} items on your {{ state_attr(list_entity,'friendly_name') }}
+          They are  {{ list_items[list_entity]['items'] | map(attribute='summary') | list | join(', ') }}
+        {% endif %}
     - if:
       - condition: template
-        value_template: '{% if target_satellite_device_type != ''audio_only'' %}true{%
-          else %}false{% endif %}'
+        value_template: "{% if target_satellite_device_type != 'audio_only' %}true{% else %}false{% endif %}"
       then:
       - action: view_assist.set_state
         target:
-          entity_id: '{{ target_satellite_device }}'
+          entity_id: "{{ target_satellite_device }}"
         data:
-          title: '{{ state_attr(list_entity,''friendly_name'') }}'
+          title: "{{ state_attr(list_entity,'friendly_name') }}"
           message_font_size: 4vw
-          list: '{{ list_entity }}'        
+          list: "{{ list_entity }}"        
       - data:
           device: "{{ target_satellite_device }}"
           display_type: "{{ target_display_type }}"
-          path: '{{ view }}'
+          path: "{{ view }}"
         action: view_assist.navigate            
 mode: single

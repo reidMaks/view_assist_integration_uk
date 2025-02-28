@@ -22,23 +22,23 @@ blueprint:
       default: /view-assist/music
   source_url: https://raw.githubusercontent.com/dinki/View-Assist/main/View_Assist_custom_sentences/Play_TuneIn_with_Music_Assistant/blueprint-playtuneinwithmusicassistant.yaml
 alias: View Assist - Play Music with Music Assistant
-description: ''
+description: ""
 trigger:
 - platform: conversation
   command: !input command
   id: playtunein
 condition: []
 action:
-- data:
+- action: view_assist.get_target_satellite
+  data:
     device_id: "{{ trigger.device_id }}"
   response_variable: target_satellite
-  action: view_assist.get_target_satellite
 - variables:
     target_satellite_device: "{{ target_satellite.target_satellite[0] }}"
-    target_musicplayer_device: '{{ state_attr(target_satellite_device, ''musicplayer_device'')}}'
-    target_mediaplayer_device: '{{ state_attr(target_satellite_device, ''mediaplayer_device'')}}'
-    target_satellite_device_type: '{{ state_attr(target_satellite_device, ''type'')}}'
-    target_use_announce: '{{ state_attr(target_satellite_device, ''use_announce'') }}'
+    target_musicplayer_device: "{{ state_attr(target_satellite_device, 'musicplayer_device') }}"
+    target_mediaplayer_device: "{{ state_attr(target_satellite_device, 'mediaplayer_device') }}"
+    target_satellite_device_type: "{{ state_attr(target_satellite_device, 'type') }}"
+    target_use_announce: "{{ state_attr(target_satellite_device, 'use_announce') }}"
     view_path: !input view_path
     station: !input station
     announce: !input announce    
@@ -50,23 +50,23 @@ action:
     sequence:
     - service: music_assistant.play_media
       target:
-        entity_id: '{{ target_musicplayer_device }}'
+        entity_id: "{{ target_musicplayer_device }}"
       data:
-        media_id: '{{ station }}'
+        media_id: "{{ station }}"
     - if:
       - condition: template
-        value_template: '{{ target_use_announce is not false }}'
+        value_template: "{{ target_use_announce is not false }}"
       then:
-      - set_conversation_response: '{{ announce }}'
+      - set_conversation_response: "{{ announce }}"
       else:
-      - set_conversation_response: ''
+      - set_conversation_response: ""
     - action: view_assist.set_state
       target:
-        entity_id: '{{ target_satellite_device }}'
+        entity_id: "{{ target_satellite_device }}"
       data:
         mode: music
-        title: ''
+        title: ""
     - action: view_assist.navigate
       data:
         device: "{{ target_satellite_device }}"
-        path: '{{ view_path }}'
+        path: "{{ view_path }}"

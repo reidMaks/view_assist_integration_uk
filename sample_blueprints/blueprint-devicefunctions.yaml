@@ -25,7 +25,7 @@ blueprint:
     set_volume:
       name: Set Volume Command
       description: The command to use to set volume level directly
-      default: '[set | turn] [the] volume [to] {level}'
+      default: "[set | turn] [the] volume [to] {level}"
     adjust_volume:
       name: Adjust Volume Command
       description: The command to use to set volume level by step
@@ -45,11 +45,11 @@ blueprint:
     modes:
       name: Modes
       description: The available modes (do not include do not disturb)
-      default: '[''normal'', ''night'', ''hold'', ''cycle'']'
+      default: "['normal', 'night', 'hold', 'cycle']"
     views:
       name: Views
       description: The available views as named on your dashboard
-      default: '[''clock'', ''weather'', ''info'', ''infopic'']'
+      default: "['clock', 'weather', 'info', 'infopic']"
 trigger:
 - platform: conversation
   command: !input repeat_command
@@ -88,10 +88,10 @@ action:
     modes: !input modes
     views: !input views
     target_satellite_device: "{{ target_satellite.target_satellite[0] }}"
-    target_mediaplayer_device: '{{ state_attr(target_satellite_device, ''mediaplayer_device'')}}'
-    target_musicplayer_device: '{{ state_attr(target_satellite_device, ''musicplayer_device'')}}'
-    target_satellite_device_type: '{{ state_attr(target_satellite_device, ''type'')}}'
-    target_display_type: '{{ state_attr(target_satellite_device, ''display_type'')}}' 
+    target_mediaplayer_device: "{{ state_attr(target_satellite_device, 'mediaplayer_device') }}"
+    target_musicplayer_device: "{{ state_attr(target_satellite_device, 'musicplayer_device') }}"
+    target_satellite_device_type: "{{ state_attr(target_satellite_device, 'type') }}"
+    target_display_type: "{{ state_attr(target_satellite_device, 'display_type') }}" 
 - choose:
   - conditions:
     - condition: trigger
@@ -107,7 +107,7 @@ action:
     sequence:
       - action: view_assist.set_state
         target:
-          entity_id: '{{ target_satellite_device }}'
+          entity_id: "{{ target_satellite_device }}"
         data:
           do_not_disturb: false         
       - set_conversation_response: Do not disturb mode is now off
@@ -118,36 +118,36 @@ action:
     sequence:
     - if:
       - condition: template
-        value_template: '{{ trigger.slots.mode|lower in modes or trigger.slots.mode|lower in [''do
-          not disturb''] }}'
+        value_template: "{{ trigger.slots.mode|lower in modes or trigger.slots.mode|lower in ['do
+          not disturb'] }}"
       then:
       - set_conversation_response: Setting mode to {{ trigger.slots.mode }}
         enabled: true
       - choose:
         - conditions:
           - condition: template
-            value_template: '{{ trigger.slots.mode|lower in modes }}'
+            value_template: "{{ trigger.slots.mode|lower in modes }}"
           sequence:
           - if:
             - condition: template
-              value_template: '{% if target_satellite_device_type == ''audio_only''
-                %}true{% else %}false{% endif %}'
+              value_template: "{% if target_satellite_device_type == 'audio_only'
+                %}true{% else %}false{% endif %}"
             then:
             - set_conversation_response: Sorry.  {{ trigger.slots.mode }} is not a
                 valid mode for this device
             else:
             - action: view_assist.set_state
               target:
-                entity_id: '{{ target_satellite_device }}'
+                entity_id: "{{ target_satellite_device }}"
               data:
-                mode: '{{ trigger.slots.mode }}'
+                mode: "{{ trigger.slots.mode|lower }}"
         - conditions:
           - condition: template
-            value_template: '{{ trigger.slots.mode in [''do not disturb''] }}'
+            value_template: "{{ trigger.slots.mode in ['do not disturb'] }}"
           sequence:
             - action: view_assist.set_state
               target:
-                entity_id: '{{ target_satellite_device }}'
+                entity_id: "{{ target_satellite_device }}"
               data:
                 do_not_disturb: true
       else:
@@ -160,29 +160,33 @@ action:
     sequence:
     - if:
       - condition: template
-        value_template: '{% if target_satellite_device_type != ''audio_only'' %}true{%
-          else %}false{% endif %}'
+        value_template: "{% if target_satellite_device_type != 'audio_only' %}true{%
+          else %}false{% endif %}"
       then:
       - set_conversation_response: Switching view to {{ trigger.slots.view }} view
         enabled: true
       - action: view_assist.navigate
         data:
           device: "{{ target_satellite_device }}"
-          path: '{{ trigger.slots.view | lower }}'
+          path: "{{ trigger.slots.view | lower }}"
       else:
-      - set_conversation_response: 'Sorry.  {{ trigger.slots.view }} is not a valid view. '
+      - set_conversation_response: "Sorry.  {{ trigger.slots.view }} is not a valid view. "
   - conditions:
     - condition: trigger
       id:
       - set_volume
     sequence:
-    - service: media_player.volume_set
+    - action: media_player.volume_set
       data:
-        volume_level: "{% if trigger.id == \"set_volume\" %} \n  {% if trigger.slots.level.endswith('%')
-          %}\n    {{ (trigger.slots.level |replace('%',' ') | int)/100 }}\n  {% else
-          %}\n    {{ (trigger.slots.level | int)/10 }}\n  {% endif %}\n{% endif %}"
+        volume_level: "{% if trigger.id == \"set_volume\" %} 
+          {% if trigger.slots.level.endswith('%') %}
+            {{ (trigger.slots.level |replace('%',' ') | int)/100 }}
+          {% else %}
+            {{ (trigger.slots.level | int)/10 }}
+          {% endif %}
+          {% endif %}"
       target:
-        entity_id: '{{ target_mediaplayer_device }}'
+        entity_id: "{{ target_mediaplayer_device }}"
     - set_conversation_response: The volume was set to {{ trigger.slots.level }}
       enabled: true
   - conditions:
@@ -190,14 +194,11 @@ action:
       id:
       - adjust_volume
     sequence:
-    - service: "{% if trigger.slots.up_down == \"down\" %} media_player.volume_down
-        {% endif %} \n{% if trigger.slots.up_down == \"up\" %} media_player.volume_up
-        {% endif %}\n"
+    - service: "{% if trigger.slots.up_down == \"down\" %} media_player.volume_down {% endif %}
+        {% if trigger.slots.up_down == \"up\" %} media_player.volume_up {% endif %}"
       target:
-        entity_id: '{{ target_mediaplayer_device }}'
-    - set_conversation_response: The volume has been turned {{ trigger.slots.up_down
-        }}
-      enabled: true
+        entity_id: "{{ target_mediaplayer_device }}"
+    - set_conversation_response: The volume has been turned {{ trigger.slots.up_down }}
   - conditions:
     - condition: trigger
       id:
@@ -207,7 +208,7 @@ action:
       data:
         is_volume_muted: true
       target:
-        entity_id: '{{ target_mediaplayer_device }}'
+        entity_id: "{{ target_mediaplayer_device }}"
     - set_conversation_response: ""
   - conditions:
     - condition: trigger
@@ -218,7 +219,7 @@ action:
       data:
         is_volume_muted: false
       target:
-        entity_id: '{{ target_mediaplayer_device }}'
+        entity_id: "{{ target_mediaplayer_device }}"
     - set_conversation_response: Sound has been restored
   - conditions:
     - condition: trigger
@@ -227,12 +228,12 @@ action:
     sequence:
     - target:
         entity_id:
-        - '{{ target_musicplayer_device }}'
+        - "{{ target_musicplayer_device }}"
       data: {}
       action: media_player.media_stop
     - action: view_assist.set_state
       target:
-        entity_id: '{{ target_satellite_device }}'
+        entity_id: "{{ target_satellite_device }}"
       data:
         mode: normal               
     - set_conversation_response: Music stopped

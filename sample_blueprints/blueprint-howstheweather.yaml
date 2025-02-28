@@ -17,7 +17,7 @@ blueprint:
           - domain:
             - weather
           multiple: false
-    dashboard:
+    view:
       name: Dashboard Weather view
       description: The View Assist dashboard view to use for weather (example /dashboard-viewassist/weather)
       default: /view-assist/weather
@@ -27,19 +27,18 @@ description: Provides information on the current weather and forecast
 trigger:
 - platform: conversation
   command: !input command_prompt
-variables:
-  weather_entity: !input weather_entity
-  dashboard: !input dashboard
 condition: []
 action:
-- data:
+- action: view_assist.get_target_satellite
+  data:
     device_id: "{{ trigger.device_id }}"
   response_variable: target_satellite
-  action: view_assist.get_target_satellite
 - variables:
     target_satellite_device: "{{ target_satellite.target_satellite[0] }}"
     target_mediaplayer_device: '{{ state_attr(target_satellite_device, ''mediaplayer_device'')}}'
     target_satellite_device_type: '{{ state_attr(target_satellite_device, ''type'')}}'
+    weather_entity: !input weather_entity
+    view: !input view
 - set_conversation_response: Its {{ state_attr(weather_entity, 'temperature') }} degrees
     and {{states[weather_entity].state}}
 - if:
@@ -47,8 +46,8 @@ action:
     value_template: '{% if target_satellite_device_type != ''audio_only'' %}true{%
       else %}false{% endif %}'
   then:
-  - data:
+  - action: view_assist.navigate
+    data:
       device: "{{ target_satellite_device }}"
-      path: "{{ dashboard }}"
-    action: view_assist.navigate
+      path: "{{ view }}"
 mode: single

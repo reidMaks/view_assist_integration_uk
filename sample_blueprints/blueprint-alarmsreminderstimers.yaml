@@ -44,7 +44,7 @@ trigger:
     command:
       - (Turn off | cancel | stop | snooze) alarm
     id: turnoffalarm    
-  - event_type: va_timer_finished
+  - event_type: va_timer_command_expired
     id: ringalarm
     trigger: event
     alias: When viewassist event timer expired fires
@@ -166,101 +166,170 @@ action:
             id:
               - timeremaining
         sequence:
+          - action: view_assist.get_target_satellite
+            data:
+              device_id: "{{ trigger.device_id }}"
+            response_variable: target_satellite
+          - action: view_assist.get_timers
+            data:
+              device_id: "{{ trigger.device_id }}"
+            response_variable: timer_info                    
           - variables:
-              target_satellite_device: |-
-                {% for sat in expand(group_entity) %}
-                  {% if (device_id(sat.attributes.mic_device)  == trigger.device_id) or (device_id(sat.attributes.display_device)  == trigger.device_id) %}
-                    {{ sat.entity_id }}
+              device_id: "{{ trigger.device_id }}"
+              target_satellite_device: "{{ target_satellite.target_satellite[0] }}"
+              target_satellite_device_type: "{{ state_attr(target_satellite_device, 'type')}}"
+              timer_id: >-
+                {% set timers = state_attr(target_satellite_device, 'timers') %}
+                {% set search_name = trigger.slots.name %}
+                {% for timer in timers %}
+                  {% if search_name in timer.name or search_name in timer.extra_info.sentence %}
+                    {{ timer.id }}
                   {% endif %}
                 {% endfor %}
-              target_display_device: >-
-                {{ device_id(state_attr(target_satellite_device,
-                'display_device')) }}
-              target_mediaplayer_device: "{{ state_attr(target_satellite_device, 'mediaplayer_device') }}"
-              target_time: >-
-                {{state_attr(target_satellite_device,'timer_list') |
-                selectattr('timer_id', 'eq', trigger.slots.name)|
-                map(attribute='target_time') | first }}
-            enabled: true
-          - action: pyscript.get_time_difference
-            data:
-              target_time: "{{ target_time }}"
-            response_variable: time_remaining
+              timer: >-
+                {% set timers = state_attr(target_satellite_device, 'timers') %}
+                {% set search_name = timer_id %}
+                {% set found_timer = {} %}
+                {% for timer in timers %}
+                  {% if search_name in timer.id %}
+                    {% set found_timer = timer %}
+                    {{ found_timer | list }}
+                  {% endif %}
+                {% endfor %}
+              time_left: "{{ (timer_info['result'] | selectattr('id', '==', timer_id) | list)[0].expiry.text }}"
+              time_expires: "{{ (timer_info['result'] | selectattr('id', '==', timer_id) | list)[0].expires }}"
+              timer_name: "{{ (timer_info['result'] | selectattr('id', '==', timer_id) | list)[0].name }}"
           - set_conversation_response: >-
-              You have {{ time_remaining['time_difference'] }} on your {{
-              trigger.slots.name }} timer
+              You have {{ time_left }} on your {{ trigger.slots.name }} timer
+
+          - action: view_assist.set_state
+            target:
+              entity_id: '{{ target_satellite_device }}'
+            data:
+              display_timer_expire: "{{ time_expires }}"
+              display_timer_name: "{{ timer_name }}"
+              message_font_size: 3vw 
+          - action: view_assist.navigate
+            data:
+              device: "{{ target_satellite_device }}"
+              path: "{{ view }}"               
       - conditions:
           - condition: trigger
             id:
               - canceltimer
         sequence:
+          - action: view_assist.get_target_satellite
+            data:
+              device_id: "{{ trigger.device_id }}"
+            response_variable: target_satellite
           - variables:
-              target_satellite_device: |-
-                {% for sat in expand(group_entity) %}
-                  {% if (device_id(sat.attributes.mic_device)  == trigger.device_id) or (device_id(sat.attributes.display_device)  == trigger.device_id) %}
-                    {{ sat.entity_id }}
+              device_id: "{{ trigger.device_id }}"
+              target_satellite_device: "{{ target_satellite.target_satellite[0] }}"
+              target_satellite_device_type: "{{ state_attr(target_satellite_device, 'type')}}"
+              timer_id: >-
+                {% set timers = state_attr(target_satellite_device, 'timers') %}
+                {% set search_name = trigger.slots.name %}
+                {% for timer in timers %}
+                  {% if search_name in timer.name or search_name in timer.extra_info.sentence %}
+                    {{ timer.id }}
                   {% endif %}
                 {% endfor %}
-              target_display_device: >-
-                {{ device_id(state_attr(target_satellite_device,
-                'display_device')) }}
-              target_mediaplayer_device: "{{ state_attr(target_satellite_device, 'mediaplayer_device') }}"
-              unique_id: >-
-                {{state_attr(target_satellite_device,'timer_list') |
-                selectattr('timer_id', 'eq', trigger.slots.name)|
-                map(attribute='unique_id') | first }}
-            enabled: true
           - if:
               - condition: template
                 value_template: >-
-                  {% if state_attr(target_satellite_device,'timer_list') |
-                  selectattr('unique_id', 'eq', unique_id) | list %}
-
-                  true
-
-                  {% endif %}
+                  {% if timer_id != '' %}true{% endif %}
             then:
-              - variables:
-                  timer_list: >-
-                    {{ state_attr(target_satellite_device,'timer_list') |
-                    rejectattr('unique_id', 'eq', unique_id) |
-                    rejectattr('target_time', 'lt', now()|string) | list }}
-                enabled: true
-              - data:
-                  entity_id: "{{ target_satellite_device }}"
-                  timer_list: "{{ timer_list }}"
-                action: python_script.set_state
               - set_conversation_response: Your {{ trigger.slots.name }} timer has been canceled
+              - action: view_assist.cancel_timer
+                data:
+                  timer_id: "{{ timer_id }}"
+              - variables:
+                  message: >-
+                    Your {{ trigger.slots.name }} timer has been canceled                                    
             else:
               - set_conversation_response: >-
-                  I could not find an active timer called {{ trigger.slots.name
-                  }}
+                  I could not find an active timer called {{ trigger.slots.name }}
+              - variables:
+                  message: >-
+                    I could not find an active timer called {{ trigger.slots.name }}       
+          - if:
+              - condition: template
+                value_template: "{% if target_satellite_device_type != 'audio_only' %}true{% else %}false{% endif %}"
+            then:
+
+            #######  Message is not showing up on the view ????
+
+              - action: view_assist.set_state
+                target:
+                  entity_id: '{{ target_satellite_device }}'
+                data:
+                  title: "Timers"
+                  message: "{{ message }}"
+                  message_font_size: 3vw 
+              - action: view_assist.navigate
+                data:
+                  device: "{{ target_satellite_device }}"
+                  path: "info"                
       - conditions:
           - condition: trigger
             id:
               - listtimer
         sequence:
+          - action: view_assist.get_target_satellite
+            data:
+              device_id: "{{ trigger.device_id }}"
+            response_variable: target_satellite
           - variables:
               device_id: "{{ trigger.device_id }}"
+              target_satellite_device: "{{ target_satellite.target_satellite[0] }}"
+              target_satellite_device_type: '{{ state_attr(target_satellite_device, ''type'')}}'
           - action: view_assist.get_timers
             data:
               device_id: "{{ device_id }}"
             response_variable: timer_info
           - variables:
-              active_timers: "{{ timer_info['result'] | selectattr('timer.status', '!=', 'expired') | list }}"
+              active_timers: "{{ timer_info['result'] | selectattr('status', '!=', 'expired') | list }}"
               count: "{{ active_timers | length }}"
-              type: "{{active_timers is string }}"
           - set_conversation_response: >
-              {% set active_timers = timer_info['result'] | selectattr('timer.status', '!=', 'expired') | list %}
+              {% set active_timers = timer_info['result'] | selectattr('status', '!=', 'expired') | list %}
               {% set count = active_timers | length %}
               {% if count == 0 %}
               There are no active timers.
               {% else %}
               There {% if count == 1 %}is one active timer called {% else %}are {{ count }} active timers{% endif %}:
               {% for timer in active_timers %}
-              - {{ timer['timer']['name'] if timer['timer']['name'] else 'unnamed' }} timer set for {{ timer['timer']['extra_info']['sentence'] }},
+                {{ timer['name'] if timer['name'] else timer['extra_info']['sentence'] }} timer with {{ timer['expiry']['text'] }} remaining,
               {% endfor %}
-              {% endif %}                        
+              {% endif %}
+          - if:
+            - condition: template
+              value_template: '{% if target_satellite_device_type != ''audio_only'' %}true{%
+                else %}false{% endif %}'
+            then:
+            - variables:
+                message: >-
+                  {% set timer_info = state_attr(target_satellite_device, 'timers') %}
+                  {% set active_timers = timer_info | selectattr('status', '!=', 'expired') | list %}
+                  {% set count = active_timers | length %}
+                  {% if count == 0 %}
+                  There are no active timers.
+                  {% else %}
+                  There {% if count == 1 %}is one active timer called {% else %}are {{ count }} active timers{% endif %}:<br /\><br /\>
+                  {% for timer in active_timers %}
+                    {{ timer['name'] | capitalize if timer['name'] else timer['extra_info']['sentence'] }} timer with {{ timer['expiry']['text'] }} remaining<br /\><br /\>
+                  {% endfor %}
+                  {% endif %}                 
+            - action: view_assist.set_state
+              target:
+                entity_id: '{{ target_satellite_device }}'
+              data:
+                title: "Timers"
+                message: "{{ message }}"
+                message_font_size: 3vw 
+            - action: view_assist.navigate
+              data:
+                device: "{{ target_satellite_device }}"
+                path: "info"                
       - conditions:
           - condition: trigger
             id:

@@ -37,16 +37,16 @@ trigger:
       - !input command_prompt_dayofweek
     id: dayofweek
 action:
-  - data:
+  - action: view_assist.get_target_satellite
+    data:
       device_id: "{{ trigger.device_id }}"
     response_variable: target_satellite
-    action: view_assist.get_target_satellite
   - variables:
-      view: !input view
       target_satellite_device: "{{ target_satellite.target_satellite[0] }}"
-      target_mediaplayer_device: '{{ state_attr(target_satellite_device, ''mediaplayer_device'')}}'
-      target_satellite_device_type: '{{ state_attr(target_satellite_device, ''type'')}}'
-      target_display_type: '{{ state_attr(target_satellite_device, ''display_type'')}}'
+      target_mediaplayer_device: "{{ state_attr(target_satellite_device, 'mediaplayer_device')}}"
+      target_satellite_device_type: "{{ state_attr(target_satellite_device, 'type')}}"
+      target_display_type: "{{ state_attr(target_satellite_device, 'display_type')}}"
+      view: !input view
   - choose:
       - conditions:
           - condition: trigger
@@ -60,11 +60,10 @@ action:
                   {% if target_satellite_device_type != 'audio_only' %}true{% else
                   %}false{% endif %}
             then: 
-              - data:
+              - action: view_assist.navigate
+                data:
                   device: "{{ target_satellite_device }}"
-                  display_type: "{{ target_display_type }}"
-                  path: "{{ view }}"
-                action: view_assist.navigate
+                  path: "{{ view }}" 
       - conditions:
           - condition: trigger
             id:
@@ -77,11 +76,10 @@ action:
                   {% if target_satellite_device_type != 'audio_only' %}true{% else
                   %}false{% endif %}
             then:
-              - data:
+              - action: view_assist.navigate
+                data:
                   device: "{{ target_satellite_device }}"
-                  display_type: "{{ target_display_type }}"
                   path: "{{ view }}"
-                action: view_assist.navigate
       - conditions:
           - condition: trigger
             id:
@@ -94,9 +92,8 @@ action:
                   {% if target_satellite_device_type != 'audio_only' %}true{% else
                   %}false{% endif %}
             then:
-              - data:
+              - action: view_assist.navigate
+                data:
                   device: "{{ target_satellite_device }}"
-                  display_type: "{{ target_display_type }}"
                   path: "{{ view }}"
-                action: view_assist.navigate
 mode: single
