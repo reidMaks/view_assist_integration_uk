@@ -9,9 +9,11 @@ from homeassistant.components.lovelace import LovelaceData
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_call_later
 
-from ..const import JSMODULES, URL_BASE  # noqa: TID252
+from ..const import DOMAIN, JSMODULES, URL_BASE  # noqa: TID252
 
 _LOGGER = logging.getLogger(__name__)
+
+JS_URL = f"{URL_BASE}/js"
 
 
 class JSModuleRegistration:
@@ -24,6 +26,9 @@ class JSModuleRegistration:
 
     async def async_register(self):
         """Register view_assist path."""
+        # Remove previous registration - can be removed after this version
+        await self.async_unregister(URL_BASE)
+
         await self._async_register_path()
         if self.lovelace.mode == "storage":
             await self._async_wait_for_lovelace_resources()
@@ -33,7 +38,7 @@ class JSModuleRegistration:
         """Register resource path if not already registered."""
         try:
             await self.hass.http.async_register_static_paths(
-                [StaticPathConfig(URL_BASE, Path(__file__).parent, False)]
+                [StaticPathConfig(JS_URL, Path(__file__).parent, False)]
             )
             _LOGGER.debug("Registered resource path from %s", Path(__file__).parent)
         except RuntimeError:
@@ -62,11 +67,11 @@ class JSModuleRegistration:
         resources = [
             resource
             for resource in self.lovelace.resources.async_items()
-            if resource["url"].startswith(URL_BASE)
+            if resource["url"].startswith(JS_URL)
         ]
 
         for module in JSMODULES:
-            url = f"{URL_BASE}/{module.get('filename')}"
+            url = f"{JS_URL}/{module.get('filename')}"
 
             card_registered = False
 
@@ -117,17 +122,17 @@ class JSModuleRegistration:
             return version
         return 0
 
-    async def async_unregister(self):
+    async def async_unregister(self, url: str = JS_URL):
         """Unload lovelace module resource."""
         if self.hass.data["lovelace"]["mode"] == "storage":
             for module in JSMODULES:
-                url = f"{URL_BASE}/{module.get('filename')}"
-                wiser_resources = [
+                url = f"{url}/{module.get('filename')}"
+                resources = [
                     resource
                     for resource in self.lovelace.resources.async_items()
                     if str(resource["url"]).startswith(url)
                 ]
-                for resource in wiser_resources:
+                for resource in resources:
                     await self.lovelace.resources.async_delete_item(resource.get("id"))
 
     async def async_remove_gzip_files(self):
@@ -136,7 +141,7 @@ class JSModuleRegistration:
 
     def remove_gzip_files(self):
         """Remove cached gzip files."""
-        path = self.hass.config.path("custom_components/wiser/frontend")
+        path = self.hass.config.path(f"custom_components/{DOMAIN}/js_modules")
 
         gzip_files = [
             filename for filename in os.listdir(path) if filename.endswith(".gz")
