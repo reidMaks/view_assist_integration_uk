@@ -314,11 +314,8 @@ class VAServices:
         extra_data = call.data.get(CONF_EXTRA)
 
         sentence, timer_info = decode_time_sentence(timer_time)
-        _LOGGER.debug("ENTITY: %s, DEVICE: %s", entity_id, device_id)
-
         if entity_id is None and device_id is None:
             mimic_device = get_mimic_entity_id(self.hass)
-            _LOGGER.debug("MIMIC DEVICE: %s", mimic_device)
             if mimic_device:
                 entity_id = mimic_device
                 _LOGGER.warning(

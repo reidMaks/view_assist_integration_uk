@@ -8,7 +8,7 @@ from homeassistant.config_entries import ConfigEntry
 DOMAIN = "view_assist"
 BROWSERMOD_DOMAIN = "browser_mod"
 REMOTE_ASSIST_DISPLAY_DOMAIN = "remote_assist_display"
-
+VA_SUB_DIRS = ["backgrounds", "views", "audio", "images"]
 URL_BASE = "/view_assist"
 JSMODULES = [
     {

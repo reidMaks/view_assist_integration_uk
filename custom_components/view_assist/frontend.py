@@ -1,8 +1,10 @@
 """Functions to configure Lovelace frontend with dashboard and views."""
 
 import logging
+from pathlib import Path
 
 from homeassistant.components import frontend
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.lovelace import (
     CONF_ICON,
     CONF_SHOW_IN_SIDEBAR,
@@ -14,7 +16,8 @@ from homeassistant.components.lovelace import (
 from homeassistant.core import HomeAssistant
 from homeassistant.util.yaml import load_yaml_dict
 
-from .const import DOMAIN
+from .const import DOMAIN, URL_BASE, VA_SUB_DIRS
+from .helpers import create_dir_if_not_exist
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,9 +26,6 @@ DASHBOARD_NAME = "View Assist"
 # This is path of dashboard files in integration directory.
 # Ie the directory this file is in.
 CONFIG_FILES_PATH = "default_config"
-
-# This could be replaced with a function that loads all files in directory if desired
-VIEWS_TO_LOAD = ["clock", "music", "info", "weather"]
 
 
 class FrontendConfig:
@@ -43,8 +43,19 @@ class FrontendConfig:
         It will not overwrite modifications made to views
         """
         await self._config_dashboard()
-        await self._config_views(VIEWS_TO_LOAD)
+        views = await self.hass.async_add_executor_job(
+            self.get_files_in_dir, f"{Path(__file__).parent}/default_config/views"
+        )
+
+        await self._config_views(views)
         await self._delete_home_view()
+
+        await self.create_url_paths()
+
+    def get_files_in_dir(self, path: str) -> list[str]:
+        """Get files in dir."""
+        dir_path = Path(path)
+        return [x.name for x in dir_path.iterdir() if x.is_file()]
 
     async def _config_dashboard(self):
         """Create dashboard."""
@@ -120,13 +131,14 @@ class FrontendConfig:
 
             # Iterate list of views to add
             modified = False
-            for view in views_to_load:
+            for view_file in views_to_load:
                 # If view already exists, skip adding it
+                view = view_file.replace(".yaml", "")
                 if view in existing_views:
                     continue
 
                 # Load view config from file.
-                f = f"{self.files_path}/views/{view}.yaml"
+                f = f"{self.files_path}/views/{view_file}"
                 new_view_config = await self.hass.async_add_executor_job(
                     load_yaml_dict, f
                 )
@@ -168,3 +180,34 @@ class FrontendConfig:
             # Save dashboard config back to HA
             if modified:
                 await dashboard_store.async_save(dashboard_config)
+
+    async def _async_register_path(self, url: str, path: str):
+        """Register resource path if not already registered."""
+        try:
+            await self.hass.http.async_register_static_paths(
+                [StaticPathConfig(url, path, False)]
+            )
+            _LOGGER.debug("Registered resource path from %s", path)
+        except RuntimeError:
+            # Runtime error is likley this is already registered.
+            _LOGGER.debug("Resource path already registered")
+
+    async def create_url_paths(self):
+        """Create viewassist url paths."""
+        # Make viewassist config directory and url paths
+
+        # Top level view_assist dir
+        if await self.hass.async_add_executor_job(
+            create_dir_if_not_exist, self.hass, DOMAIN
+        ):
+            for sub_dir in VA_SUB_DIRS:
+                sub_dir = f"{DOMAIN}/{sub_dir}"
+                await self.hass.async_add_executor_job(
+                    create_dir_if_not_exist, self.hass, sub_dir
+                )
+
+        await self._async_register_path(
+            f"{URL_BASE}/defaults", f"{Path(__file__).parent}/default_config"
+        )
+        va_dir = f"{self.hass.config.config_dir}/{DOMAIN}"
+        await self._async_register_path(f"{URL_BASE}", va_dir)
