@@ -19,6 +19,7 @@ from homeassistant.core import (
     ServiceResponse,
     SupportsResponse,
 )
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import (
     config_validation as cv,
     entity_registry as er,
@@ -36,6 +37,7 @@ from .const import (
     DOMAIN,
     VAConfigEntry,
 )
+from .dashboard import DashboardManager
 from .helpers import get_mimic_entity_id, get_random_image
 from .timers import VATimers, decode_time_sentence
 
@@ -112,6 +114,10 @@ BROADCAST_EVENT_SERVICE_SCHEMA = vol.Schema(
         vol.Required("event_name"): str,
         vol.Required("event_data"): dict,
     }
+)
+
+VIEW_SERVICE_SCHEMA = vol.Schema(
+    {vol.Required("view_name"): str, vol.Optional("overwrite", default=False): bool}
 )
 
 
@@ -200,6 +206,27 @@ class VAServices:
             "broadcast_event",
             self.async_handle_broadcast_event,
             schema=BROADCAST_EVENT_SERVICE_SCHEMA,
+        )
+
+        self.hass.services.async_register(
+            DOMAIN,
+            "load_view",
+            self.async_handle_load_view,
+            schema=VIEW_SERVICE_SCHEMA,
+        )
+
+        self.hass.services.async_register(
+            DOMAIN,
+            "download_view",
+            self.async_handle_download_view,
+            schema=VIEW_SERVICE_SCHEMA,
+        )
+
+        self.hass.services.async_register(
+            DOMAIN,
+            "save_view",
+            self.async_handle_save_view,
+            schema=VIEW_SERVICE_SCHEMA,
         )
 
     # -----------------------------------------------------------------------
@@ -407,3 +434,33 @@ class VAServices:
         return await self.hass.async_add_executor_job(
             get_random_image, self.hass, directory, source
         )
+
+    async def async_handle_download_view(self, call: ServiceCall):
+        """Handle download view."""
+
+        view_name = call.data.get("view_name")
+        overwrite = call.data.get("overwrite")
+        dm: DashboardManager = self.hass.data[DOMAIN]["dashboard_manager"]
+        result = await dm.download_view(view_name, overwrite)
+        if not result:
+            raise HomeAssistantError("Unable to download view")
+
+    async def async_handle_load_view(self, call: ServiceCall):
+        """Handle load of a view from view_assist dir."""
+
+        view_name = call.data.get("view_name")
+        overwrite = call.data.get("overwrite")
+        dm: DashboardManager = self.hass.data[DOMAIN]["dashboard_manager"]
+        result = await dm.load_view(view_name, overwrite=overwrite)
+        if not result:
+            raise HomeAssistantError("Unable to load view")
+
+    async def async_handle_save_view(self, call: ServiceCall):
+        """Handle saving view to view_assit dir."""
+
+        view_name = call.data.get("view_name")
+        overwrite = call.data.get("overwrite")
+        dm: DashboardManager = self.hass.data[DOMAIN]["dashboard_manager"]
+        result = await dm.save_view(view_name, overwrite)
+        if not result:
+            raise HomeAssistantError("Unable to save view")

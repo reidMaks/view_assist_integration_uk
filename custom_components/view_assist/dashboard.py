@@ -1,7 +1,11 @@
 """Manage views - download, apply, backup, restore."""
 
+import datetime as dt
 import logging
 from pathlib import Path
+from typing import Any
+import urllib
+import urllib.parse
 
 import requests
 
@@ -18,7 +22,14 @@ from homeassistant.const import EVENT_PANELS_UPDATED
 from homeassistant.core import HomeAssistant
 from homeassistant.util.yaml import load_yaml_dict, parse_yaml, save_yaml
 
-from .const import DASHBOARD_NAME, DASHBOARD_TITLE, DOMAIN, GITHUB_REPO, VAConfigEntry
+from .const import (
+    DASHBOARD_NAME,
+    DASHBOARD_TITLE,
+    DOMAIN,
+    GITHUB_PATH,
+    GITHUB_REPO,
+    VAConfigEntry,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,12 +50,38 @@ class DashboardManager:
         dir_path = Path(path)
         return [x.name for x in dir_path.iterdir() if x.is_file()]
 
+    async def _save_to_yaml_file(
+        self,
+        file_path: str,
+        data: dict[str, Any],
+        overwrite: bool = False,
+        backup_existing: bool = True,
+    ) -> bool:
+        """Save dict to yaml file, creating backup if required."""
+
+        # Check if file exists
+        if Path.is_file(Path(file_path)):
+            if not overwrite:
+                return False
+            if overwrite and backup_existing:
+                backup_file = Path(
+                    f"{file_path}.backup_{dt.datetime.now().strftime('%Y%m%d%H%M%S')}"
+                )
+                Path(file_path).rename(backup_file)
+
+        await self.hass.async_add_executor_job(
+            save_yaml,
+            file_path,
+            data,
+        )
+
+        return True
+
     async def setup_dashboard(self):
         """Config VA dashboard."""
         await self.add_dashboard()
         await self.load_default_views()
         await self.delete_view("home")
-        await self.download_view("sports")
 
     async def load_default_views(self):
         """Load views from default config."""
@@ -167,7 +204,7 @@ class DashboardManager:
                 self.hass.bus.async_fire(EVENT_PANELS_UPDATED)
         return True
 
-    async def save_view(self, view_name: str, path: str):
+    async def save_view(self, view_name: str, overwrite: bool = False) -> bool:
         """Backup a view to a file."""
         # Get lovelace (frontend) config data
         lovelace: LovelaceData = self.hass.data["lovelace"]
@@ -184,13 +221,13 @@ class DashboardManager:
             # Make list of existing view names for this dashboard
             for view in dashboard_config["views"]:
                 if view.get("path") == view_name.lower():
-                    self.hass.async_add_executor_job(
-                        save_yaml,
-                        self.hass.config.path(
-                            f"{DOMAIN}/views/{view_name.lower()}.yaml"
-                        ),
-                        view.get("cards", [])[0],
+                    file_path = self.hass.config.path(
+                        f"{DOMAIN}/views/{view_name.lower()}.yaml"
                     )
+                    return self._save_to_yaml_file(
+                        file_path, view.get("cards", [])[0], overwrite
+                    )
+        return False
 
     async def delete_view(self, view: str):
         """Delete view."""
@@ -218,16 +255,28 @@ class DashboardManager:
             if modified:
                 await dashboard_store.async_save(dashboard_config)
 
-    async def download_view(self, view: str) -> bool:
+    async def download_view(self, view: str, overwrite: bool = False) -> bool:
         """Download view from github repository."""
-        r = await self.hass.async_add_executor_job(
-            requests.get,
-            f"https://raw.githubusercontent.com/{GITHUB_REPO}/{view}/{view}.yaml",
+        view_url = "https://raw.githubusercontent.com/" + urllib.parse.quote(
+            f"{GITHUB_REPO}/{GITHUB_PATH}/{view}/{view}.yaml"
         )
-        r_yaml = parse_yaml(r.text)
-        await self.hass.async_add_executor_job(
-            save_yaml,
-            self.hass.config.path(f"{DOMAIN}/views/{view.lower()}.yaml"),
-            r_yaml,
-        )
-        await self.load_view(view)
+        file_path = self.hass.config.path(f"{DOMAIN}/views/{view.lower()}.yaml")
+
+        if Path.is_file(Path(file_path)) and not overwrite:
+            _LOGGER.error(
+                "Unable to download view %s.  File already exists and overwrite set to false",
+                view,
+            )
+            return False
+
+        try:
+            r = await self.hass.async_add_executor_job(requests.get, view_url)
+            r_yaml = parse_yaml(r.text)
+            if await self._save_to_yaml_file(file_path, r_yaml, overwrite):
+                if await self.load_view(view, overwrite=overwrite):
+                    return True
+
+        except Exception as ex:  # noqa: BLE001
+            _LOGGER.error("Unable to load view from repo - %s", ex)
+            return False
+        return False

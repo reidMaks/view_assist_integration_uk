@@ -184,4 +184,51 @@ broadcast_event:
       required: true
       selector:
         text:
-
+download_view:
+  name: "Download View"
+  description: "Download and install a view from the View Assist repository"
+  fields:
+    view_name:
+      name: "View Name"
+      description: "The name of the view"
+      required: true
+      selector:
+        text:
+    overwrite:
+      name: "Overwrite"
+      description: "Overwrite if already exists"
+      required: false
+      selector:
+        boolean:
+load_view:
+  name: "Load View"
+  description: "Install a view from the View Assist views directory"
+  fields:
+    view_name:
+      name: "View Name"
+      description: "The name of the view"
+      required: true
+      selector:
+        text:
+    overwrite:
+      name: "Overwrite"
+      description: "Overwrite if already exists"
+      required: false
+      selector:
+        boolean:
+save_view:
+  name: "Save View"
+  description: "Save a view to the View Assist directory"
+  fields:
+    view_name:
+      name: "View Name"
+      description: "The name of the view"
+      required: true
+      selector:
+        text:
+    overwrite:
+      name: "Overwrite"
+      description: "Overwrite if already exists"
+      required: false
+      selector:
+        boolean:
