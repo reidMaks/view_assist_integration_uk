@@ -136,8 +136,6 @@ class RuntimeData:
 
     def __init__(self) -> None:
         """Initialise runtime data."""
-        # Runtime variables go here
-        self._alarm_repeater = None
 
         # Default config
         self.type: VAType | None = None

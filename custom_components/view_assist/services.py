@@ -26,6 +26,7 @@ from homeassistant.helpers import (
 )
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
+from .alarm_repeater import VAAlarmRepeater
 from .const import (
     CONF_EXTRA,
     CONF_INCLUDE_EXPIRED,
@@ -224,19 +225,21 @@ class VAServices:
 
     async def async_handle_alarm_sound(self, call: ServiceCall) -> ServiceResponse:
         """Handle alarm sound."""
+        alarms: VAAlarmRepeater = self.hass.data[DOMAIN]["alarms"]
         entity_id = call.data.get(CONF_ENTITY_ID)
         media_file = call.data.get("media_file")
         resume_media = call.data.get("resume_media")
         max_repeats = call.data.get("max_repeats")
 
-        return await self.config.runtime_data._alarm_repeater.alarm_sound(  # noqa: SLF001
+        return await alarms.alarm_sound(
             entity_id, media_file, "music", resume_media, max_repeats
         )
 
     async def async_handle_stop_alarm_sound(self, call: ServiceCall):
         """Handle stop alarm sound."""
+        alarms: VAAlarmRepeater = self.hass.data[DOMAIN]["alarms"]
         entity_id = call.data.get(CONF_ENTITY_ID)
-        await self.config.runtime_data._alarm_repeater.cancel_alarm_sound(entity_id)  # noqa: SLF001
+        await alarms.cancel_alarm_sound(entity_id)
 
     async def async_handle_get_target_satellite(
         self, call: ServiceCall
