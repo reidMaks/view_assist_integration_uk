@@ -224,6 +224,12 @@ class ViewAssist {
       customElements.define("viewassist-countdown", CountdownTimer)
       customElements.define("viewassist-clock", Clock)
 
+      // Update time delta
+      var t = this;
+      const delta = setInterval(function () {
+        t.set_time_delta();
+      }, 300 * 1000);
+
     } catch (e) {
       console.log("Initialization retry:", e.message);
       setTimeout(() => this.initializeWhenReady(attempts + 1), 100);
