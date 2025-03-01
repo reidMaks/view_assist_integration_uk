@@ -6,6 +6,9 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 
 DOMAIN = "view_assist"
+GITHUB_REPO = "dinki/View-Assist/master/View%20Assist%20dashboard%20and%20views/views"
+DASHBOARD_NAME = "view-assist"
+DASHBOARD_TITLE = "View Assist"
 BROWSERMOD_DOMAIN = "browser_mod"
 REMOTE_ASSIST_DISPLAY_DOMAIN = "remote_assist_display"
 VA_SUB_DIRS = ["backgrounds", "views", "audio", "images"]
