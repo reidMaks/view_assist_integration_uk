@@ -77,10 +77,13 @@ class ViewAssistEntities:
         self._hass = hass
 
     def __call__(
-        self, filter: dict[str, Any] | None = None, attr: str | None = None
+        self,
+        filter: dict[str, Any] | None = None,
+        exclude: dict[str, Any] | None = None,
+        attr: str | None = None,
     ) -> list[str]:
         "Call."
-        entities = get_entities_by_attr_filter(self._hass, filter)
+        entities = get_entities_by_attr_filter(self._hass, filter, exclude)
         if attr:
             return [
                 self._hass.states.get(entity).attributes.get(attr)
