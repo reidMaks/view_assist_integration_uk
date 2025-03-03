@@ -21,6 +21,8 @@ from .const import BROWSERMOD_DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+ALARMS = "alarms"
+
 
 @dataclass
 class PlayingMedia:

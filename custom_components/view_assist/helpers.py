@@ -297,7 +297,7 @@ def get_random_image(
         if "local" in directory:
             filesystem_directory = directory.replace("local", f"{config_dir}/www/", 1)
         elif "config" in directory:
-            filesystem_directory = directory.replace("config", f"{config_dir}/")
+            filesystem_directory = directory.replace("config", f"{config_dir}/{DOMAIN}")
         else:
             filesystem_directory = f"{config_dir}/{directory}"
 
@@ -305,7 +305,7 @@ def get_random_image(
         filesystem_directory = filesystem_directory.replace("//", "/")
 
         # Verify the directory exists
-        if not os.path.isdir(filesystem_directory):
+        if not Path.is_dir(Path(filesystem_directory)):
             return {"error": f"The directory '{filesystem_directory}' does not exist."}
 
         # List only image files with the valid extensions
@@ -340,28 +340,27 @@ def get_random_image(
         image_path = image_path.replace("//", "/")
 
     elif source == "download":
-        # TODO: Prevent blocking loop with requests
         url = "https://unsplash.it/640/425?random"
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
 
         if response.status_code == 200:
             current_time = datetime.now().strftime("%Y%m%d%H%M%S")
             filename = f"random_{current_time}.jpg"
-            full_path = os.path.join(directory, filename)
+            full_path = Path(f"{directory}/{filename}")
 
-            with open(full_path, "wb") as file:
+            with Path.open(full_path, "wb") as file:
                 file.write(response.content)
 
             # Remove previous background image
             for file in os.listdir(directory):
                 if file.startswith("random_") and file != filename:
-                    os.remove(os.path.join(directory, file))
+                    Path(f"{directory}/{filename}").unlink(missing_ok=True)
 
             image_path = full_path
         else:
             # Return existing image if the download fails
             existing_files = [
-                os.path.join(directory, file)
+                Path(f"{directory}/{filename}")
                 for file in os.listdir(directory)
                 if file.startswith("random_")
             ]

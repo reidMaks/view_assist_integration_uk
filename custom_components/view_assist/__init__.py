@@ -5,16 +5,16 @@ import logging
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.core import HomeAssistant
 
-from .alarm_repeater import VAAlarmRepeater
+from .alarm_repeater import ALARMS, VAAlarmRepeater
 from .const import DOMAIN, RuntimeData, VAConfigEntry
-from .dashboard import DashboardManager
+from .dashboard import DASHBOARD_MANAGER, DashboardManager
 from .entity_listeners import EntityListeners
 from .helpers import ensure_list, get_loaded_instance_count, is_first_instance
 from .http import HTTPManager
 from .js_modules import JSModuleRegistration
 from .services import VAServices
 from .templates import setup_va_templates
-from .timers import VATimers
+from .timers import TIMERS, VATimers
 from .websocket import async_register_websockets
 
 _LOGGER = logging.getLogger(__name__)
@@ -64,13 +64,13 @@ async def run_if_first_instance(hass: HomeAssistant, entry: VAConfigEntry):
     # Setup Timers
     timers = VATimers(hass, entry)
     await timers.load()
-    hass.data[DOMAIN]["timers"] = timers
+    hass.data[DOMAIN][TIMERS] = timers
 
     # Load javascript modules
     jsloader = JSModuleRegistration(hass)
     await jsloader.async_register()
 
-    hass.data[DOMAIN]["alarms"] = VAAlarmRepeater(hass, entry)
+    hass.data[DOMAIN][ALARMS] = VAAlarmRepeater(hass, entry)
 
     setup_va_templates(hass)
 
@@ -81,7 +81,7 @@ async def run_if_first_display_instance(hass: HomeAssistant, entry: VAConfigEntr
     # Run dashboard and view setup
     async def setup_frontend(*args):
         dm = DashboardManager(hass, entry)
-        hass.data[DOMAIN]["dashboard_manager"] = dm
+        hass.data[DOMAIN][DASHBOARD_MANAGER] = dm
         await dm.setup_dashboard()
 
         http = HTTPManager(hass, entry)
