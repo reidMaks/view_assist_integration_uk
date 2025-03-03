@@ -6,13 +6,19 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 
 DOMAIN = "view_assist"
-GITHUB_REPO = "dinki/View-Assist/master"
-GITHUB_PATH = "View Assist dashboard and views/views"
-DASHBOARD_NAME = "view-assist"
-DASHBOARD_TITLE = "View Assist"
+GITHUB_REPO = "dinki/View-Assist"
+GITHUB_BRANCH = "main"
+GITHUB_TOKEN_FILE = "github.token"
+GITHUB_PATH = "View Assist dashboard and views"
+VIEWS_DIR = "views"
+DASHBOARD_DIR = "dashboard"
+
+DASHBOARD_NAME = "View Assist"
+DEFAULT_VIEWS = ["clock", "weather", "alarm", "music", "info", "intent"]
+
 BROWSERMOD_DOMAIN = "browser_mod"
 REMOTE_ASSIST_DISPLAY_DOMAIN = "remote_assist_display"
-VA_SUB_DIRS = ["backgrounds", "views", "audio", "images"]
+VA_SUB_DIRS = ["audio", "images"]
 URL_BASE = "/view_assist"
 JSMODULES = [
     {
@@ -104,12 +110,7 @@ CONF_VIEW_TIMEOUT = "view_timeout"
 CONF_DO_NOT_DISTURB = "do_not_disturb"
 CONF_USE_ANNOUNCE = "use_announce"
 CONF_MIC_UNMUTE = "micunmute"
-CONF_TIME = "time"
-CONF_TIMER_ID = "timer_id"
-CONF_REMOVE_ALL = "remove_all"
 CONF_DEV_MIMIC = "dev_mimic"
-CONF_EXTRA = "extra"
-CONF_INCLUDE_EXPIRED = "include_expired"
 
 # Config default values
 DEFAULT_NAME = "View Assist"
@@ -131,6 +132,23 @@ DEFAULT_VIEW_TIMEOUT = 20
 DEFAULT_DND = False
 DEFAULT_USE_ANNOUNCE = True
 DEFAULT_MIC_UNMUTE = False
+
+# Service attributes
+ATTR_EVENT_NAME = "event_name"
+ATTR_EVENT_DATA = "event_data"
+ATTR_PATH = "path"
+ATTR_DEVICE = "device"
+ATTR_DOWNLOAD_IF_MISSING = "download_if_missing"
+ATTR_FORCE_DOWNLOAD = "force_download"
+ATTR_OVERWRITE = "overwrite"
+ATTR_EXTRA = "extra"
+ATTR_TYPE = "type"
+ATTR_TIMER_ID = "timer_id"
+ATTR_REMOVE_ALL = "remove_all"
+ATTR_INCLUDE_EXPIRED = "include_expired"
+ATTR_MEDIA_FILE = "media_file"
+ATTR_RESUME_MEDIA = "resume_media"
+ATTR_MAX_REPEATS = "max_repeats"
 
 VA_ATTRIBUTE_UPDATE_EVENT = "va_attr_update_event_{}"
 

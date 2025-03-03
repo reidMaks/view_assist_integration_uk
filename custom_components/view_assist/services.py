@@ -5,14 +5,7 @@ import logging
 
 import voluptuous as vol
 
-from homeassistant.const import (
-    CONF_DEVICE,
-    CONF_DEVICE_ID,
-    CONF_ENTITY_ID,
-    CONF_NAME,
-    CONF_PATH,
-    CONF_TYPE,
-)
+from homeassistant.const import ATTR_DEVICE_ID, ATTR_ENTITY_ID, ATTR_NAME, ATTR_TIME
 from homeassistant.core import (
     HomeAssistant,
     ServiceCall,
@@ -27,83 +20,99 @@ from homeassistant.helpers import (
 )
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from .alarm_repeater import VAAlarmRepeater
+from .alarm_repeater import ALARMS, VAAlarmRepeater
 from .const import (
-    CONF_EXTRA,
-    CONF_INCLUDE_EXPIRED,
-    CONF_REMOVE_ALL,
-    CONF_TIME,
-    CONF_TIMER_ID,
+    ATTR_DEVICE,
+    ATTR_DOWNLOAD_IF_MISSING,
+    ATTR_EVENT_DATA,
+    ATTR_EVENT_NAME,
+    ATTR_EXTRA,
+    ATTR_FORCE_DOWNLOAD,
+    ATTR_INCLUDE_EXPIRED,
+    ATTR_MAX_REPEATS,
+    ATTR_MEDIA_FILE,
+    ATTR_OVERWRITE,
+    ATTR_PATH,
+    ATTR_REMOVE_ALL,
+    ATTR_RESUME_MEDIA,
+    ATTR_TIMER_ID,
+    ATTR_TYPE,
+    CONF_MIC_DEVICE,
     DOMAIN,
     VAConfigEntry,
 )
-from .dashboard import DashboardManager
+from .dashboard import (
+    DASHBOARD_MANAGER,
+    DashboardManager,
+    DashboardManagerException,
+    DownloadManagerException,
+)
 from .helpers import get_mimic_entity_id, get_random_image
-from .timers import VATimers, decode_time_sentence
+from .timers import TIMERS, VATimers, decode_time_sentence
 
 _LOGGER = logging.getLogger(__name__)
 
 
 NAVIGATE_SERVICE_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_DEVICE): selector.EntitySelector(
+        vol.Required(ATTR_DEVICE): selector.EntitySelector(
             selector.EntitySelectorConfig(integration=DOMAIN)
         ),
-        vol.Required(CONF_PATH): str,
+        vol.Required(ATTR_PATH): str,
     }
 )
 
 SET_TIMER_SERVICE_SCHEMA = vol.Schema(
     {
-        vol.Exclusive(CONF_ENTITY_ID, "target"): cv.entity_id,
-        vol.Exclusive(CONF_DEVICE_ID, "target"): vol.Any(cv.string, None),
-        vol.Required(CONF_TYPE): str,
-        vol.Optional(CONF_NAME): str,
-        vol.Required(CONF_TIME): str,
-        vol.Optional(CONF_EXTRA): vol.Schema({}, extra=vol.ALLOW_EXTRA),
+        vol.Exclusive(ATTR_ENTITY_ID, "target"): cv.entity_id,
+        vol.Exclusive(ATTR_DEVICE_ID, "target"): vol.Any(cv.string, None),
+        vol.Required(ATTR_TYPE): str,
+        vol.Optional(ATTR_NAME): str,
+        vol.Required(ATTR_TIME): str,
+        vol.Optional(ATTR_EXTRA): vol.Schema({}, extra=vol.ALLOW_EXTRA),
     }
 )
 
 
 CANCEL_TIMER_SERVICE_SCHEMA = vol.Schema(
     {
-        vol.Exclusive(CONF_TIMER_ID, "target"): str,
-        vol.Exclusive(CONF_ENTITY_ID, "target"): cv.entity_id,
-        vol.Exclusive(CONF_DEVICE_ID, "target"): vol.Any(cv.string, None),
-        vol.Exclusive(CONF_REMOVE_ALL, "target"): bool,
+        vol.Exclusive(ATTR_TIMER_ID, "target"): str,
+        vol.Exclusive(ATTR_ENTITY_ID, "target"): cv.entity_id,
+        vol.Exclusive(ATTR_DEVICE_ID, "target"): vol.Any(cv.string, None),
+        vol.Exclusive(ATTR_REMOVE_ALL, "target"): bool,
     }
 )
 
 SNOOZE_TIMER_SERVICE_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_TIMER_ID): str,
-        vol.Required(CONF_TIME): str,
+        vol.Required(ATTR_TIMER_ID): str,
+        vol.Required(ATTR_TIME): str,
     }
 )
 
 GET_TIMERS_SERVICE_SCHEMA = vol.Schema(
     {
-        vol.Exclusive(CONF_TIMER_ID, "target"): str,
-        vol.Exclusive(CONF_ENTITY_ID, "target"): cv.entity_id,
-        vol.Exclusive(CONF_DEVICE_ID, "target"): vol.Any(cv.string, None),
-        vol.Optional(CONF_INCLUDE_EXPIRED, default=False): bool,
+        vol.Exclusive(ATTR_TIMER_ID, "target"): str,
+        vol.Exclusive(ATTR_ENTITY_ID, "target"): cv.entity_id,
+        vol.Exclusive(ATTR_DEVICE_ID, "target"): vol.Any(cv.string, None),
+        vol.Optional(ATTR_INCLUDE_EXPIRED, default=False): bool,
     }
 )
 
 ALARM_SOUND_SERVICE_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_ENTITY_ID): selector.EntitySelector(
+        vol.Required(ATTR_ENTITY_ID): selector.EntitySelector(
             selector.EntitySelectorConfig(integration=DOMAIN)
         ),
-        vol.Required("media_file"): str,
-        vol.Optional("resume_media", default=True): bool,
-        vol.Optional("max_repeats", default=0): int,
+        vol.Required(ATTR_MEDIA_FILE): str,
+        vol.Optional(ATTR_RESUME_MEDIA, default=True): bool,
+        vol.Optional(ATTR_MAX_REPEATS, default=0): int,
     }
 )
 
 STOP_ALARM_SOUND_SERVICE_SCHEMA = vol.Schema(
     {
-        vol.Optional(CONF_ENTITY_ID): selector.EntitySelector(
+        vol.Optional(ATTR_ENTITY_ID): selector.EntitySelector(
             selector.EntitySelectorConfig(integration=DOMAIN)
         ),
     }
@@ -111,13 +120,22 @@ STOP_ALARM_SOUND_SERVICE_SCHEMA = vol.Schema(
 
 BROADCAST_EVENT_SERVICE_SCHEMA = vol.Schema(
     {
-        vol.Required("event_name"): str,
-        vol.Required("event_data"): dict,
+        vol.Required(ATTR_EVENT_NAME): str,
+        vol.Required(ATTR_EVENT_DATA): dict,
     }
 )
 
 VIEW_SERVICE_SCHEMA = vol.Schema(
-    {vol.Required("view_name"): str, vol.Optional("overwrite", default=False): bool}
+    {
+        vol.Required(ATTR_NAME): str,
+        vol.Optional(ATTR_OVERWRITE, default=False): bool,
+    }
+)
+LOAD_VIEW_SERVICE_SCHEMA = VIEW_SERVICE_SCHEMA.extend(
+    {
+        vol.Optional(ATTR_DOWNLOAD_IF_MISSING, default=True): bool,
+        vol.Optional(ATTR_FORCE_DOWNLOAD, default=False): bool,
+    }
 )
 
 
@@ -212,14 +230,7 @@ class VAServices:
             DOMAIN,
             "load_view",
             self.async_handle_load_view,
-            schema=VIEW_SERVICE_SCHEMA,
-        )
-
-        self.hass.services.async_register(
-            DOMAIN,
-            "download_view",
-            self.async_handle_download_view,
-            schema=VIEW_SERVICE_SCHEMA,
+            schema=LOAD_VIEW_SERVICE_SCHEMA,
         )
 
         self.hass.services.async_register(
@@ -245,34 +256,36 @@ class VAServices:
         name: View Assist Broadcast Event
         description: Immediately fires an event with the provided name and data
         """
-        event_name = call.data.get("event_name")
-        event_data = call.data.get("event_data", {})
+        event_name = call.data.get(ATTR_EVENT_NAME)
+        event_data = call.data.get(ATTR_EVENT_DATA, {})
         # Fire the event
         self.hass.bus.fire(event_name, event_data)
 
     async def async_handle_alarm_sound(self, call: ServiceCall) -> ServiceResponse:
         """Handle alarm sound."""
-        alarms: VAAlarmRepeater = self.hass.data[DOMAIN]["alarms"]
-        entity_id = call.data.get(CONF_ENTITY_ID)
-        media_file = call.data.get("media_file")
-        resume_media = call.data.get("resume_media")
-        max_repeats = call.data.get("max_repeats")
+        entity_id = call.data.get(ATTR_ENTITY_ID)
+        media_file = call.data.get(ATTR_MEDIA_FILE)
+        resume_media = call.data.get(ATTR_RESUME_MEDIA)
+        max_repeats = call.data.get(ATTR_MAX_REPEATS)
 
+        alarms: VAAlarmRepeater = self.hass.data[DOMAIN][ALARMS]
         return await alarms.alarm_sound(
             entity_id, media_file, "music", resume_media, max_repeats
         )
 
     async def async_handle_stop_alarm_sound(self, call: ServiceCall):
         """Handle stop alarm sound."""
-        alarms: VAAlarmRepeater = self.hass.data[DOMAIN]["alarms"]
-        entity_id = call.data.get(CONF_ENTITY_ID)
+        entity_id = call.data.get(ATTR_ENTITY_ID)
+
+        alarms: VAAlarmRepeater = self.hass.data[DOMAIN][ALARMS]
         await alarms.cancel_alarm_sound(entity_id)
 
     async def async_handle_get_target_satellite(
         self, call: ServiceCall
     ) -> ServiceResponse:
         """Handle a get target satellite lookup call."""
-        device_id = call.data.get(CONF_DEVICE_ID)
+        # TODO: Update or remove this.  Is it still needed?
+        device_id = call.data.get(ATTR_DEVICE_ID)
         entity_registry = er.async_get(self.hass)
 
         entities = []
@@ -294,7 +307,7 @@ class VAServices:
         target_satellite_devices = []
         for entity_id in entities:
             if state := self.hass.states.get(entity_id):
-                if mic_entity_id := state.attributes.get("mic_device"):
+                if mic_entity_id := state.attributes.get(CONF_MIC_DEVICE):
                     if mic_entity := entity_registry.async_get(mic_entity_id):
                         if mic_entity.device_id == device_id:
                             target_satellite_devices.append(entity_id)
@@ -315,8 +328,8 @@ class VAServices:
     async def async_handle_navigate(self, call: ServiceCall):
         """Handle a navigate to view call."""
 
-        va_entity_id = call.data.get(CONF_DEVICE)
-        path = call.data.get(CONF_PATH)
+        va_entity_id = call.data.get(ATTR_DEVICE)
+        path = call.data.get(ATTR_PATH)
 
         # get config entry from entity id to allow access to browser_id parameter
         entity_registry = er.async_get(self.hass)
@@ -336,12 +349,12 @@ class VAServices:
     # ----------------------------------------------------------------
     async def async_handle_set_timer(self, call: ServiceCall) -> ServiceResponse:
         """Handle a set timer service call."""
-        entity_id = call.data.get(CONF_ENTITY_ID)
-        device_id = call.data.get(CONF_DEVICE_ID)
-        timer_type = call.data.get(CONF_TYPE)
-        name = call.data.get(CONF_NAME)
-        timer_time = call.data.get(CONF_TIME)
-        extra_data = call.data.get(CONF_EXTRA)
+        entity_id = call.data.get(ATTR_ENTITY_ID)
+        device_id = call.data.get(ATTR_DEVICE_ID)
+        timer_type = call.data.get(ATTR_TYPE)
+        name = call.data.get(ATTR_NAME)
+        timer_time = call.data.get(ATTR_TIME)
+        extra_data = call.data.get(ATTR_EXTRA)
 
         sentence, timer_info = decode_time_sentence(timer_time)
         if entity_id is None and device_id is None:
@@ -360,7 +373,7 @@ class VAServices:
             extra_info.update(extra_data)
 
         if timer_info:
-            t: VATimers = self.hass.data[DOMAIN]["timers"]
+            t: VATimers = self.hass.data[DOMAIN][TIMERS]
             timer_id, timer, response = await t.add_timer(
                 timer_class=timer_type,
                 device_or_entity_id=entity_id if entity_id else device_id,
@@ -374,13 +387,13 @@ class VAServices:
 
     async def async_handle_snooze_timer(self, call: ServiceCall) -> ServiceResponse:
         """Handle a set timer service call."""
-        timer_id = call.data.get(CONF_TIMER_ID)
-        timer_time = call.data.get(CONF_TIME)
+        timer_id = call.data.get(ATTR_TIMER_ID)
+        timer_time = call.data.get(ATTR_TIME)
 
         _, timer_info = decode_time_sentence(timer_time)
 
         if timer_info:
-            t: VATimers = self.hass.data[DOMAIN]["timers"]
+            t: VATimers = self.hass.data[DOMAIN][TIMERS]
             timer_id, timer, response = await t.snooze_timer(
                 timer_id,
                 timer_info,
@@ -391,12 +404,13 @@ class VAServices:
 
     async def async_handle_cancel_timer(self, call: ServiceCall) -> ServiceResponse:
         """Handle a cancel timer service call."""
-        timer_id = call.data.get(CONF_TIMER_ID)
-        entity_id = call.data.get(CONF_ENTITY_ID)
-        device_id = call.data.get(CONF_DEVICE_ID)
-        cancel_all = call.data.get(CONF_REMOVE_ALL, False)
+        timer_id = call.data.get(ATTR_TIMER_ID)
+        entity_id = call.data.get(ATTR_ENTITY_ID)
+        device_id = call.data.get(ATTR_DEVICE_ID)
+        cancel_all = call.data.get(ATTR_REMOVE_ALL, False)
+
         if any([timer_id, device_id, cancel_all]):
-            t: VATimers = self.hass.data[DOMAIN]["timers"]
+            t: VATimers = self.hass.data[DOMAIN][TIMERS]
             result = await t.cancel_timer(
                 timer_id=timer_id,
                 device_or_entity_id=entity_id if entity_id else device_id,
@@ -407,12 +421,12 @@ class VAServices:
 
     async def async_handle_get_timers(self, call: ServiceCall) -> ServiceResponse:
         """Handle a cancel timer service call."""
-        entity_id = call.data.get(CONF_ENTITY_ID)
-        device_id = call.data.get(CONF_DEVICE_ID)
-        timer_id = call.data.get(CONF_TIMER_ID)
-        include_expired = call.data.get(CONF_INCLUDE_EXPIRED, False)
+        entity_id = call.data.get(ATTR_ENTITY_ID)
+        device_id = call.data.get(ATTR_DEVICE_ID)
+        timer_id = call.data.get(ATTR_TIMER_ID)
+        include_expired = call.data.get(ATTR_INCLUDE_EXPIRED, False)
 
-        t: VATimers = self.hass.data[DOMAIN]["timers"]
+        t: VATimers = self.hass.data[DOMAIN][TIMERS]
         result = t.get_timers(
             timer_id=timer_id,
             device_or_entity_id=entity_id if entity_id else device_id,
@@ -435,32 +449,34 @@ class VAServices:
             get_random_image, self.hass, directory, source
         )
 
-    async def async_handle_download_view(self, call: ServiceCall):
-        """Handle download view."""
-
-        view_name = call.data.get("view_name")
-        overwrite = call.data.get("overwrite")
-        dm: DashboardManager = self.hass.data[DOMAIN]["dashboard_manager"]
-        result = await dm.download_view(view_name, overwrite)
-        if not result:
-            raise HomeAssistantError("Unable to download view")
-
+    # ----------------------------------------------------------------
+    # VIEWS
+    # ----------------------------------------------------------------
     async def async_handle_load_view(self, call: ServiceCall):
         """Handle load of a view from view_assist dir."""
 
-        view_name = call.data.get("view_name")
-        overwrite = call.data.get("overwrite")
-        dm: DashboardManager = self.hass.data[DOMAIN]["dashboard_manager"]
-        result = await dm.load_view(view_name, overwrite=overwrite)
-        if not result:
-            raise HomeAssistantError("Unable to load view")
+        view_name = call.data.get(ATTR_NAME)
+        download = call.data.get(ATTR_DOWNLOAD_IF_MISSING)
+        force_download = call.data.get(ATTR_FORCE_DOWNLOAD)
+        overwrite = call.data.get(ATTR_OVERWRITE)
+        dm: DashboardManager = self.hass.data[DOMAIN][DASHBOARD_MANAGER]
+        try:
+            await dm.add_view(
+                view_name,
+                download_if_missing=download,
+                force_download=force_download,
+                overwrite=overwrite,
+            )
+        except (DownloadManagerException, DashboardManagerException) as ex:
+            raise HomeAssistantError(ex) from ex
 
     async def async_handle_save_view(self, call: ServiceCall):
         """Handle saving view to view_assit dir."""
 
-        view_name = call.data.get("view_name")
-        overwrite = call.data.get("overwrite")
-        dm: DashboardManager = self.hass.data[DOMAIN]["dashboard_manager"]
-        result = await dm.save_view(view_name, overwrite)
-        if not result:
-            raise HomeAssistantError("Unable to save view")
+        view_name = call.data.get(ATTR_NAME)
+        overwrite = call.data.get(ATTR_OVERWRITE)
+        dm: DashboardManager = self.hass.data[DOMAIN][DASHBOARD_MANAGER]
+        try:
+            await dm.save_view(view_name, overwrite)
+        except (DownloadManagerException, DashboardManagerException) as ex:
+            raise HomeAssistantError(ex) from ex

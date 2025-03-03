@@ -1,3 +1,5 @@
+"""Handles HTTP functions."""
+
 import logging
 from pathlib import Path
 
