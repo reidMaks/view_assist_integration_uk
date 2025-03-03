@@ -28,8 +28,8 @@ _LOGGER = logging.getLogger(__name__)
 # Event name prefixes
 VA_EVENT_PREFIX = "va_timer_{}"
 VA_COMMAND_EVENT_PREFIX = "va_timer_command_{}"
-
-TIMERS_STORE_NAME = f"{DOMAIN}.timers"
+TIMERS = "timers"
+TIMERS_STORE_NAME = f"{DOMAIN}.{TIMERS}"
 
 WEEKDAYS = [
     "monday",
