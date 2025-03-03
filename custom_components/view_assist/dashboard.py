@@ -30,6 +30,7 @@ from .const import (
     GITHUB_BRANCH,
     GITHUB_PATH,
     GITHUB_REPO,
+    GITHUB_TOKEN_FILE,
     VIEWS_DIR,
     VAConfigEntry,
 )
@@ -69,9 +70,10 @@ class GitHubAPI:
         self.branch: str = GITHUB_BRANCH
 
     def _get_token(self):
-        token_file = self.hass.config.path(f"{DOMAIN}/token.txt")
+        token_file = self.hass.config.path(f"{DOMAIN}/{GITHUB_TOKEN_FILE}")
         if Path(token_file).exists():
             with Path(token_file).open("r", encoding="utf-8") as f:
+                _LOGGER.debug("Found github token file")
                 return f.read()
         return None
 
