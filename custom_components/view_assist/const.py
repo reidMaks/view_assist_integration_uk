@@ -6,6 +6,10 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 
 DOMAIN = "view_assist"
+GITHUB_REPO = "dinki/View-Assist/master"
+GITHUB_PATH = "View Assist dashboard and views/views"
+DASHBOARD_NAME = "view-assist"
+DASHBOARD_TITLE = "View Assist"
 BROWSERMOD_DOMAIN = "browser_mod"
 REMOTE_ASSIST_DISPLAY_DOMAIN = "remote_assist_display"
 VA_SUB_DIRS = ["backgrounds", "views", "audio", "images"]
@@ -136,8 +140,6 @@ class RuntimeData:
 
     def __init__(self) -> None:
         """Initialise runtime data."""
-        # Runtime variables go here
-        self._alarm_repeater = None
 
         # Default config
         self.type: VAType | None = None

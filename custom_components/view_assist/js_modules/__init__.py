@@ -124,7 +124,7 @@ class JSModuleRegistration:
 
     async def async_unregister(self, url: str = JS_URL):
         """Unload lovelace module resource."""
-        if self.hass.data["lovelace"]["mode"] == "storage":
+        if self.hass.data["lovelace"].mode == "storage":
             for module in JSMODULES:
                 url = f"{url}/{module.get('filename')}"
                 resources = [

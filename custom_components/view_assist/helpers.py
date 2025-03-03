@@ -252,7 +252,9 @@ def get_assist_satellite_entity_id_from_device_id(
 
 
 def get_entities_by_attr_filter(
-    hass: HomeAssistant, filter: dict[str, Any] | None = None
+    hass: HomeAssistant,
+    filter: dict[str, Any] | None = None,
+    exclude: dict[str, Any] | None = None,
 ) -> list[str]:
     """Get the entity ids of devices not in dnd mode."""
     matched_entities = []
@@ -261,13 +263,17 @@ def get_entities_by_attr_filter(
         entity_registry = er.async_get(hass)
         entities = er.async_entries_for_config_entry(entity_registry, entry_id)
         for entity in entities:
-            if filter:
+            if filter or exclude:
                 if state := hass.states.get(entity.entity_id):
-                    for attr, value in filter.items():
-                        if state.attributes.get(attr) == value:
-                            add_entity = True
-                        else:
-                            add_entity = False
+                    add_entity = False
+                    if filter:
+                        for attr, value in filter.items():
+                            if state.attributes.get(attr) == value:
+                                add_entity = True
+                    if add_entity and exclude:
+                        for attr, value in exclude.items():
+                            if state.attributes.get(attr) == value:
+                                add_entity = False
                     if add_entity:
                         matched_entities.append(entity.entity_id)
             else:

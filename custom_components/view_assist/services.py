@@ -19,6 +19,7 @@ from homeassistant.core import (
     ServiceResponse,
     SupportsResponse,
 )
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import (
     config_validation as cv,
     entity_registry as er,
@@ -26,6 +27,7 @@ from homeassistant.helpers import (
 )
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
+from .alarm_repeater import VAAlarmRepeater
 from .const import (
     CONF_EXTRA,
     CONF_INCLUDE_EXPIRED,
@@ -35,6 +37,7 @@ from .const import (
     DOMAIN,
     VAConfigEntry,
 )
+from .dashboard import DashboardManager
 from .helpers import get_mimic_entity_id, get_random_image
 from .timers import VATimers, decode_time_sentence
 
@@ -111,6 +114,10 @@ BROADCAST_EVENT_SERVICE_SCHEMA = vol.Schema(
         vol.Required("event_name"): str,
         vol.Required("event_data"): dict,
     }
+)
+
+VIEW_SERVICE_SCHEMA = vol.Schema(
+    {vol.Required("view_name"): str, vol.Optional("overwrite", default=False): bool}
 )
 
 
@@ -201,6 +208,27 @@ class VAServices:
             schema=BROADCAST_EVENT_SERVICE_SCHEMA,
         )
 
+        self.hass.services.async_register(
+            DOMAIN,
+            "load_view",
+            self.async_handle_load_view,
+            schema=VIEW_SERVICE_SCHEMA,
+        )
+
+        self.hass.services.async_register(
+            DOMAIN,
+            "download_view",
+            self.async_handle_download_view,
+            schema=VIEW_SERVICE_SCHEMA,
+        )
+
+        self.hass.services.async_register(
+            DOMAIN,
+            "save_view",
+            self.async_handle_save_view,
+            schema=VIEW_SERVICE_SCHEMA,
+        )
+
     # -----------------------------------------------------------------------
     # Get Target Satellite
     # Used to determine which VA satellite is being used based on its microphone device
@@ -224,19 +252,21 @@ class VAServices:
 
     async def async_handle_alarm_sound(self, call: ServiceCall) -> ServiceResponse:
         """Handle alarm sound."""
+        alarms: VAAlarmRepeater = self.hass.data[DOMAIN]["alarms"]
         entity_id = call.data.get(CONF_ENTITY_ID)
         media_file = call.data.get("media_file")
         resume_media = call.data.get("resume_media")
         max_repeats = call.data.get("max_repeats")
 
-        return await self.config.runtime_data._alarm_repeater.alarm_sound(  # noqa: SLF001
+        return await alarms.alarm_sound(
             entity_id, media_file, "music", resume_media, max_repeats
         )
 
     async def async_handle_stop_alarm_sound(self, call: ServiceCall):
         """Handle stop alarm sound."""
+        alarms: VAAlarmRepeater = self.hass.data[DOMAIN]["alarms"]
         entity_id = call.data.get(CONF_ENTITY_ID)
-        await self.config.runtime_data._alarm_repeater.cancel_alarm_sound(entity_id)  # noqa: SLF001
+        await alarms.cancel_alarm_sound(entity_id)
 
     async def async_handle_get_target_satellite(
         self, call: ServiceCall
@@ -404,3 +434,33 @@ class VAServices:
         return await self.hass.async_add_executor_job(
             get_random_image, self.hass, directory, source
         )
+
+    async def async_handle_download_view(self, call: ServiceCall):
+        """Handle download view."""
+
+        view_name = call.data.get("view_name")
+        overwrite = call.data.get("overwrite")
+        dm: DashboardManager = self.hass.data[DOMAIN]["dashboard_manager"]
+        result = await dm.download_view(view_name, overwrite)
+        if not result:
+            raise HomeAssistantError("Unable to download view")
+
+    async def async_handle_load_view(self, call: ServiceCall):
+        """Handle load of a view from view_assist dir."""
+
+        view_name = call.data.get("view_name")
+        overwrite = call.data.get("overwrite")
+        dm: DashboardManager = self.hass.data[DOMAIN]["dashboard_manager"]
+        result = await dm.load_view(view_name, overwrite=overwrite)
+        if not result:
+            raise HomeAssistantError("Unable to load view")
+
+    async def async_handle_save_view(self, call: ServiceCall):
+        """Handle saving view to view_assit dir."""
+
+        view_name = call.data.get("view_name")
+        overwrite = call.data.get("overwrite")
+        dm: DashboardManager = self.hass.data[DOMAIN]["dashboard_manager"]
+        result = await dm.save_view(view_name, overwrite)
+        if not result:
+            raise HomeAssistantError("Unable to save view")

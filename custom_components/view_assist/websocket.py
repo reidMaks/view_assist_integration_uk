@@ -1,6 +1,5 @@
 """View Assist websocket handlers."""
 
-import datetime as dt
 import logging
 import time
 

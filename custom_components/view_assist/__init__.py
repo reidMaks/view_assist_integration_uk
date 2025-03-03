@@ -7,9 +7,10 @@ from homeassistant.core import HomeAssistant
 
 from .alarm_repeater import VAAlarmRepeater
 from .const import DOMAIN, RuntimeData, VAConfigEntry
+from .dashboard import DashboardManager
 from .entity_listeners import EntityListeners
-from .frontend import FrontendConfig
 from .helpers import ensure_list, get_loaded_instance_count, is_first_instance
+from .http import HTTPManager
 from .js_modules import JSModuleRegistration
 from .services import VAServices
 from .templates import setup_va_templates
@@ -69,7 +70,7 @@ async def run_if_first_instance(hass: HomeAssistant, entry: VAConfigEntry):
     jsloader = JSModuleRegistration(hass)
     await jsloader.async_register()
 
-    entry.runtime_data._alarm_repeater = VAAlarmRepeater(hass, entry)  # noqa: SLF001
+    hass.data[DOMAIN]["alarms"] = VAAlarmRepeater(hass, entry)
 
     setup_va_templates(hass)
 
@@ -79,8 +80,12 @@ async def run_if_first_display_instance(hass: HomeAssistant, entry: VAConfigEntr
 
     # Run dashboard and view setup
     async def setup_frontend(*args):
-        fc = FrontendConfig(hass)
-        await fc.async_config()
+        dm = DashboardManager(hass, entry)
+        hass.data[DOMAIN]["dashboard_manager"] = dm
+        await dm.setup_dashboard()
+
+        http = HTTPManager(hass, entry)
+        await http.create_url_paths()
 
     if hass.is_running:
         await setup_frontend()
