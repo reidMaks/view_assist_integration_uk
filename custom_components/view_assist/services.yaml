@@ -214,6 +214,13 @@ load_view:
       default: false
       selector:
         boolean:
+    backup_existing_dir:
+      name: "Backup existing directory"
+      description: "Backup any existing directory before overwriting"
+      required: false
+      default: true
+      selector:
+        boolean:
     overwrite:
       name: "Overwrite"
       description: "Overwrite the view if it already exists"
@@ -235,5 +242,12 @@ save_view:
       name: "Overwrite"
       description: "Overwrite if already exists"
       required: false
+      selector:
+        boolean:
+    backup_existing_dir:
+      name: "Backup existing directory"
+      description: "Backup any existing directory before overwriting"
+      required: false
+      default: true
       selector:
         boolean:

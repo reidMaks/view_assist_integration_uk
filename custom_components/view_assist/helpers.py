@@ -376,19 +376,3 @@ def get_random_image(
 
     # Return the image path in a dictionary
     return {"image_path": image_path}
-
-
-def create_dir_if_not_exist(hass: HomeAssistant, dir_name: str) -> bool:
-    """Create a directory under config if it doesn't exist.
-
-    Needs to be called from the executor to prevent blocking.
-    """
-    config_dir = hass.config.config_dir
-    path = Path(f"{config_dir}/{dir_name}")
-    try:
-        if not Path.exists(path):
-            Path.mkdir(path)
-            return True
-    except OSError:
-        return False
-    return False

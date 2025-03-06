@@ -6,10 +6,10 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 
 DOMAIN = "view_assist"
-GITHUB_REPO = "dinki/View-Assist"
+GITHUB_REPO = "dinki/view_assist_integration"  # "dinki/View-Assist"
 GITHUB_BRANCH = "main"
 GITHUB_TOKEN_FILE = "github.token"
-GITHUB_PATH = "View Assist dashboard and views"
+GITHUB_PATH = "dashboard_and_views"  # "View Assist dashboard and views"
 VIEWS_DIR = "views"
 DASHBOARD_DIR = "dashboard"
 
@@ -19,7 +19,7 @@ DEFAULT_VIEWS = ["clock", "weather", "alarm", "music", "info", "intent"]
 BROWSERMOD_DOMAIN = "browser_mod"
 REMOTE_ASSIST_DISPLAY_DOMAIN = "remote_assist_display"
 VA_SUB_DIRS = ["audio", "images"]
-URL_BASE = "/view_assist"
+URL_BASE = "view_assist"
 JSMODULES = [
     {
         "name": "View Assist Helper",
@@ -119,7 +119,7 @@ DEFAULT_DASHBOARD = "/view-assist"
 DEFAULT_VIEW_HOME = "/view-assist/clock"
 DEFAULT_VIEW_MUSIC = "/view-assist/music"
 DEFAULT_VIEW_INTENT = "/view-assist/intent"
-DEFAULT_VIEW_BACKGROUND = "/local/viewassist/backgrounds/mybackground.jpg"
+DEFAULT_VIEW_BACKGROUND = "/view_assist/dashboard/background.jpg"
 DEFAULT_ASSIST_PROMPT = VAAssistPrompt.BLUR_POPUP
 DEFAULT_STATUS_ICON_SIZE = VAIconSizes.LARGE
 DEFAULT_FONT_STYLE = "Roboto"
@@ -141,6 +141,7 @@ ATTR_DEVICE = "device"
 ATTR_DOWNLOAD_IF_MISSING = "download_if_missing"
 ATTR_FORCE_DOWNLOAD = "force_download"
 ATTR_OVERWRITE = "overwrite"
+ATTR_BACKUP_EXISTING_DIR = "backup_existing_dir"
 ATTR_EXTRA = "extra"
 ATTR_TYPE = "type"
 ATTR_TIMER_ID = "timer_id"

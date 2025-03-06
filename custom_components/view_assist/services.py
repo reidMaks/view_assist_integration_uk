@@ -22,6 +22,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .alarm_repeater import ALARMS, VAAlarmRepeater
 from .const import (
+    ATTR_BACKUP_EXISTING_DIR,
     ATTR_DEVICE,
     ATTR_DOWNLOAD_IF_MISSING,
     ATTR_EVENT_DATA,
@@ -130,6 +131,7 @@ VIEW_SERVICE_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_NAME): str,
         vol.Optional(ATTR_OVERWRITE, default=False): bool,
+        vol.Optional(ATTR_BACKUP_EXISTING_DIR, default=False): bool,
     }
 )
 LOAD_VIEW_SERVICE_SCHEMA = VIEW_SERVICE_SCHEMA.extend(
@@ -462,6 +464,7 @@ class VAServices:
         download = call.data.get(ATTR_DOWNLOAD_IF_MISSING)
         force_download = call.data.get(ATTR_FORCE_DOWNLOAD)
         overwrite = call.data.get(ATTR_OVERWRITE)
+        backup = call.data.get(ATTR_BACKUP_EXISTING_DIR, False)
         dm: DashboardManager = self.hass.data[DOMAIN][DASHBOARD_MANAGER]
         try:
             await dm.add_view(
@@ -469,6 +472,7 @@ class VAServices:
                 download_if_missing=download,
                 force_download=force_download,
                 overwrite=overwrite,
+                backup_existing_dir=backup,
             )
         except (DownloadManagerException, DashboardManagerException) as ex:
             raise HomeAssistantError(ex) from ex
@@ -478,8 +482,10 @@ class VAServices:
 
         view_name = call.data.get(ATTR_NAME)
         overwrite = call.data.get(ATTR_OVERWRITE)
+        backup = call.data.get(ATTR_BACKUP_EXISTING_DIR, False)
+
         dm: DashboardManager = self.hass.data[DOMAIN][DASHBOARD_MANAGER]
         try:
-            await dm.save_view(view_name, overwrite)
+            await dm.save_view(view_name, overwrite=overwrite, backup_if_exists=backup)
         except (DownloadManagerException, DashboardManagerException) as ex:
             raise HomeAssistantError(ex) from ex
