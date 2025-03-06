@@ -130,6 +130,7 @@ view_assist.get_timers
  - `timer_id` (optional) - this is the id of the individual timer you wish to view
  - `entity_id` (optional) - the entity id of the VA device.  This will return all timers for that VA device.
  - `device_id` (optional) - this is the device id of the voice device which was passed in when the timer was created.  This will return all timers for that device id.
+ - `name` (optional) - the name of the timer.  This can be provided with an entity/device id or on its own.  If a timer id is supplied, it has no effect.
  - `include_expired` (optional) - this will include/exclude expired timers
 
 #### Response

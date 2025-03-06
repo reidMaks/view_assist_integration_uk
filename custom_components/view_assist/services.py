@@ -95,6 +95,7 @@ GET_TIMERS_SERVICE_SCHEMA = vol.Schema(
         vol.Exclusive(ATTR_TIMER_ID, "target"): str,
         vol.Exclusive(ATTR_ENTITY_ID, "target"): cv.entity_id,
         vol.Exclusive(ATTR_DEVICE_ID, "target"): vol.Any(cv.string, None),
+        vol.Optional(ATTR_NAME): str,
         vol.Optional(ATTR_INCLUDE_EXPIRED, default=False): bool,
     }
 )
@@ -424,12 +425,14 @@ class VAServices:
         entity_id = call.data.get(ATTR_ENTITY_ID)
         device_id = call.data.get(ATTR_DEVICE_ID)
         timer_id = call.data.get(ATTR_TIMER_ID)
+        name = call.data.get(ATTR_NAME)
         include_expired = call.data.get(ATTR_INCLUDE_EXPIRED, False)
 
         t: VATimers = self.hass.data[DOMAIN][TIMERS]
         result = t.get_timers(
             timer_id=timer_id,
             device_or_entity_id=entity_id if entity_id else device_id,
+            name=name,
             include_expired=include_expired,
         )
         return {"result": result}

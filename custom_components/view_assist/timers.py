@@ -905,6 +905,7 @@ class VATimers:
         self,
         timer_id: str = "",
         device_or_entity_id: str = "",
+        name: str = "",
         include_expired: bool = False,
         sort: bool = True,
     ) -> list[Timer]:
@@ -912,13 +913,11 @@ class VATimers:
 
         Optionally supply timer_id or device_id to filter the returned list
         """
-        timers = {}
 
         if include_expired:
             timers = [
                 {"id": tid, **timer.to_dict()}
                 for tid, timer in self.store.timers.items()
-                if timer.status != TimerStatus.EXPIRED
             ]
         else:
             timers = [
@@ -932,9 +931,22 @@ class VATimers:
 
         elif device_or_entity_id:
             if entity_id := self._ensure_entity_id(device_or_entity_id):
-                timers = [timer for timer in timers if timer["entity_id"] == entity_id]
+                if name:
+                    # If device id and name
+                    timers = [
+                        timer
+                        for timer in timers
+                        if timer["entity_id"] == entity_id and timer["name"] == name
+                    ]
+                else:
+                    timers = [
+                        timer for timer in timers if timer["entity_id"] == entity_id
+                    ]
             else:
                 timers = []
+
+        elif name:
+            timers = [timer for timer in timers if timer["name"] == name]
 
         if sort and timers:
             timers = sorted(timers, key=lambda d: d["expiry"]["seconds"])

@@ -132,6 +132,12 @@ get_timers:
       required: false
       selector:
         device:
+    name:
+      name: "Name"
+      description: "The name of the timer"
+      required: false
+      selector:
+        text:
 sound_alarm:
   name: "Sound alarm"
   description: "Sound alarm on a media device with an attempt to restore any already playing media"
