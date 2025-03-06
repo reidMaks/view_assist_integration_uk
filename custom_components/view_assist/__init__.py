@@ -80,12 +80,12 @@ async def run_if_first_display_instance(hass: HomeAssistant, entry: VAConfigEntr
 
     # Run dashboard and view setup
     async def setup_frontend(*args):
+        http = HTTPManager(hass, entry)
+        await http.create_url_paths()
+
         dm = DashboardManager(hass, entry)
         hass.data[DOMAIN][DASHBOARD_MANAGER] = dm
         await dm.setup_dashboard()
-
-        http = HTTPManager(hass, entry)
-        await http.create_url_paths()
 
     if hass.is_running:
         await setup_frontend()
