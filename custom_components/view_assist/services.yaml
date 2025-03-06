@@ -132,6 +132,12 @@ get_timers:
       required: false
       selector:
         device:
+    name:
+      name: "Name"
+      description: "The name of the timer"
+      required: false
+      selector:
+        text:
 sound_alarm:
   name: "Sound alarm"
   description: "Sound alarm on a media device with an attempt to restore any already playing media"
@@ -208,6 +214,13 @@ load_view:
       default: false
       selector:
         boolean:
+    backup_existing_dir:
+      name: "Backup existing directory"
+      description: "Backup any existing directory before overwriting"
+      required: false
+      default: true
+      selector:
+        boolean:
     overwrite:
       name: "Overwrite"
       description: "Overwrite the view if it already exists"
@@ -229,5 +242,12 @@ save_view:
       name: "Overwrite"
       description: "Overwrite if already exists"
       required: false
+      selector:
+        boolean:
+    backup_existing_dir:
+      name: "Backup existing directory"
+      description: "Backup any existing directory before overwriting"
+      required: false
+      default: true
       selector:
         boolean:

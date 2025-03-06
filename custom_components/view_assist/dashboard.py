@@ -1,12 +1,13 @@
 """Manage views - download, apply, backup, restore."""
 
-import base64
 from dataclasses import dataclass
 import datetime as dt
 import logging
 from pathlib import Path
 from typing import Any
 import urllib.parse
+
+from aiohttp import ContentTypeError
 
 from homeassistant.components import frontend
 from homeassistant.components.lovelace import (
@@ -50,6 +51,11 @@ class GithubFileDir:
     name: str
     type: str
     url: str
+    download_url: str | None = None
+
+
+class GithubAPIException(Exception):
+    """A github api exception."""
 
 
 class DownloadManagerException(Exception):
@@ -68,12 +74,12 @@ class GitHubAPI:
         self.hass = hass
         self.repo = repo
         self.branch: str = GITHUB_BRANCH
+        self.api_base = f"{GITHUB_REPO_API}/{self.repo}/contents/"
 
     def _get_token(self):
         token_file = self.hass.config.path(f"{DOMAIN}/{GITHUB_TOKEN_FILE}")
         if Path(token_file).exists():
             with Path(token_file).open("r", encoding="utf-8") as f:
-                _LOGGER.debug("Found github token file")
                 return f.read()
         return None
 
@@ -82,29 +88,58 @@ class GitHubAPI:
         session = async_get_clientsession(self.hass)
 
         kwargs = {}
-        if token := await self.hass.async_add_executor_job(self._get_token):
-            kwargs["headers"] = {"authorization": f"Bearer {token}"}
+        if self.api_base in url:
+            if token := await self.hass.async_add_executor_job(self._get_token):
+                kwargs["headers"] = {"authorization": f"Bearer {token}"}
+                _LOGGER.debug("Making api request with auth token - %s", url)
+            else:
+                _LOGGER.debug("Making api request without auth token - %s", url)
 
         async with session.get(url, **kwargs) as resp:
             if resp.status == 200:
-                return await resp.json()
+                try:
+                    return await resp.json()
+                except ContentTypeError:
+                    return await resp.read()
+            elif resp.status == 403:
+                # Rate limit
+                raise GithubAPIException(
+                    "Github api rate limit exceeded for this hour.  You may need to add a personal access token to authenticate and increase the limit"
+                )
+            elif resp.status == 404:
+                raise GithubAPIException(f"Path not found on this repository.  {url}")
+            else:
+                raise GithubAPIException(await resp.json())
         return None
 
     async def get_dir_listing(self, dir_url: str) -> list[GithubFileDir]:
         """Get github repo dir listing."""
-        dir_url = urllib.parse.quote(dir_url)
-        url_path = f"{GITHUB_REPO_API}/{self.repo}/contents/{dir_url}?ref={self.branch}"
+        # if dir passed is full url
 
-        if raw_data := await self._rest_request(url_path):
-            return [GithubFileDir(e["name"], e["type"], e["url"]) for e in raw_data]
+        base_url = f"{GITHUB_REPO_API}/{self.repo}/contents/"
+        if not dir_url.startswith(base_url):
+            dir_url = urllib.parse.quote(dir_url)
+            url_path = (
+                f"{GITHUB_REPO_API}/{self.repo}/contents/{dir_url}?ref={self.branch}"
+            )
+        else:
+            url_path = dir_url
+
+        try:
+            if raw_data := await self._rest_request(url_path):
+                return [
+                    GithubFileDir(e["name"], e["type"], e["url"], e["download_url"])
+                    for e in raw_data
+                ]
+        except GithubAPIException as ex:
+            _LOGGER.error(ex)
         return None
 
-    async def get_file(self, file_url: str) -> bytes | None:
-        """Get file contents from repo."""
-        # Download and save file
-        if file_data := await self._rest_request(file_url):
-            if base64_string := str(file_data.get("content")):
-                return base64.b64decode(base64_string)
+    async def download_file(self, download_url: str) -> bytes | None:
+        """Download file."""
+        if file_data := await self._rest_request(download_url):
+            return file_data
+        _LOGGER.debug("Failed to download file")
         return None
 
 
@@ -118,32 +153,39 @@ class DownloadManager:
 
     def _save_binary_to_file(self, data: bytes, file_path: str, file_name: str):
         """Save binary data to file."""
-        if not Path(file_path):
-            Path.mkdir(file_path)
-
-        with open(f"{file_path}/{file_name}", "xb") as f:  # noqa: PTH123
-            f.write(data)
+        Path(file_path).mkdir(parents=True, exist_ok=True)
+        Path.write_bytes(Path(file_path, file_name), data)
 
     async def _download_dir(self, dir_url: str, dir_path: str, depth: int = 1):
         """Download all files in a directory."""
-        dir_listing = await self.github.get_dir_listing(dir_url)
-        _LOGGER.debug("Downloading %s", dir_path)
-        # Recurse directories
-        if dir_listing:
-            for entry in dir_listing:
-                if entry.type == "dir" and depth <= MAX_DIR_DEPTH:
-                    await self._download_dir(
-                        entry.url, f"{dir_path}/{entry.name}", depth=depth + 1
-                    )
-                elif entry.type == "file":
-                    file_bytes = await self.github.get_file(entry.url)
-                    await self.hass.async_add_executor_job(
-                        self._save_binary_to_file, file_bytes, dir_path, entry.name
-                    )
-        else:
-            raise DownloadManagerException(
-                "Unable to find a directory called {dir_url} on the github repository"
-            )
+        try:
+            if dir_listing := await self.github.get_dir_listing(dir_url):
+                _LOGGER.debug("Downloading %s", dir_url)
+                # Recurse directories
+                for entry in dir_listing:
+                    if entry.type == "dir" and depth <= MAX_DIR_DEPTH:
+                        await self._download_dir(
+                            f"{dir_url}/{entry.name}",
+                            f"{dir_path}/{entry.name}",
+                            depth=depth + 1,
+                        )
+                    elif entry.type == "file":
+                        _LOGGER.debug("Downloading file %s", f"{dir_url}/{entry.name}")
+                        if file_data := await self.github.download_file(
+                            entry.download_url
+                        ):
+                            await self.hass.async_add_executor_job(
+                                self._save_binary_to_file,
+                                file_data,
+                                dir_path,
+                                entry.name,
+                            )
+                        else:
+                            raise DownloadManagerException(
+                                f"Error downloading {entry.name} from the github repository."
+                            )
+        except GithubAPIException as ex:
+            _LOGGER.error(ex)
 
     async def backup_file_or_folder(self, file_or_folder: str) -> bool:
         """Backup a file or folder."""
@@ -152,7 +194,9 @@ class DownloadManager:
                 Path(file_or_folder).rename,
                 f"{file_or_folder}_{dt.datetime.now().strftime('%Y%m%d_%H%M%S')}",
             )
-        except OSError:
+            _LOGGER.debug("Backed up %s", file_or_folder)
+        except OSError as ex:
+            _LOGGER.debug("Backup error: %s", ex)
             return False
         else:
             return True
@@ -162,14 +206,8 @@ class DownloadManager:
     ):
         """Download dashboard file."""
         # Ensure download to path exists
-        exists = False
         base = self.hass.config.path(f"{DOMAIN}/{DASHBOARD_DIR}")
-
-        if not Path(base).exists():
-            Path(base).mkdir()
-
-        if Path(base, DASHBOARD_FILE).exists():
-            exists = True
+        exists = Path(base, DASHBOARD_FILE).exists()
 
         if exists and overwrite:
             raise DownloadManagerException(
@@ -191,17 +229,12 @@ class DownloadManager:
     async def download_view(
         self, view_name: str, overwrite: bool = False, backup_if_exists: bool = True
     ):
-        """Downlaod files from a github repo directory."""
+        """Download files from a github repo directory."""
 
         # Ensure download to path exists
-        exists = False
-        base = self.hass.config.path(f"{DOMAIN}/views")
-
-        if not Path(base).exists():
-            Path(base).mkdir()
-
-        if Path(base, view_name).exists():
-            exists = True
+        _LOGGER.debug("Downloading view - %s", view_name)
+        base = self.hass.config.path(f"{DOMAIN}/{VIEWS_DIR}")
+        exists = Path(base, view_name).exists()
 
         if exists and not overwrite:
             raise DownloadManagerException(
@@ -213,13 +246,13 @@ class DownloadManager:
         if await self.github.get_dir_listing(dir_url):
             # Rename existing dir
             if exists and backup_if_exists:
-                if not await self.backup_file_or_folder(f"{base}/{DASHBOARD_FILE}"):
+                if not await self.backup_file_or_folder(f"{base}/{view_name}"):
                     raise DownloadManagerException(
                         f"{view_name} not downloaded. Failed backing up existing directory",
                     )
 
             # Create view directory
-            Path(base, view_name).mkdir()
+            Path(base, view_name).mkdir(parents=True, exist_ok=True)
 
             # Download view files
             await self._download_dir(dir_url, f"{base}/{view_name}")
@@ -232,7 +265,7 @@ class DashboardManager:
         """Initialise."""
         self.hass = hass
         self.config = config
-        self.dl = DownloadManager(hass)
+        self.download_manager = DownloadManager(hass)
 
     async def _save_to_yaml_file(
         self,
@@ -244,7 +277,7 @@ class DashboardManager:
         """Save dict to yaml file, creating backup if required."""
 
         # Check if file exists
-        if Path.is_file(Path(file_path)):
+        if Path(file_path).exists():
             if not overwrite:
                 return False
             if overwrite and backup_existing:
@@ -257,42 +290,62 @@ class DashboardManager:
                     return True
         raise DashboardManagerException(f"Unable to save {file_path}")
 
-    async def setup_dashboard(self):
-        """Config VA dashboard."""
-
-        if not await self.dashboard_exists(DASHBOARD_NAME):
-            dashboard_path = self.hass.config.path(f"{DOMAIN}/dashboard/dashboard.yaml")
-            if not Path(dashboard_path).exists():
-                await self.dl.download_dashboard()
-
-            await self.add_dashboard(DASHBOARD_NAME, dashboard_path)
-            await self.load_default_views()
-            await self.delete_view("home")
-
-    async def load_default_views(self):
-        """Load views from default config."""
-        for view in DEFAULT_VIEWS:
-            try:
-                await self.add_view(view)
-            except DashboardManagerException as ex:
-                _LOGGER.error(ex)
-
-    def dashboard_path(self, dashboard_name: str) -> str:
+    @property
+    def dashboard_key(self) -> str:
         """Return path for dashboard name."""
-        return dashboard_name.replace(" ", "-").lower()
+        return DASHBOARD_NAME.replace(" ", "-").lower()
 
-    async def dashboard_exists(self, dashboard_name: str) -> bool:
+    @property
+    def dashboard_exists(self) -> bool:
         """Return if dashboard exists."""
         lovelace: LovelaceData = self.hass.data["lovelace"]
-        url_path = self.dashboard_path(dashboard_name)
-        return url_path in lovelace.dashboards
+        return self.dashboard_key in lovelace.dashboards
+
+    async def setup_dashboard(self):
+        """Config VA dashboard."""
+        if not self.dashboard_exists:
+            _LOGGER.debug("Initialising View Assist dashboard")
+            # Download dashboard
+            base = self.hass.config.path(DOMAIN)
+            dashboard_file_path = f"{base}/{DASHBOARD_DIR}/{DASHBOARD_DIR}.yaml"
+            view_base = f"{base}/{VIEWS_DIR}"
+
+            if not Path(dashboard_file_path).exists():
+                await self.download_manager.download_dashboard()
+
+            # Download initial views
+            _LOGGER.debug("Downloading default views")
+            for view in DEFAULT_VIEWS:
+                if not Path(view_base, view).exists():
+                    await self.download_manager.download_view(view)
+
+            # Load dashboard
+            _LOGGER.debug("Adding dashboard")
+            await self.add_dashboard(DASHBOARD_NAME, dashboard_file_path)
+
+            # Load views that have successfully downloaded plus others already in directory
+            _LOGGER.debug("Adding views")
+            for view in await self.hass.async_add_executor_job(Path(view_base).iterdir):
+                await self.add_view(
+                    view.name,
+                    download_if_missing=False,
+                    force_download=False,
+                    overwrite=False,
+                )
+
+            # Remove home view
+            await self.delete_view("home")
+
+        else:
+            _LOGGER.debug(
+                "View Assist dashboard already exists, skipping initialisation"
+            )
 
     async def view_exists(self, view: str) -> int:
         """Return if view exists."""
-        dashboard_url_path = self.dashboard_path(DASHBOARD_NAME)
         lovelace: LovelaceData = self.hass.data["lovelace"]
         dashboard_store: dashboard.LovelaceStorage = lovelace.dashboards.get(
-            dashboard_url_path
+            self.dashboard_key
         )
         # Load dashboard config data
         if dashboard_store:
@@ -306,7 +359,7 @@ class DashboardManager:
     async def add_dashboard(self, dashboard_name: str, dashboard_path: str):
         """Create dashboard."""
 
-        if not await self.dashboard_exists(dashboard_name):
+        if not self.dashboard_exists:
             # Get lovelace (frontend) config data
             lovelace: LovelaceData = self.hass.data["lovelace"]
 
@@ -315,7 +368,6 @@ class DashboardManager:
                 load_yaml_dict, dashboard_path
             )
             dashboard_config["mode"] = "storage"
-            url_path = self.dashboard_path(dashboard_name)
 
             # Create entry in dashboard collection
             dc = dashboard.DashboardsCollection(self.hass)
@@ -324,26 +376,26 @@ class DashboardManager:
                 {
                     CONF_ICON: "mdi:glasses",
                     CONF_TITLE: DASHBOARD_NAME,
-                    CONF_URL_PATH: url_path,
+                    CONF_URL_PATH: self.dashboard_key,
                     CONF_SHOW_IN_SIDEBAR: True,
                 }
             )
 
             # Add dashboard entry to Lovelace storage
-            lovelace.dashboards[url_path] = dashboard.LovelaceStorage(
+            lovelace.dashboards[self.dashboard_key] = dashboard.LovelaceStorage(
                 self.hass,
                 {
                     "id": dash["id"],
                     CONF_ICON: "mdi:glasses",
                     CONF_TITLE: DASHBOARD_NAME,
-                    CONF_URL_PATH: url_path,
+                    CONF_URL_PATH: self.dashboard_key,
                 },
             )
-            await lovelace.dashboards[url_path].async_save(dashboard_config)
+            await lovelace.dashboards[self.dashboard_key].async_save(dashboard_config)
 
             # Register panel
             kwargs = {
-                "frontend_url_path": url_path,
+                "frontend_url_path": self.dashboard_key,
                 "require_admin": False,
                 "config": dashboard_config,
                 "sidebar_title": DASHBOARD_NAME,
@@ -361,6 +413,7 @@ class DashboardManager:
         download_if_missing: bool = True,
         force_download: bool = False,
         overwrite: bool = False,
+        backup_existing_dir: bool = True,
     ) -> bool:
         """Load a view file into the dashboard from the view_assist view folder."""
 
@@ -382,7 +435,9 @@ class DashboardManager:
                 )
 
         if force_download or not Path(f).exists():
-            await self.dl.download_view(name, overwrite)
+            await self.download_manager.download_view(
+                name, overwrite=overwrite, backup_if_exists=backup_existing_dir
+            )
 
         # Install view from file.
         try:
@@ -392,12 +447,11 @@ class DashboardManager:
                 f"Unable to load view {name}.  Error is {ex}"
             ) from ex
 
-        dashboard_url_path = self.dashboard_path(DASHBOARD_NAME)
         # Get lovelace (frontend) config data
         lovelace: LovelaceData = self.hass.data["lovelace"]
         # Get access to dashboard store
         dashboard_store: dashboard.LovelaceStorage = lovelace.dashboards.get(
-            dashboard_url_path
+            self.dashboard_key
         )
 
         # Load dashboard config data
@@ -426,9 +480,11 @@ class DashboardManager:
             return True
         return False
 
-    async def save_view(self, view_name: str, overwrite: bool = False) -> bool:
+    async def save_view(
+        self, view_name: str, overwrite: bool = False, backup_if_exists: bool = False
+    ) -> bool:
         """Backup a view to a file."""
-        url_path = self.dashboard_path(DASHBOARD_NAME)
+        url_path = DASHBOARD_NAME.replace(" ", "-").lower()
         # Get lovelace (frontend) config data
         lovelace: LovelaceData = self.hass.data["lovelace"]
 
@@ -446,18 +502,23 @@ class DashboardManager:
                         f"{DOMAIN}/views/{view_name.lower()}/{view_name.lower()}.yaml"
                     )
                     return await self._save_to_yaml_file(
-                        file_path, view.get("cards", [])[0], overwrite
+                        file_path,
+                        view.get("cards", [])[0],
+                        overwrite=overwrite,
+                        backup_existing=backup_if_exists,
                     )
         return False
 
     async def delete_view(self, view: str):
         """Delete view."""
-        url_path = self.dashboard_path(DASHBOARD_NAME)
+
         # Get lovelace (frontend) config data
         lovelace: LovelaceData = self.hass.data["lovelace"]
 
         # Get access to dashboard store
-        dashboard_store: dashboard.LovelaceStorage = lovelace.dashboards.get(url_path)
+        dashboard_store: dashboard.LovelaceStorage = lovelace.dashboards.get(
+            self.dashboard_key
+        )
 
         # Load dashboard config data
         if dashboard_store:

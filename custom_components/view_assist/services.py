@@ -22,6 +22,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .alarm_repeater import ALARMS, VAAlarmRepeater
 from .const import (
+    ATTR_BACKUP_EXISTING_DIR,
     ATTR_DEVICE,
     ATTR_DOWNLOAD_IF_MISSING,
     ATTR_EVENT_DATA,
@@ -95,6 +96,7 @@ GET_TIMERS_SERVICE_SCHEMA = vol.Schema(
         vol.Exclusive(ATTR_TIMER_ID, "target"): str,
         vol.Exclusive(ATTR_ENTITY_ID, "target"): cv.entity_id,
         vol.Exclusive(ATTR_DEVICE_ID, "target"): vol.Any(cv.string, None),
+        vol.Optional(ATTR_NAME): str,
         vol.Optional(ATTR_INCLUDE_EXPIRED, default=False): bool,
     }
 )
@@ -129,6 +131,7 @@ VIEW_SERVICE_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_NAME): str,
         vol.Optional(ATTR_OVERWRITE, default=False): bool,
+        vol.Optional(ATTR_BACKUP_EXISTING_DIR, default=False): bool,
     }
 )
 LOAD_VIEW_SERVICE_SCHEMA = VIEW_SERVICE_SCHEMA.extend(
@@ -424,12 +427,14 @@ class VAServices:
         entity_id = call.data.get(ATTR_ENTITY_ID)
         device_id = call.data.get(ATTR_DEVICE_ID)
         timer_id = call.data.get(ATTR_TIMER_ID)
+        name = call.data.get(ATTR_NAME)
         include_expired = call.data.get(ATTR_INCLUDE_EXPIRED, False)
 
         t: VATimers = self.hass.data[DOMAIN][TIMERS]
         result = t.get_timers(
             timer_id=timer_id,
             device_or_entity_id=entity_id if entity_id else device_id,
+            name=name,
             include_expired=include_expired,
         )
         return {"result": result}
@@ -459,6 +464,7 @@ class VAServices:
         download = call.data.get(ATTR_DOWNLOAD_IF_MISSING)
         force_download = call.data.get(ATTR_FORCE_DOWNLOAD)
         overwrite = call.data.get(ATTR_OVERWRITE)
+        backup = call.data.get(ATTR_BACKUP_EXISTING_DIR, False)
         dm: DashboardManager = self.hass.data[DOMAIN][DASHBOARD_MANAGER]
         try:
             await dm.add_view(
@@ -466,6 +472,7 @@ class VAServices:
                 download_if_missing=download,
                 force_download=force_download,
                 overwrite=overwrite,
+                backup_existing_dir=backup,
             )
         except (DownloadManagerException, DashboardManagerException) as ex:
             raise HomeAssistantError(ex) from ex
@@ -475,8 +482,10 @@ class VAServices:
 
         view_name = call.data.get(ATTR_NAME)
         overwrite = call.data.get(ATTR_OVERWRITE)
+        backup = call.data.get(ATTR_BACKUP_EXISTING_DIR, False)
+
         dm: DashboardManager = self.hass.data[DOMAIN][DASHBOARD_MANAGER]
         try:
-            await dm.save_view(view_name, overwrite)
+            await dm.save_view(view_name, overwrite=overwrite, backup_if_exists=backup)
         except (DownloadManagerException, DashboardManagerException) as ex:
             raise HomeAssistantError(ex) from ex
