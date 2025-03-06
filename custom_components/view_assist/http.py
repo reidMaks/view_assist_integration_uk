@@ -7,7 +7,6 @@ from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, URL_BASE, VA_SUB_DIRS, VAConfigEntry
-from .helpers import create_dir_if_not_exist
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,17 +33,12 @@ class HTTPManager:
     async def create_url_paths(self):
         """Create viewassist url paths."""
 
-        if await self.hass.async_add_executor_job(
-            create_dir_if_not_exist, self.hass, DOMAIN
-        ):
-            for sub_dir in VA_SUB_DIRS:
-                sub_dir = f"{DOMAIN}/{sub_dir}"
-                await self.hass.async_add_executor_job(
-                    create_dir_if_not_exist, self.hass, sub_dir
-                )
+        # Create config/view_assist path if it doesn't exist
+        va_dir = self.hass.config.path(DOMAIN)
+        Path(va_dir).mkdir(exist_ok=True)
 
-        await self._async_register_path(
-            f"{URL_BASE}/defaults", f"{Path(__file__).parent}/default_config"
-        )
-        va_dir = f"{self.hass.config.config_dir}/{DOMAIN}"
-        await self._async_register_path(f"{URL_BASE}", va_dir)
+        # Create out list of standard sub dirs
+        for sub_dir in VA_SUB_DIRS:
+            Path(va_dir, sub_dir).mkdir(exist_ok=True)
+
+        await self._async_register_path(f"/{URL_BASE}", va_dir)
