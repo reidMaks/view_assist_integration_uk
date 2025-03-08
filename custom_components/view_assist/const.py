@@ -6,10 +6,10 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 
 DOMAIN = "view_assist"
-GITHUB_REPO = "dinki/view_assist_integration"  # "dinki/View-Assist"
-GITHUB_BRANCH = "main"
+GITHUB_REPO = "dinki/View-Assist"
+GITHUB_BRANCH = "viewassist-integrationprep"  # "main"
 GITHUB_TOKEN_FILE = "github.token"
-GITHUB_PATH = "dashboard_and_views"  # "View Assist dashboard and views"
+GITHUB_PATH = "View Assist dashboard and views"
 VIEWS_DIR = "views"
 DASHBOARD_DIR = "dashboard"
 
