@@ -38,7 +38,6 @@ from .const import (
     ATTR_RESUME_MEDIA,
     ATTR_TIMER_ID,
     ATTR_TYPE,
-    CONF_MIC_DEVICE,
     DOMAIN,
     VAConfigEntry,
 )
@@ -154,13 +153,6 @@ class VAServices:
 
     async def async_setup_services(self):
         """Initialise VA services."""
-
-        self.hass.services.async_register(
-            DOMAIN,
-            "get_target_satellite",
-            self.async_handle_get_target_satellite,
-            supports_response=SupportsResponse.ONLY,
-        )
 
         self.hass.services.async_register(
             DOMAIN,
@@ -282,42 +274,6 @@ class VAServices:
 
         alarms: VAAlarmRepeater = self.hass.data[DOMAIN][ALARMS]
         await alarms.cancel_alarm_sound(entity_id)
-
-    async def async_handle_get_target_satellite(
-        self, call: ServiceCall
-    ) -> ServiceResponse:
-        """Handle a get target satellite lookup call."""
-        # TODO: Update or remove this.  Is it still needed?
-        device_id = call.data.get(ATTR_DEVICE_ID)
-        entity_registry = er.async_get(self.hass)
-
-        entities = []
-
-        entry_ids = [
-            entry.entry_id for entry in self.hass.config_entries.async_entries(DOMAIN)
-        ]
-
-        for entry_id in entry_ids:
-            integration_entities = er.async_entries_for_config_entry(
-                entity_registry, entry_id
-            )
-            entity_ids = [entity.entity_id for entity in integration_entities]
-            entities.extend(entity_ids)
-
-        # Fetch the 'mic_device' attribute for each entity
-        # compare the device_id of mic_device to the value passed in to the service
-        # return the match for the satellite that contains that mic_device
-        target_satellite_devices = []
-        for entity_id in entities:
-            if state := self.hass.states.get(entity_id):
-                if mic_entity_id := state.attributes.get(CONF_MIC_DEVICE):
-                    if mic_entity := entity_registry.async_get(mic_entity_id):
-                        if mic_entity.device_id == device_id:
-                            target_satellite_devices.append(entity_id)
-
-        # Return the list of target_satellite_devices
-        # This should match only one VA device
-        return {"target_satellite": target_satellite_devices}
 
     # -----------------------------------------------------------------------
     # Handle Navigation
