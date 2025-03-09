@@ -90,6 +90,7 @@ class Clock extends HTMLElement {
 
   constructor() {
     super();
+    this.server_time = true;
   }
 
   connectedCallback() {
@@ -101,90 +102,111 @@ class Clock extends HTMLElement {
     shadow.appendChild(el);
 
 
-    const server_time = this.getAttribute("server_time");
+    if (this.hasAttribute("server_time")) this.server_time = this.getAttribute("server_time");
 
-    this.run_clock(el, server_time);
+    this.run_clock(el);
   }
 
-  display_time(el, server_time) {
+  display_time(el) {
 
     const dt_now = new Date();
     var format = this.getAttribute("format") ? this.getAttribute("format") : '%H:%M'
 
-    if (server_time) {
-      el.textContent = strftime(format, new Date(dt_now.getTime() + window.viewassist_time_delta));
+    if (this.server_time) {
+      el.textContent = strftime(format, new Date(dt_now.getTime() + window.viewassist.server_time_delta));
     } else {
       el.textContent = strftime(format,dt_now);
     }
   }
 
-  run_clock(el, server_time) {
+  run_clock(el) {
     var t = this;
-    t.display_time(el, server_time);
+    t.display_time(el);
     const x = setInterval(function () {
-      t.display_time(el, server_time);
+      t.display_time(el);
     }, 1000);
   }
 }
 
 class CountdownTimer extends HTMLElement {
-  static observedAttributes = ["expires"];
+  static observedAttributes = ["expires", "server_time", "show_negative", "no_timer_text", "expired_text"];
 
   constructor() {
     super();
+    this.expires = 0;
+    this.server_time = true;
+    this.show_negative = true;
+    this.expired_text = '';
+    this.no_timer_text = '';
+    this.interval_timer = null;
   }
 
   connectedCallback() {
     const shadow = this.shadowRoot || this.attachShadow({ mode: 'open' });
     // Create span
     this.shadowRoot.innerHTML = '';
-    const el = document.createElement("span");
+    const el = document.createElement("div");
     el.setAttribute("class", "countdown");
     shadow.appendChild(el);
 
 
-    const expires = this.getAttribute("expires");
-    this.start_timer(el, expires);
+
+    this.expires = this.getAttribute("expires");
+    if (this.hasAttribute("server_time")) this.server_time = this.getAttribute("server_time");
+    if (this.hasAttribute("show_negative")) this.show_negative = this.getAttribute("show_negative");
+    if (this.hasAttribute("no_timer_text")) this.no_timer_text = this.getAttribute("no_timer_text");
+    if (this.hasAttribute("expired_text")) this.expired_text = this.getAttribute("expired_text");
+
+    this.start_timer(el);
   }
 
-  display_countdown(el, expires) {
-    // Get today's date and time
-    var now = new Date().getTime();
+  disconnectedCallback() {
+    clearInterval(this.interval_timer);
+  }
 
-    var expire = new Date(expires).getTime();
+  display_countdown(el) {
+    let dt_now = new Date();
+    if (this.server_time) {
+      // Use now plus server time delta to compare expiry to
+      dt_now = new Date(dt_now.getTime() + window.viewassist.server_time_delta);
+    }
+
+    const expire = new Date(this.expires).getTime();
 
     // Find the distance between now and the count down date
-    var distance = expire - now;
+    let distance = (expire - dt_now) / 1000;
+    let disp_distance = Math.abs(Math.round(distance))
 
     // Time calculations for days, hours, minutes and seconds
-    var days = Math.floor(distance / (1000 * 60 * 60 * 24));
-    var hours = String(Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))).padStart(2,'0');
-    var minutes = String(Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60))).padStart(2,'0');
-    var seconds = String(Math.floor((distance % (1000 * 60)) / 1000)).padStart(2,'0');
+    let days = Math.floor(disp_distance / (60 * 60 * 24));
+    let hours = String(Math.floor((disp_distance % (60 * 60 * 24)) / (60 * 60))).padStart(2,'0');
+    let minutes = String(Math.floor((disp_distance % (60 * 60)) / (60))).padStart(2,'0');
+    let seconds = String(Math.floor(disp_distance % (60))).padStart(2,'0');
 
     // Display the result in the element
+    let sign = Math.round(distance) < 0 ? '-':'';
     if (days) {
-      el.textContent = days + "d " + hours + ":" + minutes + ":" + seconds;
+      el.textContent = sign + days + "d " + hours + ":" + minutes + ":" + seconds;
     } else {
-      el.textContent = hours + ":" + minutes + ":" + seconds;
+      el.textContent = sign + hours + ":" + minutes + ":" + seconds;
     }
     return distance
   }
 
-  start_timer(el, expires) {
-    if (expires != 0) {
+  start_timer(el) {
+    if (this.expires != 0) {
       var t = this;
-      t.display_countdown(el, expires)
-      const x = setInterval(function () {
-        var distance = t.display_countdown(el, expires);
-        if (distance < 0) {
-          clearInterval(x);
-          el.textContent = "Expired";
+      t.display_countdown(el)
+      this.interval_timer = setInterval(function () {
+        var distance = t.display_countdown(el);
+        if (!t.show_negative && distance < 0) {
+          clearInterval(this.interval_timer);
+          el.textContent = t.expired_text;
         }
       }, 500);
     } else {
-      if (typeof x !== 'undefined') { clearInterval(x) };
-      el.textContent = "No Timers";
+      if (typeof x !== 'undefined') { clearInterval(this.interval_timer) };
+      el.textContent = this.no_timer_text;
     }
   }
 }
@@ -192,9 +214,10 @@ class CountdownTimer extends HTMLElement {
 
 class ViewAssist {
   constructor(hass) {
-    this.hass = hass
+    this._hass = hass
     this.va_entity = '';
     this.initializeWhenReady();
+    this.server_time_delta = 0;
   }
 
   async initializeWhenReady(attempts = 0) {
@@ -210,7 +233,7 @@ class ViewAssist {
       console.info(
         `%cVIEW ASSIST ${version} IS INSTALLED
           %cView Assist Entity: ${this.va_entity}
-          Time Delta: ${window.viewassist_time_delta}`,
+          Time Delta: ${this.server_time_delta}`,
           "color: green; font-weight: bold",
           ""
       );
@@ -237,7 +260,7 @@ class ViewAssist {
   }
 
   async set_va_entity() {
-    this.va_entity = await this.hass.callWS({
+    this.va_entity = await this._hass.callWS({
       type: 'view_assist/get_entity_id',
       browser_id: localStorage.getItem("browser_mod-browser-id")
     })
@@ -246,16 +269,16 @@ class ViewAssist {
   }
 
   async set_time_delta() {
-    const delta = await this.hass.callWS({
+    const delta = await this._hass.callWS({
       type: 'view_assist/get_server_time_delta',
       epoch: new Date().getTime()
     })
-    window.viewassist_time_delta = delta;
+    this.server_time_delta = delta;
   }
 }
 
 
-const version = "1.0.1"
+const version = "1.0.2"
 
 // Get the view asssit entity for this browser id and save in local storage
 
@@ -267,5 +290,5 @@ Promise.all([
   customElements.whenDefined("home-assistant"),
   customElements.whenDefined("hui-view")
 ]).then(() => {
-  window.ViewAssist = new ViewAssist(ha);
+  window.viewassist = new ViewAssist(ha);
 });
