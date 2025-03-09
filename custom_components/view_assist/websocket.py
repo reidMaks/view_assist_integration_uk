@@ -1,7 +1,9 @@
 """View Assist websocket handlers."""
 
+from dataclasses import dataclass
 import logging
 import time
+from typing import Any
 
 import voluptuous as vol
 
@@ -17,6 +19,51 @@ from .const import DOMAIN
 from .helpers import get_entity_id_by_browser_id, get_mimic_entity_id
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class MockAdminUser:
+    """Mock admin user for use in MockWSConnection."""
+
+    is_admin = True
+
+
+class MockWSConnection:
+    """Mock a websocket connection to be able to call websocket handler functions.
+
+    This is here for creating the View Assist dashboard
+    """
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initilise."""
+        self.hass = hass
+        self.user = MockAdminUser()
+
+        self.failed_request: bool = False
+
+    def send_result(self, id, item):
+        """Receive result."""
+        self.failed_request = False
+
+    def send_error(self, id, code, msg):
+        """Receive error."""
+        self.failed_request = True
+
+    def execute_ws_func(self, ws_type: str, msg: dict[str, Any]) -> bool:
+        """Execute ws function."""
+        if self.hass.data["websocket_api"].get(ws_type):
+            try:
+                handler, schema = self.hass.data["websocket_api"][ws_type]
+                if schema is False:
+                    handler(self.hass, self, msg)
+                else:
+                    handler(self.hass, self, schema(msg))
+            except Exception as ex:  # noqa: BLE001
+                _LOGGER.error("Error calling %s.  Error is %s", ws_type, ex)
+                return False
+            else:
+                return True
+        return False
 
 
 async def async_register_websockets(hass: HomeAssistant):

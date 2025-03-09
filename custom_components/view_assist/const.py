@@ -24,7 +24,7 @@ JSMODULES = [
     {
         "name": "View Assist Helper",
         "filename": "view_assist.js",
-        "version": "1.0.1",
+        "version": "1.0.2",
     },
 ]
 

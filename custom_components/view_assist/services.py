@@ -368,7 +368,7 @@ class VAServices:
         device_id = call.data.get(ATTR_DEVICE_ID)
         cancel_all = call.data.get(ATTR_REMOVE_ALL, False)
 
-        if any([timer_id, device_id, cancel_all]):
+        if any([timer_id, entity_id, device_id, cancel_all]):
             t: VATimers = self.hass.data[DOMAIN][TIMERS]
             result = await t.cancel_timer(
                 timer_id=timer_id,
@@ -376,7 +376,7 @@ class VAServices:
                 cancel_all=cancel_all,
             )
             return {"result": result}
-        return {"error": "no timer id supplied"}
+        return {"error": "no attribute supplied"}
 
     async def async_handle_get_timers(self, call: ServiceCall) -> ServiceResponse:
         """Handle a cancel timer service call."""

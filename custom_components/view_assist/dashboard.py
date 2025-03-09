@@ -9,16 +9,16 @@ import urllib.parse
 
 from aiohttp import ContentTypeError
 
-from homeassistant.components import frontend
 from homeassistant.components.lovelace import (
     CONF_ICON,
+    CONF_REQUIRE_ADMIN,
     CONF_SHOW_IN_SIDEBAR,
     CONF_TITLE,
     CONF_URL_PATH,
     LovelaceData,
     dashboard,
 )
-from homeassistant.const import EVENT_PANELS_UPDATED
+from homeassistant.const import CONF_ID, CONF_MODE, CONF_TYPE, EVENT_PANELS_UPDATED
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util.yaml import load_yaml_dict, save_yaml
@@ -35,6 +35,7 @@ from .const import (
     VIEWS_DIR,
     VAConfigEntry,
 )
+from .websocket import MockWSConnection
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -360,52 +361,30 @@ class DashboardManager:
         """Create dashboard."""
 
         if not self.dashboard_exists:
-            # Get lovelace (frontend) config data
-            lovelace: LovelaceData = self.hass.data["lovelace"]
-
-            # Load dashboard config file from path
-            dashboard_config = await self.hass.async_add_executor_job(
-                load_yaml_dict, dashboard_path
-            )
-            dashboard_config["mode"] = "storage"
-
-            # Create entry in dashboard collection
-            dc = dashboard.DashboardsCollection(self.hass)
-            await dc.async_load()
-            dash = await dc.async_create_item(
+            mock_connection = MockWSConnection(self.hass)
+            if mock_connection.execute_ws_func(
+                "lovelace/dashboards/create",
                 {
+                    CONF_ID: 1,
+                    CONF_TYPE: "lovelace/dashboards/create",
                     CONF_ICON: "mdi:glasses",
                     CONF_TITLE: DASHBOARD_NAME,
                     CONF_URL_PATH: self.dashboard_key,
+                    CONF_MODE: "storage",
                     CONF_SHOW_IN_SIDEBAR: True,
-                }
-            )
-
-            # Add dashboard entry to Lovelace storage
-            lovelace.dashboards[self.dashboard_key] = dashboard.LovelaceStorage(
-                self.hass,
-                {
-                    "id": dash["id"],
-                    CONF_ICON: "mdi:glasses",
-                    CONF_TITLE: DASHBOARD_NAME,
-                    CONF_URL_PATH: self.dashboard_key,
+                    CONF_REQUIRE_ADMIN: False,
                 },
-            )
-            await lovelace.dashboards[self.dashboard_key].async_save(dashboard_config)
+            ):
+                # Get lovelace (frontend) config data
+                lovelace: LovelaceData = self.hass.data["lovelace"]
 
-            # Register panel
-            kwargs = {
-                "frontend_url_path": self.dashboard_key,
-                "require_admin": False,
-                "config": dashboard_config,
-                "sidebar_title": DASHBOARD_NAME,
-                "sidebar_icon": "mdi:glasses",
-            }
-            frontend.async_register_built_in_panel(
-                self.hass, "lovelace", **kwargs, update=False
-            )
-
-            await dc.async_update_item(dash["id"], {CONF_SHOW_IN_SIDEBAR: True})
+                # Load dashboard config file from path
+                if dashboard_config := await self.hass.async_add_executor_job(
+                    load_yaml_dict, dashboard_path
+                ):
+                    await lovelace.dashboards[self.dashboard_key].async_save(
+                        dashboard_config
+                    )
 
     async def add_view(
         self,
@@ -484,12 +463,14 @@ class DashboardManager:
         self, view_name: str, overwrite: bool = False, backup_if_exists: bool = False
     ) -> bool:
         """Backup a view to a file."""
-        url_path = DASHBOARD_NAME.replace(" ", "-").lower()
+
         # Get lovelace (frontend) config data
         lovelace: LovelaceData = self.hass.data["lovelace"]
 
         # Get access to dashboard store
-        dashboard_store: dashboard.LovelaceStorage = lovelace.dashboards.get(url_path)
+        dashboard_store: dashboard.LovelaceStorage = lovelace.dashboards.get(
+            self.dashboard_key
+        )
 
         # Load dashboard config data
         if dashboard_store:
