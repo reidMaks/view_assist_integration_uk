@@ -1,11 +1,11 @@
 """Class to handle timers with persistent storage."""
 
 import asyncio
-from asyncio import Task
 import contextlib
 from dataclasses import dataclass, field
 import datetime as dt
 from enum import StrEnum
+import inspect
 import logging
 import math
 import re
@@ -40,21 +40,15 @@ WEEKDAYS = [
     "saturday",
     "sunday",
 ]
+SPECIAL_DAYS = {
+    "today": 0,
+    "tomorrow": 1,
+}
 
-SPECIAL_DAYS = [
-    "today",
-    "tomorrow",
-]
 
-AMPM = ["am", "pm"]
-
-HOURS = {
+SPECIAL_HOURS = {
     "midnight": 0,
     "noon": 12,
-}
-PAST_TO = {
-    "quarter": 15,
-    "half": 30,
 }
 HOUR_FRACTIONS = {
     "1/4": 15,
@@ -63,6 +57,18 @@ HOUR_FRACTIONS = {
     "half": 30,
     "3/4": 45,
     "three quarters": 45,
+}
+AMPM = ["am", "pm"]
+SPECIAL_AMPM = {
+    "morning": "am",
+    "tonight": "pm",
+    "afternoon": "pm",
+    "evening": "pm",
+}
+
+DIRECT_REPLACE = {
+    "a day": "1 day",
+    "an hour": "1 hour",
 }
 
 
@@ -189,7 +195,7 @@ class Timer:
 REGEX_DAYS = (
     r"(?i)\b("
     + (
-        "|".join(WEEKDAYS + SPECIAL_DAYS)
+        "|".join(WEEKDAYS + list(SPECIAL_DAYS))
         + "|"
         + "|".join(f"Next {weekday}" for weekday in WEEKDAYS)
     )
@@ -203,23 +209,22 @@ REGEX_DAYS = (
 # Monday at 10:00 AM
 REGEX_TIME = (
     r"(?i)\b("
-    + ("|".join(WEEKDAYS + SPECIAL_DAYS))
-    + r")?[ ]?(?:at)?[ ]?([01]?[0-9]|2[0-3]):?([0-5][0-9])(?::([0-9][0-9]))?[ ]?(AM|am|PM|pm|tonight)?\b"
+    + ("|".join(WEEKDAYS + list(SPECIAL_DAYS)))
+    + "|"
+    + ("|".join([f"next {day}" for day in WEEKDAYS]))
+    + r")?[ ]?(?:at)?[ ]?([01]?[0-9]|2[0-3]):?([0-5][0-9])(?::([0-9][0-9]))?[ ]?(?:this)?[ ]?("
+    + "|".join(AMPM + list(SPECIAL_AMPM))
+    + r")?\b"
 )
-
-# Find an interval in human readbale form and decode into days, hours, minutes, seconds.
-# 5 minutes 30 seconds
-# 5 minutes
-# 2 hours 30 minutes
-# 30 seconds
-# 2 days 1 hour 20 minutes
-# 1 day 20 minutes
-REGEX_INTERVAL = (
-    r"(?i)\b"  # noqa: ISC003
-    + r"(?:(\d+) days?)?"
-    + r"[ ]?(?:and)?[ ]?(?:([01]?[0-9]|2[0-3]]) hours?)?"
-    + r"[ ]?(?:and)?[ ]?(?:([0-5]?[0-9]) minutes?)?"
-    + r"[ ]?(?:and)?[ ]?(?:(\d+) seconds?)?\b"
+REGEX_ALT_TIME = (
+    r"(?i)\b("
+    + ("|".join(WEEKDAYS + list(SPECIAL_DAYS)))
+    + "|"
+    + ("|".join([f"next {day}" for day in WEEKDAYS]))
+    + r")?[ ]?(?:at)?[ ]?"
+    + r"("
+    + "|".join(list(SPECIAL_HOURS))
+    + r")()()()"
 )
 
 # Allow natural language times
@@ -232,14 +237,33 @@ REGEX_INTERVAL = (
 # twenty to four PM
 # 20 to 4:00 PM
 REGEX_SUPER_TIME = (
-    r"(?i)\b("
-    + ("|".join(WEEKDAYS + SPECIAL_DAYS))
+    r"(?i)\b(?P<day>"
+    + ("|".join(WEEKDAYS + list(SPECIAL_DAYS)))
     + r")?[ ]?(?:at)?[ ]?(\d+|"
-    + "|".join(PAST_TO.keys())
+    + "|".join(list(HOUR_FRACTIONS))
     + r")\s(to|past)\s(\d+|"
-    + ("|".join(HOURS))
-    + r")(?::\d+)?[ ]?(am|pm|tonight)?\b"
+    + ("|".join(SPECIAL_HOURS))
+    + r")(?::\d+)?[ ]?("
+    + "|".join(AMPM + list(SPECIAL_AMPM))
+    + r")?\b"
 )
+
+
+# Find an interval in human readbale form and decode into days, hours, minutes, seconds.
+# 5 minutes 30 seconds
+# 5 minutes
+# 2 hours 30 minutes
+# 30 seconds
+# 2 days 1 hour 20 minutes
+# 1 day 20 minutes
+REGEX_INTERVAL = (
+    r"(?i)\b"  # noqa: ISC003
+    + r"(?:(\d+) days?)?"
+    + r"[ ]?(?:and)?[ ]?(?:([01]?[0-9]|2[0-3]]) hours?)?"
+    + r"[ ]?(?:and)?[ ]?(?:([0-9]?[0-9]?[0-9]) minutes?)?"
+    + r"[ ]?(?:and)?[ ]?(?:(\d+) seconds?)?\b"
+)
+
 
 # All natural language intervals
 # 2 1/2 hours
@@ -247,204 +271,159 @@ REGEX_SUPER_TIME = (
 # two and a half hours
 # one and a quarter hours
 # 1 1/2 minutes
-
 # three quarters of an hour
 # 3/4 of an hour
 # half an hour
 # 1/2 an hour
 # quarter of an hour
 # 1/4 of an hour
-REGEX_SUPER_INTERVAL = (
-    r"()(\d+|"
-    + "|".join(HOURS)
-    + r")?[ ]?(?:and a)?[ ]?("
+REGEX_SUPER_HOUR_INTERVAL = (
+    r"()(\d+)?"  # noqa: ISC003
+    + r"[ ]?(?:and a)?[ ]?("
     + "|".join(HOUR_FRACTIONS)
-    + r")[ ](?:an|of an)?[ ]?(?:minutes?|hours?)()"
+    + r")[ ](?:an|of an)?[ ]?(?:hours?)()"
 )
 
+REGEX_SUPER_MIN_INTERVAL = (
+    r"()()(\d+)?"  # noqa: ISC003
+    + r"[ ]?(?:and a)?[ ]?("
+    + "|".join(HOUR_FRACTIONS)
+    + r")[ ](?:an|of an)?[ ]?(?:minutes?)"
+)
 
-def calc_days_add(day: str, dt_now: dt.datetime) -> int:
-    """Get number of days to add for required weekday from now."""
-    day = day.lower()
-    has_next = False
+REGEX_ALT_SUPER_INTERVAL = (
+    r"()"  # noqa: ISC003
+    + r"(?:([01]?[0-9]|2[0-3]]|an) hours?)?"
+    + r"(?:[ ]?(?:and a?)?[ ]?)?"
+    + r"("
+    + "|".join(HOUR_FRACTIONS)
+    + r")?()"
+)
 
-    # Deal with the likes of next wednesday
-    if "next" in day:
-        has_next = True
-        day = day.replace("next", "").strip()
-
-    if day in WEEKDAYS:
-        # monday is weekday 0
-        current_weekday = dt_now.weekday()
-        set_weekday = WEEKDAYS.index(day)
-
-        # Check for 'next' prefix to day or if day less than today (assume next week)
-        if set_weekday < current_weekday or has_next:
-            return (7 - current_weekday) + set_weekday
-
-        return set_weekday - current_weekday
-    if day == "tomorrow":  # or "tomorrow" in sentence:
-        return 1
-    return 0
+REGEXES = {
+    "interval": {
+        "base": REGEX_INTERVAL,
+        "super_hour": REGEX_SUPER_HOUR_INTERVAL,
+        "super_min": REGEX_SUPER_MIN_INTERVAL,
+        "alt_super": REGEX_ALT_SUPER_INTERVAL,
+    },
+    "time": {
+        "base": REGEX_TIME,
+        "alt_base": REGEX_ALT_TIME,
+        "super": REGEX_SUPER_TIME,
+    },
+}
 
 
-def decode_time_sentence(sentence: str) -> dt.datetime | None:  # noqa: C901
-    """Convert senstence from assist into datetime.
+def _is_interval(sentence) -> bool:
+    return re.search(r"\bdays?|hours?|minutes?|seconds?", sentence) is not None
 
-    Sentence can be:
-        a time only in 12/24h format
-        a time with a day of the week or a special day like tomorrow
-        an interval like 10 hours and 3 minutes
-        a spoken term like half past 6 or tuesday at 20 to 5
 
-    Return None if unable to decode
+def _is_super(sentence: str, is_interval: bool) -> bool:
+    if is_interval:
+        return re.search(r"\b" + "|".join(HOUR_FRACTIONS), sentence) is not None
+    return (
+        re.search(
+            r"\b(?:" + "|".join(list(HOUR_FRACTIONS) + list(SPECIAL_HOURS)) + ")",
+            sentence,
+        )
+        is not None
+    )
+
+
+def _format_interval_numbers(interval_list: list[str | int]) -> list[int]:
+    for idx, entry in enumerate(interval_list):
+        if not entry:
+            interval_list[idx] = 0
+        elif isinstance(entry, str) and entry.isnumeric():
+            interval_list[idx] = int(entry)
+    return interval_list
+
+
+def _format_time_numbers(time_list: list[str | int]) -> list[int]:
+    for idx, entry in enumerate(time_list):
+        if idx in [0, 4]:
+            time_list[idx] = time_list[idx].lower()
+            continue
+        if not entry:
+            time_list[idx] = 0
+        elif isinstance(entry, str) and entry.isnumeric():
+            time_list[idx] = int(entry)
+    return time_list
+
+
+def decode_time_sentence(sentence: str):
+    """Decode a time or interval sentence.
+
+    Returns a TimerTime or TimerInterval object
     """
+    decoded = None
+    is_interval = _is_interval(sentence)
+    is_super = _is_super(sentence, is_interval)
 
-    def _convert_to_ints(input_list: list) -> list[int]:
-        for i, entry in enumerate(input_list):
-            if isinstance(entry, str):
-                if entry.isnumeric():
-                    input_list[i] = int(entry)
-            # Set to 0 if None or ""
-            if not entry:
-                input_list[i] = 0
-
-        return input_list
-
-    # Preprocess sentence for known issues
-    # These are a bit fudgy but so far too small a number to write
-    # more regex's for them
-    _sentence = sentence.lower()
-
-    if _sentence == "an hour and a half":
-        _sentence = "1 hour and 30 minutes"
-
-    elif _sentence == "a day and a half":
-        _sentence = "1 day and 12 hours"
-
-    elif _sentence.startswith("an hour"):
-        _sentence = _sentence.replace("an hour", "1 hour")
+    _LOGGER.debug("%s is of type %s", sentence, "interval" if is_interval else "time")
 
     # Convert all word numbers to ints
-    if not _sentence.startswith("three quarters"):
-        _sentence = wordtodigits.convert(_sentence)
+    if not sentence.startswith("three quarters"):
+        sentence = wordtodigits.convert(sentence)
 
-    # Time search
-    set_time = re.findall(REGEX_TIME, _sentence)
+    # Direct replace parts of the string to help decoding
+    for repl_item, repl_str in DIRECT_REPLACE.items():
+        if repl_item in sentence:
+            sentence = sentence.replace(repl_item, repl_str)
 
-    # make sure not a super text statement by tesing for to or past in the senstence
-    if " to " in _sentence or " past " in _sentence:
-        set_time = None
+    for idx, regex in REGEXES["interval" if is_interval else "time"].items():
+        if is_super and idx == "base":
+            continue
+        match = re.match(regex, sentence)
+        if match and match.group(0):
+            decoded = re.findall(regex, sentence)
+            if decoded:
+                # Make tuple into list
+                decoded = list(decoded[0])
 
-    if set_time:
-        set_time = list(set_time[0])
+                # if day is blank look if we need to populate
+                if not is_interval and not decoded[0]:
+                    if day_text := re.findall(REGEX_DAYS, sentence):
+                        decoded[0] = day_text[0].lower()
 
-        # Convert h,r, min, sec to int
-        set_time = set_time[:1] + _convert_to_ints(set_time[1:4]) + set_time[-1:]
+                # If has special hours, set meridiem
+                if decoded[1] in list(SPECIAL_HOURS):
+                    decoded[4] = "am" if SPECIAL_HOURS[decoded[1]] < 12 else "pm"
 
-        # Get if day or special day in sentence
-        # This is a second check incase first REGEX does not detect it.
-        if day_text := re.findall(REGEX_DAYS, _sentence):
-            set_time[0] = day_text[0]
+                # now iterate and replace text numbers with numbers
+                for i, v in enumerate(decoded):
+                    if i > 0:
+                        with contextlib.suppress(KeyError):
+                            decoded[i] = SPECIAL_HOURS[v]
+                        with contextlib.suppress(KeyError):
+                            decoded[i] = HOUR_FRACTIONS[v]
+                        with contextlib.suppress(KeyError):
+                            decoded[i] = SPECIAL_AMPM[v]
 
-        # make into a class object
-        time_info = TimerTime(
-            day=set_time[0],
-            hour=set_time[1],
-            minute=set_time[2],
-            second=set_time[3],
-            meridiem=set_time[4],
-        )
-        return sentence, time_info
+                # Make time objects
+                if is_interval:
+                    # Convert interval to TimerInterval
+                    decoded = _format_interval_numbers(decoded)
+                    return sentence, TimerInterval(*decoded)
+                # Handle time
+                decoded = _format_time_numbers(decoded)
+                if "super" not in idx:
+                    # Convert base and alt base time to TimerTime
+                    return sentence, TimerTime(*decoded)
 
-    # Interval search
-    int_search = re.search(REGEX_INTERVAL, _sentence)
-    interval = int_search.groups()
-
-    if any(interval):
-        interval = _convert_to_ints(list(interval))
-
-        interval_info = TimerInterval(
-            days=interval[0],
-            hours=interval[1],
-            minutes=interval[2],
-            seconds=interval[3],
-        )
-        return sentence, interval_info
-
-    # Super time search
-    spec_time = re.findall(REGEX_SUPER_TIME, _sentence)
-    if spec_time:
-        set_time = list(spec_time[0])
-
-        # return None if not a full match
-        if all(set_time[1:3]):
-            # Get if day or special day in sentence
-            # This is a second check incase first REGEX does not detect it.
-            if day_text := re.findall(REGEX_DAYS, _sentence):
-                set_time[0] = day_text[0]
-
-            # now iterate and replace text numbers with numbers
-            for i, v in enumerate(set_time):
-                if i > 0:
-                    with contextlib.suppress(KeyError):
-                        set_time[i] = HOURS.get(v, PAST_TO.get(v, v))
-
-            # Set any string ints to int
-            if isinstance(set_time[1], str) and set_time[1].isnumeric():
-                set_time[1] = int(set_time[1])
-            if isinstance(set_time[3], str) and set_time[3].isnumeric():
-                set_time[3] = int(set_time[3])
-
-            # Amend for set_time[2] == "to"
-            if set_time[2] == "to":
-                set_time[3] = set_time[3] - 1 if set_time[3] != 0 else 23
-                set_time[1] = 60 - set_time[1]
-
-            # make set_time into a class object
-            time_info = TimerTime(
-                day=set_time[0],
-                hour=set_time[3],
-                minute=set_time[1],
-                second=0,
-                meridiem=set_time[4],
-            )
-            return sentence, time_info
-
-    # Super interval search
-    interval = re.findall(REGEX_SUPER_INTERVAL, _sentence)
-    if interval:
-        interval = list(interval[0])
-
-        # Convert hours to numbers
-        if interval[1] in HOURS:
-            interval[1] = HOURS.get(interval[1])
-
-        # Convert hour fractions
-        if interval[2] in HOUR_FRACTIONS:
-            interval[2] = HOUR_FRACTIONS.get(interval[2])
-
-        interval = _convert_to_ints(interval)
-
-        # Fix for interval in minutes not hours
-        if ("minute" in _sentence or "minutes" in _sentence) and not (
-            "hour" in _sentence or "hours" in _sentence
-        ):
-            # Shift values right in list
-            interval = interval[-1:] + interval[:-1]
-
-        interval_info = TimerInterval(
-            days=interval[0],
-            hours=interval[1],
-            minutes=interval[2],
-            seconds=interval[3],
-        )
-        return sentence, interval_info
-
+                # Handle super time (which is in different format)
+                return sentence, TimerTime(
+                    day=decoded[0],
+                    hour=decoded[3] - 1 if decoded[2] == "to" else decoded[3],
+                    minute=60 - decoded[1] if decoded[2] == "to" else decoded[1],
+                    second=0,
+                    meridiem=decoded[4],
+                )
     _LOGGER.warning(
         "Time senstence decoder - Unable to decode: %s -> %s", sentence, None
     )
-    return sentence, _sentence
+    return sentence, None
 
 
 def get_datetime_from_timer_interval(interval: TimerInterval) -> dt.datetime:
@@ -461,49 +440,63 @@ def get_datetime_from_timer_interval(interval: TimerInterval) -> dt.datetime:
 def get_datetime_from_timer_time(
     set_time: TimerTime, context_time: bool = True
 ) -> dt.datetime:
-    """Return datetime from TimerTime."""
+    """Return datetime from TimerTime object."""
+
+    def _calc_days_add(day: str, dt_now: dt.datetime) -> int:
+        """Get number of days to add for required weekday from now."""
+        has_next = False
+
+        # Deal with the likes of next wednesday
+        if "next" in day:
+            has_next = True
+            day = day.replace("next", "").strip()
+
+        if day in WEEKDAYS:
+            # monday is weekday 0
+            current_weekday = dt_now.weekday()
+            set_weekday = WEEKDAYS.index(day)
+
+            # Check for 'next' prefix to day or if day less than today (assume next week)
+            if set_weekday < current_weekday or has_next:
+                return (7 - current_weekday) + set_weekday
+
+            return set_weekday - current_weekday
+        if day == "tomorrow":  # or "tomorrow" in sentence:
+            return 1
+        return 0
+
     dt_now = dt.datetime.now()
-    add_hours = 0
 
-    # Don't set times between midnight and 6am unless set specifically
-    # assume they mean PM
-    if set_time.hour < 6 and not set_time.meridiem:
-        set_time.meridiem = "pm"
+    # Set pm hour based on meridiem stating pm
+    if set_time.meridiem == "pm" and set_time.hour < 12:
+        set_time.hour = set_time.hour + 12
 
-    if set_time.hour <= 12 and set_time.meridiem in ["pm", "tonight"]:
-        add_hours = 12
-
-    # Add time context - set for next time 12h time comes around
-    # If 20 to 5 and it is 11am, set for 16:40
-    # if 20 to 5 and it is 6pm, set for 04:40
-    elif context_time and not set_time.meridiem:
-        # Set for next 12h time match
-        set_datetime = dt_now.replace(
-            hour=set_time.hour, minute=set_time.minute, second=set_time.second
-        )
-
-        if set_time.hour < 12 and set_datetime + dt.timedelta(hours=12) > dt_now:
-            add_hours = 12
-
-    # Now build datetime
-    date = dt_now
-    date = date.replace(
-        hour=(set_time.hour + add_hours) % 24,
-        minute=set_time.minute if set_time.minute else 0,
-        second=0,
+    # Make initial datetime
+    timer_dt = dt_now.replace(
+        hour=set_time.hour,
+        minute=set_time.minute,
+        second=set_time.second,
         microsecond=0,
     )
 
-    # if day name in sentence
-    if set_time.day:
-        add_days = calc_days_add(set_time.day, dt_now)
-        date = date + dt.timedelta(days=add_days)
+    # Set the timer_dt day
+    if add_days := _calc_days_add(set_time.day, timer_dt):
+        timer_dt = timer_dt + dt.timedelta(days=add_days)
 
-    # If time is less than now, add 1 day
-    if date < dt.datetime.now():
-        date = date + dt.timedelta(days=1)
+    # Apply fixed context
+    if timer_dt < dt_now:
+        # If time has passed, move to next matching time
+        if set_time.meridiem:
+            # Add 24 hours
+            timer_dt = timer_dt + dt.timedelta(days=1)
+        else:
+            timer_dt = timer_dt + dt.timedelta(hours=12)
 
-    return date
+    # Add optional context - if before 6am and no meridiem, assume PM
+    if context_time and timer_dt.hour < 6 and not set_time.meridiem:
+        timer_dt = timer_dt + dt.timedelta(hours=12)
+
+    return timer_dt
 
 
 def get_named_day(timer_dt: dt.datetime, dt_now: dt.datetime) -> str:
@@ -638,7 +631,10 @@ class VATimerStore:
                 dt.datetime.now().timetuple()
             )
         for listener in self.listeners:
-            listener(self.timers)
+            if inspect.iscoroutinefunction(listener):
+                await listener(self.timers)
+            else:
+                listener(self.timers)
         await self.save()
 
     def add_listener(self, callback):
@@ -673,7 +669,7 @@ class VATimers:
         self.config = config
 
         self.store = VATimerStore(hass)
-        self.timer_tasks: dict[str, Task] = {}
+        self.timer_tasks: dict[str, asyncio.Task] = {}
 
     async def load(self):
         """Load data store."""

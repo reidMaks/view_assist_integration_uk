@@ -316,6 +316,7 @@ class VAServices:
         extra_data = call.data.get(ATTR_EXTRA)
 
         sentence, timer_info = decode_time_sentence(timer_time)
+        _LOGGER.debug("Time decode: %s -> %s", sentence, timer_info)
         if entity_id is None and device_id is None:
             mimic_device = get_mimic_entity_id(self.hass)
             if mimic_device:
