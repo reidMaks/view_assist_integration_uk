@@ -63,8 +63,8 @@ async def run_if_first_instance(hass: HomeAssistant, entry: VAConfigEntry):
 
     # Setup Timers
     timers = VATimers(hass, entry)
-    await timers.load()
     hass.data[DOMAIN][TIMERS] = timers
+    await timers.load()
 
     # Load javascript modules
     jsloader = JSModuleRegistration(hass)
