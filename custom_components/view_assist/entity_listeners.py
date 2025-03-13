@@ -18,6 +18,7 @@ from .const import (
     CONF_DO_NOT_DISTURB,
     DOMAIN,
     REMOTE_ASSIST_DISPLAY_DOMAIN,
+    USE_VA_NAVIGATION_FOR_BROWSERMOD,
     VA_ATTRIBUTE_UPDATE_EVENT,
     VAConfigEntry,
     VADisplayType,
@@ -134,11 +135,19 @@ class EntityListeners:
             if not self.browser_or_device_id:
                 self.browser_or_device_id = browser_id
 
-            await self.hass.services.async_call(
-                BROWSERMOD_DOMAIN,
-                "navigate",
-                {"browser_id": self.browser_or_device_id, "path": path},
-            )
+            if USE_VA_NAVIGATION_FOR_BROWSERMOD:
+                # Use own VA navigation
+                async_dispatcher_send(
+                    self.hass,
+                    f"{DOMAIN}_{self.config_entry.entry_id}_navigate",
+                    {"path": path},
+                )
+            else:
+                await self.hass.services.async_call(
+                    BROWSERMOD_DOMAIN,
+                    "navigate",
+                    {"browser_id": self.browser_or_device_id, "path": path},
+                )
 
         # If using RAD
         elif display_type == VADisplayType.REMOTE_ASSIST_DISPLAY:
@@ -280,8 +289,8 @@ class EntityListeners:
         old_value = event.data.get("old_value")
         new_value = event.data.get("new_value")
 
-        _LOGGER.info(
-            "ATTR CHANGED: %s - old value: %s, new value: %s",
+        _LOGGER.debug(
+            "Attribute changed: %s - old value: %s, new value: %s",
             attribute,
             old_value,
             new_value,

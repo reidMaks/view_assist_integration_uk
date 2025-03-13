@@ -1,3 +1,50 @@
+const version = "1.0.3"
+const TIMEOUT_ERROR = "SELECTTREE-TIMEOUT";
+
+export async function await_element(el, hard = false) {
+  if (el.localName?.includes("-"))
+    await customElements.whenDefined(el.localName);
+  if (el.updateComplete) await el.updateComplete;
+  if (hard) {
+    if (el.pageRendered) await el.pageRendered;
+    if (el._panelState) {
+      let rounds = 0;
+      while (el._panelState !== "loaded" && rounds++ < 5)
+        await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+}
+
+async function _selectTree(root, path, all = false) {
+  let el = [root];
+  if (typeof path === "string") {
+    path = path.split(/(\$| )/);
+  }
+  while (path[path.length - 1] === "") path.pop();
+  for (const [i, p] of path.entries()) {
+    const e = el[0];
+    if (!e) return null;
+
+    if (!p.trim().length) continue;
+
+    await_element(e);
+    el = p === "$" ? [e.shadowRoot] : e.querySelectorAll(p);
+  }
+  return all ? el : el[0];
+}
+
+export async function selectTree(root, path, all = false, timeout = 10000) {
+  return Promise.race([
+    _selectTree(root, path, all),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(TIMEOUT_ERROR)), timeout)
+    ),
+  ]).catch((err) => {
+    if (!err.message || err.message !== TIMEOUT_ERROR) throw err;
+    return null;
+  });
+}
+
 export async function hass_base_el() {
   await Promise.race([
     customElements.whenDefined("home-assistant"),
@@ -97,10 +144,9 @@ class Clock extends HTMLElement {
     const shadow = this.shadowRoot || this.attachShadow({ mode: 'open' });
     // Create span
     this.shadowRoot.innerHTML = '';
-    const el = document.createElement("span");
+    const el = document.createElement("div");
     el.setAttribute("class", "clock");
     shadow.appendChild(el);
-
 
     if (this.hasAttribute("server_time")) this.server_time = this.getAttribute("server_time");
 
@@ -211,13 +257,66 @@ class CountdownTimer extends HTMLElement {
   }
 }
 
+class VAData {
+  constructor() {
+    this.config;
+    this.server_time_delta = 0;
+  }
+}
 
 class ViewAssist {
   constructor(hass) {
     this._hass = hass
-    this.va_entity = '';
+    this.variables = new VAData();
+    this.connect_ws = true;
+    this.connected = false;
     this.initializeWhenReady();
-    this.server_time_delta = 0;
+  }
+
+  async hide_header(enabled) {
+    let elMain = await selectTree(
+      document.body,
+      "home-assistant $ home-assistant-main $ partial-panel-resolver ha-panel-lovelace $ hui-root $"
+    )
+
+    await selectTree(
+      elMain, "hui-view-container"
+    ).then((el) => {
+      enabled ? el?.style.setProperty("padding-top", "0px") : el?.style.removeProperty("padding-top")
+    });
+
+    await selectTree(
+      elMain, ".header"
+    ).then((el) => {
+      enabled ? el?.style.setProperty("display", "none"): el?.style.removeProperty("display")
+    });
+  }
+
+  async hide_sidebar(enabled) {
+    let elMain = await selectTree(
+      document.body,
+      "home-assistant $ home-assistant-main"
+    )
+
+    enabled ? elMain?.style?.setProperty("--mdc-drawer-width", "0px") : elMain?.style?.removeProperty("--mdc-drawer-width");
+
+    await selectTree(
+      elMain, "$ partial-panel-resolver"
+    ).then((el) => {
+      enabled ? el?.style.setProperty("--mdc-top-app-bar-width", "100% !important") : el?.style.removeProperty("--mdc-top-app-bar-width")
+    });
+
+    await selectTree(
+      elMain, "$ ha-drawer ha-sidebar"
+    ).then((el) => {
+      enabled ? el?.style.setProperty("display", "none !important") : el?.style.removeProperty("display")
+    });
+
+    await selectTree(
+      elMain, "$ partial-panel-resolver ha-panel-lovelace $ hui-root $ ha-menu-button"
+    ).then((el) => {
+      enabled ? el?.style?.setProperty("display", "none") : el?.style?.removeProperty("display")
+    });
   }
 
   async initializeWhenReady(attempts = 0) {
@@ -227,16 +326,23 @@ class ViewAssist {
     }
 
     try {
-      await this.set_va_entity();
-      await this.set_time_delta();
+      // Connect to server websocket
+      if (this.connect_ws) {
+        await this.connect("connected")
+        window.addEventListener("connection-status", (ev) => this.connect(ev.detail, 2000));
+      }
 
-      console.info(
-        `%cVIEW ASSIST ${version} IS INSTALLED
-          %cView Assist Entity: ${this.va_entity}
-          Time Delta: ${this.server_time_delta}`,
-          "color: green; font-weight: bold",
-          ""
-      );
+      window.addEventListener("location-changed", () => {
+        //console.log("Location changed, hiding sections");
+        this.hide_sections();
+      });
+
+      // Update time delta and set 5 min refresh interval
+      await this.set_time_delta();
+      var t = this;
+      const delta = setInterval(function () {
+        t.set_time_delta();
+      }, 300 * 1000);
 
 
       const bc = await Promise.resolve(customElements.whenDefined("button-card"))
@@ -247,41 +353,107 @@ class ViewAssist {
       customElements.define("viewassist-countdown", CountdownTimer)
       customElements.define("viewassist-clock", Clock)
 
-      // Update time delta
-      var t = this;
-      const delta = setInterval(function () {
-        t.set_time_delta();
-      }, 300 * 1000);
-
     } catch (e) {
       console.log("Initialization retry:", e.message);
       setTimeout(() => this.initializeWhenReady(attempts + 1), 100);
     }
   }
 
-  async set_va_entity() {
-    this.va_entity = await this._hass.callWS({
-      type: 'view_assist/get_entity_id',
-      browser_id: localStorage.getItem("browser_mod-browser-id")
-    })
-    localStorage.setItem("view_assist_sensor", this.va_entity);
+  async hide_sections() {
+    // Hide header and sidebar
+    if (!this.variables.config?.mimic_device) {
+      await this.hide_header(this.variables.config?.hide_header);
+      await this.hide_sidebar(this.variables.config?.hide_sidebar);
+    }
+  }
 
+  async connect(state, delay = 0) {
+    // Subscribe to server updates
+
+    if (delay != 0) await new Promise(r => setTimeout(r, delay));
+
+    if (state === "connected") {
+      try {
+
+        const conn = (await hass()).connection;
+        conn.subscribeMessage((msg) => this.incoming_message(msg), {
+          type: "view_assist/connect",
+          browser_id: localStorage.getItem("browser_mod-browser-id"),
+        })
+        this.connected = true;
+        console.log("ViewAssist connected to server")
+      } catch {
+        console.log("Unable to connect to server")
+      }
+    } else {
+      this.connected = false;
+    }
+  }
+
+  async incoming_message(msg) {
+    // Handle incomming messages from the server
+    let event = msg["event"];
+    let payload = msg["payload"];
+    console.log("event:", event, " -> ", payload);
+
+    if (event == "connection" || event == "config_update" || event == "registered") {
+      await this.process_config(event, payload);
+    }
+    if (event == "timer_update") {
+      this.variables.config.timers = payload
+    }
+    if (event == "navigate") {
+      if (payload["variables"]) this.variables.navigation = payload["variables"];
+      this.browser_navigate(payload["path"]);
+    }
+  }
+
+  async process_config(event, payload) {
+    let reload = false;
+    const old_config = this.variables?.config
+
+    // Set variables to payload
+    this.variables.config = payload
+
+    // Entity id and mimic device
+    if (payload.entity_id && payload.entity_id != localStorage.getItem("view_assist_sensor")) {
+      console.log("Set view assist sensor value")
+      localStorage.setItem("view_assist_sensor", payload.entity_id);
+      localStorage.setItem("view_assist_mimic_device", payload.mimic_device);
+      reload = true
+    }
+
+    if (!payload.mimic_device) {
+
+      // On update of config, go to default page
+      if (event == "registered" || event == "connection" || reload) {
+        this.browser_navigate(payload.dashboard);
+      } else {
+        window.dispatchEvent(new CustomEvent("location-changed"));
+      }
+    }
   }
 
   async set_time_delta() {
-    const delta = await this._hass.callWS({
-      type: 'view_assist/get_server_time_delta',
-      epoch: new Date().getTime()
-    })
-    this.server_time_delta = delta;
+    // Get this clients time delta to the server
+    if (this.connected) {
+      const delta = await this._hass.callWS({
+        type: 'view_assist/get_server_time_delta',
+        epoch: new Date().getTime()
+      })
+      this.variables.server_time_delta = delta;
+    }
+  }
+
+  browser_navigate(path) {
+    // Navigate the browser window
+    if (!this.variables.config.mimic_device) {
+      if (!path) return;
+      history.pushState(null, "", path);
+      window.dispatchEvent(new CustomEvent("location-changed"));
+    }
   }
 }
-
-
-const version = "1.0.2"
-
-// Get the view asssit entity for this browser id and save in local storage
-
 
 // Initialize when core web components are ready
 const ha = await hass();
@@ -290,5 +462,12 @@ Promise.all([
   customElements.whenDefined("home-assistant"),
   customElements.whenDefined("hui-view")
 ]).then(() => {
-  window.viewassist = new ViewAssist(ha);
+  console.info(
+    `%cVIEW ASSIST ${version} IS INSTALLED
+      %cView Assist Entity: ${localStorage.getItem("view_assist_sensor")}
+      Is Mimic Device: ${localStorage.getItem("view_assist_mimic_device")}`,
+      "color: green; font-weight: bold",
+      ""
+  );
+  window.viewassist = new ViewAssist(ha).variables;
 });

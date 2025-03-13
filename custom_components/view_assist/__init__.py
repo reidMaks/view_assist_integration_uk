@@ -4,12 +4,18 @@ import logging
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .alarm_repeater import ALARMS, VAAlarmRepeater
 from .const import DOMAIN, RuntimeData, VAConfigEntry
 from .dashboard import DASHBOARD_MANAGER, DashboardManager
 from .entity_listeners import EntityListeners
-from .helpers import ensure_list, get_loaded_instance_count, is_first_instance
+from .helpers import (
+    ensure_list,
+    get_device_name_from_id,
+    get_loaded_instance_count,
+    is_first_instance,
+)
 from .http import HTTPManager
 from .js_modules import JSModuleRegistration
 from .services import VAServices
@@ -50,6 +56,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
 
     # Request platform setup
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Fire display device registration to setup display if first time config
+    async_dispatcher_send(
+        hass,
+        f"{DOMAIN}_{get_device_name_from_id(hass, entry.runtime_data.display_device)}_registered",
+    )
 
     return True
 

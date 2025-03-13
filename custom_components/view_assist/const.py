@@ -18,13 +18,14 @@ DEFAULT_VIEWS = ["clock", "weather", "alarm", "music", "info", "intent"]
 
 BROWSERMOD_DOMAIN = "browser_mod"
 REMOTE_ASSIST_DISPLAY_DOMAIN = "remote_assist_display"
+USE_VA_NAVIGATION_FOR_BROWSERMOD = True
 VA_SUB_DIRS = ["audio", "images"]
 URL_BASE = "view_assist"
 JSMODULES = [
     {
         "name": "View Assist Helper",
         "filename": "view_assist.js",
-        "version": "1.0.2",
+        "version": "1.0.3",
     },
 ]
 
@@ -111,6 +112,8 @@ CONF_DO_NOT_DISTURB = "do_not_disturb"
 CONF_USE_ANNOUNCE = "use_announce"
 CONF_MIC_UNMUTE = "micunmute"
 CONF_DEV_MIMIC = "dev_mimic"
+CONF_HIDE_HEADER = "hide_header"
+CONF_HIDE_SIDEBAR = "hide_sidebar"
 
 # Config default values
 DEFAULT_NAME = "View Assist"
@@ -132,6 +135,8 @@ DEFAULT_VIEW_TIMEOUT = 20
 DEFAULT_DND = False
 DEFAULT_USE_ANNOUNCE = True
 DEFAULT_MIC_UNMUTE = False
+DEFAULT_HIDE_SIDEBAR = True
+DEFAULT_HIDE_HEADER = True
 
 # Service attributes
 ATTR_EVENT_NAME = "event_name"
@@ -186,6 +191,8 @@ class RuntimeData:
         self.mic_type: VAMicType = DEFAULT_MIC_TYPE
         self.mode: str = DEFAULT_MODE
         self.view_timeout: int = DEFAULT_VIEW_TIMEOUT
+        self.hide_sidebar: bool = DEFAULT_HIDE_SIDEBAR
+        self.hide_header: bool = DEFAULT_HIDE_HEADER
         self.do_not_disturb: bool = DEFAULT_DND
         self.use_announce: bool = DEFAULT_USE_ANNOUNCE
         self.mic_unmute: bool = DEFAULT_MIC_UNMUTE
