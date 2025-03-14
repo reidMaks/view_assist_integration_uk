@@ -103,11 +103,11 @@ class ViewAssistEntity:
         """Init."""
         self._hass = hass
 
-    def __call__(self, param: str, mimic: bool = False) -> list[str]:
+    def __call__(self, param: str, mimic: bool = True) -> list[str]:
         "Call."
-
-        if entry := get_config_entry_by_config_data_value(self._hass, param):
-            return get_sensor_entity_from_instance(self._hass, entry.entry_id)
+        if param is not None:
+            if entry := get_config_entry_by_config_data_value(self._hass, param):
+                return get_sensor_entity_from_instance(self._hass, entry.entry_id)
         if mimic:
             return get_mimic_entity_id(self._hass)
         return None

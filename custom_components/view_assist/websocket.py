@@ -11,12 +11,20 @@ from homeassistant.components.websocket_api import (
     ActiveConnection,
     async_register_command,
     async_response,
+    event_message,
     websocket_command,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from .const import DOMAIN
-from .helpers import get_entity_id_by_browser_id, get_mimic_entity_id
+from .helpers import (
+    get_config_entry_by_entity_id,
+    get_device_id_from_entity_id,
+    get_entity_id_by_browser_id,
+    get_mimic_entity_id,
+)
+from .timers import TIMERS, VATimers
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,6 +77,94 @@ class MockWSConnection:
 async def async_register_websockets(hass: HomeAssistant):
     """Register websocket functions."""
 
+    @websocket_command(
+        {
+            vol.Required("type"): f"{DOMAIN}/connect",
+            vol.Required("browser_id"): str,
+        }
+    )
+    @async_response
+    async def handle_connect(hass: HomeAssistant, connection: ActiveConnection, msg):
+        """Connect to Browser Mod and subscribe to settings updates."""
+
+        def get_entity_id(browser_id):
+            mimic = False
+            entity = get_entity_id_by_browser_id(hass, browser_id)
+            if not entity:
+                if entity := get_mimic_entity_id(hass):
+                    mimic = True
+            return entity, mimic
+
+        browser_id = msg["browser_id"]
+        va_entity, mimic = get_entity_id(browser_id)
+        _LOGGER.debug(
+            "Browser with id %s connected with mimic as %s. VA Entity is %s",
+            browser_id,
+            mimic,
+            va_entity,
+        )
+
+        timers: VATimers = hass.data[DOMAIN]["timers"]
+
+        @callback
+        def send_event(event, data):
+            connection.send_message(
+                event_message(msg["id"], {"event": event, "payload": data})
+            )
+
+        @callback
+        def send_timer_update(*args):
+            send_event(
+                "timer_update",
+                timers.get_timers(device_or_entity_id=va_entity, include_expired=True),
+            )
+
+        async def send_register_event():
+            await send_config_update(event="registered")
+
+        async def send_config_update(event: str = "config_update"):
+            va_entity, mimic = get_entity_id(browser_id)
+            data = await get_data(hass, browser_id, va_entity, mimic)
+            connection.send_message(
+                event_message(msg["id"], {"event": event, "payload": data})
+            )
+
+        @callback
+        def browser_navigate(*args):
+            send_event("navigate", *args)
+
+        timer_listener = timers.store.add_listener(send_timer_update)
+
+        if va_entity and not mimic:
+            config = get_config_entry_by_entity_id(hass, va_entity)
+
+            async_dispatcher_connect(
+                hass,
+                f"{DOMAIN}_{config.entry_id}_update",
+                send_config_update,
+            )
+
+            async_dispatcher_connect(
+                hass,
+                f"{DOMAIN}_{config.entry_id}_navigate",
+                browser_navigate,
+            )
+        else:
+            async_dispatcher_connect(
+                hass,
+                f"{DOMAIN}_{browser_id}_registered",
+                send_register_event,
+            )
+
+        def close_connection():
+            _LOGGER.debug("Browser with id %s disconnected", browser_id)
+            timer_listener()
+
+        connection.subscriptions[browser_id] = close_connection
+        connection.send_result(msg["id"])
+
+        await send_config_update("connection")
+
     # Get sensor entity by browser id
     @websocket_command(
         {
@@ -81,11 +177,15 @@ async def async_register_websockets(hass: HomeAssistant):
         hass: HomeAssistant, connection: ActiveConnection, msg: dict
     ) -> None:
         """Get entity id by browser id."""
-        output = get_entity_id_by_browser_id(hass, msg["browser_id"])
-        if not output:
-            output = get_mimic_entity_id(hass)
+        is_mimic = False
+        entity_id = get_entity_id_by_browser_id(hass, msg["browser_id"])
+        if not entity_id:
+            if entity_id := get_mimic_entity_id(hass):
+                is_mimic = True
 
-        connection.send_result(msg["id"], output)
+        connection.send_result(
+            msg["id"], {"entity_id": entity_id, "mimic_device": is_mimic}
+        )
 
     # Get server datetime
     @websocket_command(
@@ -103,5 +203,76 @@ async def async_register_websockets(hass: HomeAssistant):
         delta = round(time.time() * 1000) - msg["epoch"]
         connection.send_result(msg["id"], delta)
 
+    # Get timer by name
+    @websocket_command(
+        {
+            vol.Required("type"): f"{DOMAIN}/get_timer",
+            vol.Required("browser_id"): str,
+            vol.Required("name"): str,
+        }
+    )
+    @async_response
+    async def websocket_get_timer_by_name(
+        hass: HomeAssistant, connection: ActiveConnection, msg: dict
+    ) -> None:
+        """Get entity id by browser id."""
+        entity = get_entity_id_by_browser_id(hass, msg["browser_id"])
+        if not entity:
+            output = get_mimic_entity_id(hass)
+
+        if entity:
+            timer_name = msg["name"]
+            timers: VATimers = hass.data[DOMAIN][TIMERS]
+
+            output = timers.get_timers(device_or_entity_id=entity, name=timer_name)
+
+        connection.send_result(msg["id"], output)
+
+    async_register_command(hass, handle_connect)
     async_register_command(hass, websocket_get_entity_by_browser_id)
     async_register_command(hass, websocket_get_server_time)
+    async_register_command(hass, websocket_get_timer_by_name)
+
+    async def get_data(
+        hass: HomeAssistant,
+        browser_id: str,
+        entity_id: str | None = None,
+        mimic: bool = False,
+    ) -> dict[str, Any]:
+        output = {}
+
+        if entity_id:
+            config = get_config_entry_by_entity_id(hass, entity_id)
+            data = config.runtime_data
+            timers: VATimers = hass.data[DOMAIN][TIMERS]
+            timer_info = timers.get_timers(
+                device_or_entity_id=entity_id, include_expired=True
+            )
+            try:
+                output = {
+                    "browser_id": browser_id,
+                    "entity_id": entity_id,
+                    "mimic_device": mimic,
+                    "name": data.name,
+                    "mic_entity_id": data.mic_device,
+                    "mic_device_id": get_device_id_from_entity_id(
+                        hass, data.mic_device
+                    ),
+                    "mediaplayer_entity_id": data.mediaplayer_device,
+                    "mediaplayer_device_id": get_device_id_from_entity_id(
+                        hass, data.mediaplayer_device
+                    ),
+                    "musicplayer_entity_id": data.musicplayer_device,
+                    "musicplayer_device_id": get_device_id_from_entity_id(
+                        hass, data.musicplayer_device
+                    ),
+                    "display_device_id": data.display_device,
+                    "timers": timer_info,
+                    "background": data.background,
+                    "dashboard": data.dashboard,
+                    "hide_sidebar": data.hide_sidebar,
+                    "hide_header": data.hide_header,
+                }
+            except Exception:  # noqa: BLE001
+                output = {}
+        return output

@@ -29,6 +29,8 @@ from .const import (
     CONF_DISPLAY_DEVICE,
     CONF_DO_NOT_DISTURB,
     CONF_FONT_STYLE,
+    CONF_HIDE_HEADER,
+    CONF_HIDE_SIDEBAR,
     CONF_HOME,
     CONF_INTENT,
     CONF_MEDIAPLAYER_DEVICE,
@@ -47,6 +49,8 @@ from .const import (
     DEFAULT_DASHBOARD,
     DEFAULT_DND,
     DEFAULT_FONT_STYLE,
+    DEFAULT_HIDE_HEADER,
+    DEFAULT_HIDE_SIDEBAR,
     DEFAULT_MIC_TYPE,
     DEFAULT_MIC_UNMUTE,
     DEFAULT_MODE,
@@ -328,6 +332,18 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                     CONF_USE_24H_TIME,
                     default=self.config_entry.options.get(
                         CONF_USE_24H_TIME, DEFAULT_USE_24H_TIME
+                    ),
+                ): bool,
+                vol.Optional(
+                    CONF_HIDE_SIDEBAR,
+                    default=self.config_entry.options.get(
+                        CONF_HIDE_SIDEBAR, DEFAULT_HIDE_SIDEBAR
+                    ),
+                ): bool,
+                vol.Optional(
+                    CONF_HIDE_HEADER,
+                    default=self.config_entry.options.get(
+                        CONF_HIDE_HEADER, DEFAULT_HIDE_HEADER
                     ),
                 ): bool,
             }

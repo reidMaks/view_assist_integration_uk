@@ -12,6 +12,7 @@ from homeassistant.components.media_player import (
     MediaType,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity, entity_registry as er
 from homeassistant.helpers.entity_component import DATA_INSTANCES, EntityComponent
@@ -287,6 +288,14 @@ class VAAlarmRepeater:
         media_entity: MediaPlayerEntity
         if media_entity := self._get_entity_from_entity_id(entity_id):
             media_integration = media_entity.platform.platform_name
+
+            if media_entity.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+                _LOGGER.warning(
+                    "%s is in an %s state and cannot play alarm",
+                    media_entity.entity_id,
+                    media_entity.state,
+                )
+                return {}
 
             if media_integration in ["music_assistant", "esphome"]:
                 self.alarm_tasks[entity_id] = self.config.async_create_background_task(
