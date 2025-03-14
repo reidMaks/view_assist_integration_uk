@@ -88,7 +88,7 @@ class EntityListeners:
 
     def _cancel_display_revert_task(self):
         """Cancel any existing revert timer task."""
-        if self.revert_view_task and not self.revert_view_task.cancelled():
+        if self.revert_view_task and not self.revert_view_task.done():
             _LOGGER.info("Cancelled revert task")
             self.revert_view_task.cancel()
             self.revert_view_task = None
