@@ -89,7 +89,7 @@ class EntityListeners:
     def _cancel_display_revert_task(self):
         """Cancel any existing revert timer task."""
         if self.revert_view_task and not self.revert_view_task.done():
-            _LOGGER.info("Cancelled revert task")
+            _LOGGER.debug("Cancelled revert task")
             self.revert_view_task.cancel()
             self.revert_view_task = None
 
@@ -121,7 +121,7 @@ class EntityListeners:
         )
         display_type = get_display_type_from_browser_id(self.hass, browser_id)
 
-        _LOGGER.info(
+        _LOGGER.debug(
             "Navigating: %s, browser_id: %s, path: %s, display_type: %s, mode: %s",
             self.config_entry.runtime_data.name,
             browser_id,
@@ -180,7 +180,7 @@ class EntityListeners:
         # Set revert action if required
         if revert and path != revert_path:
             timeout = self.config_entry.runtime_data.view_timeout
-            _LOGGER.info("Adding revert to %s in %ss", revert_path, timeout)
+            _LOGGER.debug("Adding revert to %s in %ss", revert_path, timeout)
             self.revert_view_task = self.hass.async_create_task(
                 self._display_revert_delay(revert_path, timeout)
             )
@@ -189,10 +189,10 @@ class EntityListeners:
         """Cycle display."""
 
         view_index = 0
-        _LOGGER.info("Cycle display started")
+        _LOGGER.debug("Cycle display started")
         while self.config_entry.runtime_data.mode == VAMode.CYCLE:
             view_index = view_index % len(views)
-            _LOGGER.info("Cycling to view: %s", views[view_index])
+            _LOGGER.debug("Cycling to view: %s", views[view_index])
             await self.async_browser_navigate(
                 f"{self.config_entry.runtime_data.dashboard}/{views[view_index]}",
             )
@@ -220,7 +220,7 @@ class EntityListeners:
         ):
             return
 
-        _LOGGER.info("MIC MUTE: %s", mic_mute_new_state)
+        _LOGGER.debug("MIC MUTE: %s", mic_mute_new_state)
         status_icons = self.config_entry.runtime_data.status_icons.copy()
 
         if mic_mute_new_state == "on" and "mic" not in status_icons:
@@ -247,7 +247,7 @@ class EntityListeners:
         ):
             return
 
-        _LOGGER.info("MP MUTE: %s", mp_mute_new_state)
+        _LOGGER.debug("MP MUTE: %s", mp_mute_new_state)
         status_icons = (
             self.config_entry.runtime_data.status_icons.copy()
             if self.config_entry.runtime_data.status_icons
@@ -309,7 +309,7 @@ class EntityListeners:
         # slightly different.  See set_state_changed_attribute above
         dnd_new_state = event.data["new_value"]
 
-        _LOGGER.info("DND STATE: %s", dnd_new_state)
+        _LOGGER.debug("DND STATE: %s", dnd_new_state)
         status_icons = self.config_entry.runtime_data.status_icons.copy()
         if dnd_new_state and "dnd" not in status_icons:
             status_icons.append("dnd")
@@ -324,7 +324,7 @@ class EntityListeners:
 
         new_mode = event.data["new_value"]
 
-        _LOGGER.info("MODE STATE: %s", new_mode)
+        _LOGGER.debug("MODE STATE: %s", new_mode)
         status_icons = self.config_entry.runtime_data.status_icons.copy()
 
         modes = [VAMode.HOLD, VAMode.CYCLE]
@@ -344,12 +344,12 @@ class EntityListeners:
         if new_mode != VAMode.CYCLE:
             if self.cycle_view_task and not self.cycle_view_task.cancelled():
                 self.cycle_view_task.cancel()
-                _LOGGER.info("Cycle display terminated")
+                _LOGGER.debug("Cycle display terminated")
 
         if new_mode == VAMode.NORMAL:
             # Add navigate to default view
             await self.async_browser_navigate(self.config_entry.runtime_data.home)
-            _LOGGER.info("NAVIGATE TO: %s", new_mode)
+            _LOGGER.debug("NAVIGATE TO: %s", new_mode)
 
         elif new_mode == VAMode.MUSIC:
             # Add navigate to music view
@@ -366,7 +366,7 @@ class EntityListeners:
             #     },
             # )
 
-            _LOGGER.info("NAVIGATE TO: %s", new_mode)
+            _LOGGER.debug("NAVIGATE TO: %s", new_mode)
 
         elif new_mode == VAMode.CYCLE:
             # Add start cycle mode
@@ -376,7 +376,7 @@ class EntityListeners:
                     views=["music", "info", "weather", "clock"]
                 )
             )
-            _LOGGER.info("START MODE: %s", new_mode)
+            _LOGGER.debug("START MODE: %s", new_mode)
         elif new_mode == VAMode.HOLD:
             # Hold mode, so cancel any revert timer
             self._cancel_display_revert_task()
@@ -390,4 +390,4 @@ class EntityListeners:
                 "/config/www/viewassist/backgrounds",
                 "local",
             )
-            _LOGGER.info("START MODE: %s %s", new_mode, image_path)
+            _LOGGER.debug("START MODE: %s %s", new_mode, image_path)
