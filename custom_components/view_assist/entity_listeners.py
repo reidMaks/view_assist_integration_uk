@@ -80,6 +80,8 @@ class EntityListeners:
             )
         )
 
+        self.update_entity()
+
     async def _display_revert_delay(self, path: str, timeout: int = 0):
         """Display revert function.  To be called from task."""
         if timeout:
