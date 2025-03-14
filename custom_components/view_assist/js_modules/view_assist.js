@@ -426,8 +426,10 @@ class ViewAssist {
     if (!payload.mimic_device) {
 
       // On update of config, go to default page
-      if (event == "registered" || event == "connection" || reload) {
+      if (event == "connection" || reload) {
         this.browser_navigate(payload.dashboard);
+      } else if (event == "registered") {
+          location.reload();
       } else {
         window.dispatchEvent(new CustomEvent("location-changed"));
       }
