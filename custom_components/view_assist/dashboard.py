@@ -26,6 +26,7 @@ from homeassistant.util.yaml import load_yaml_dict, save_yaml
 from .const import (
     DASHBOARD_DIR,
     DASHBOARD_NAME,
+    DEFAULT_VIEW,
     DEFAULT_VIEWS,
     DOMAIN,
     GITHUB_BRANCH,
@@ -448,6 +449,9 @@ class DashboardManager:
 
             if view_index:
                 dashboard_config["views"][view_index - 1] = new_view
+            elif name == DEFAULT_VIEW:
+                # Insert default view as first view in list
+                dashboard_config["views"].insert(0, new_view)
             else:
                 dashboard_config["views"].append(new_view)
             modified = True
