@@ -24,6 +24,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util.yaml import load_yaml_dict, save_yaml
 
 from .const import (
+    COMMUNITY_VIEWS_DIR,
     DASHBOARD_DIR,
     DASHBOARD_NAME,
     DEFAULT_VIEW,
@@ -229,28 +230,38 @@ class DownloadManager:
             await self._download_dir(dir_url, base)
 
     async def download_view(
-        self, view_name: str, overwrite: bool = False, backup_if_exists: bool = True
+        self,
+        view_name: str,
+        overwrite: bool = False,
+        backup_if_exists: bool = True,
+        community_view: bool = False,
     ):
         """Download files from a github repo directory."""
 
         # Ensure download to path exists
-        _LOGGER.debug("Downloading view - %s", view_name)
         base = self.hass.config.path(f"{DOMAIN}/{VIEWS_DIR}")
+        if community_view:
+            dir_url = f"{GITHUB_PATH}/{VIEWS_DIR}/{COMMUNITY_VIEWS_DIR}/{view_name}"
+            msg_text = "Community view"
+        else:
+            dir_url = f"{GITHUB_PATH}/{VIEWS_DIR}/{view_name}"
+            msg_text = "View"
+
+        _LOGGER.debug("Downloading %s - %s", msg_text.lower(), view_name)
         exists = Path(base, view_name).exists()
 
         if exists and not overwrite:
             raise DownloadManagerException(
-                f"Cannot download {view_name}.  Directory already exists and overwrite set to false"
+                f"Cannot download {msg_text.lower()} - {view_name}.  Directory already exists and overwrite set to false"
             )
 
         # Validate view dir on repo
-        dir_url = f"{GITHUB_PATH}/{VIEWS_DIR}/{view_name}"
         if await self.github.get_dir_listing(dir_url):
             # Rename existing dir
             if exists and backup_if_exists:
                 if not await self.backup_file_or_folder(f"{base}/{view_name}"):
                     raise DownloadManagerException(
-                        f"{view_name} not downloaded. Failed backing up existing directory",
+                        f"{msg_text} - {view_name} not downloaded. Failed backing up existing directory",
                     )
 
             # Create view directory
@@ -394,8 +405,15 @@ class DashboardManager:
         force_download: bool = False,
         overwrite: bool = False,
         backup_existing_dir: bool = True,
+        community_view: bool = False,
     ) -> bool:
         """Load a view file into the dashboard from the view_assist view folder."""
+
+        # Block trying to download the community contributions folder
+        if name == COMMUNITY_VIEWS_DIR:
+            raise DashboardManagerException(
+                f"{name} is not not a valid view name.  Please select a view from within that folder"  # noqa: S608
+            )
 
         # Return 1 based view index.  If 0, view doesn't exist
         view_index = await self.view_exists(name)
@@ -407,7 +425,7 @@ class DashboardManager:
                 )
 
         # Validate file actions
-        f = self.hass.config.path(f"{DOMAIN}/views/{name}/{name}.yaml")
+        f = self.hass.config.path(f"{DOMAIN}/{VIEWS_DIR}/{name}/{name}.yaml")
         if not Path(f).exists():
             if not download_if_missing and not force_download:
                 raise DashboardManagerException(
@@ -416,7 +434,10 @@ class DashboardManager:
 
         if force_download or not Path(f).exists():
             await self.download_manager.download_view(
-                name, overwrite=overwrite, backup_if_exists=backup_existing_dir
+                name,
+                overwrite=overwrite,
+                backup_if_exists=backup_existing_dir,
+                community_view=community_view,
             )
 
         # Install view from file.

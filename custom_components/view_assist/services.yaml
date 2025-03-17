@@ -200,6 +200,13 @@ load_view:
       required: true
       selector:
         text:
+    community_view:
+      name: "Community view"
+      description: "If this should be downloaded form the community views folder"
+      required: false
+      default: false
+      selector:
+        boolean:
     download_if_missing:
       name: "Download if missing"
       description: "Get the view from the github repo if not in your folder"

@@ -23,6 +23,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from .alarm_repeater import ALARMS, VAAlarmRepeater
 from .const import (
     ATTR_BACKUP_EXISTING_DIR,
+    ATTR_COMMUNITY_VIEW,
     ATTR_DEVICE,
     ATTR_DOWNLOAD_IF_MISSING,
     ATTR_EVENT_DATA,
@@ -135,6 +136,7 @@ VIEW_SERVICE_SCHEMA = vol.Schema(
 )
 LOAD_VIEW_SERVICE_SCHEMA = VIEW_SERVICE_SCHEMA.extend(
     {
+        vol.Optional(ATTR_COMMUNITY_VIEW, default=False): bool,
         vol.Optional(ATTR_DOWNLOAD_IF_MISSING, default=True): bool,
         vol.Optional(ATTR_FORCE_DOWNLOAD, default=False): bool,
     }
@@ -422,6 +424,7 @@ class VAServices:
         force_download = call.data.get(ATTR_FORCE_DOWNLOAD)
         overwrite = call.data.get(ATTR_OVERWRITE)
         backup = call.data.get(ATTR_BACKUP_EXISTING_DIR, False)
+        community_view = call.data.get(ATTR_COMMUNITY_VIEW, False)
         dm: DashboardManager = self.hass.data[DOMAIN][DASHBOARD_MANAGER]
         try:
             await dm.add_view(
@@ -430,6 +433,7 @@ class VAServices:
                 force_download=force_download,
                 overwrite=overwrite,
                 backup_existing_dir=backup,
+                community_view=community_view,
             )
         except (DownloadManagerException, DashboardManagerException) as ex:
             raise HomeAssistantError(ex) from ex
