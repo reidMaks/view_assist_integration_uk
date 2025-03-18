@@ -7,6 +7,7 @@ Welcome to the long awaited, much anticipated View Assist integration beta!  Som
 * A new view_assist directory will be created in your config directory to hold VA dashboard and views along with an easy storage location for your images and sound files to use with View Assist
 * Views can now be updated through an action call
 * Users can create their own views as before and use a save view action that will store a local copy that will then be used when an autoregeneration of the dashboard action is called
+* Timers and alarms survive restarts!
 * The external python set_state.py and control blueprint per device are no longer needed
 * Some external pyscripts have now been integrated simplifying the install process
 * Full support for both BrowserMod and the new [Remote Assist Display](https://github.com/michelle-avery/remote-assist-display) has been added
@@ -22,7 +23,7 @@ A HUGE thank you goes out to Mark Parker @msp1974 for his MASSIVE help with maki
 
 **A BIG warning for folks who will be updating.  This is a major rewrite so you will be starting from scratch for the most part.  You will definitely want to do a backup of your current VA settings and views and possibly save a copy of your current dashboard to avoid from losing something you would like to keep!**
 
-You will want to delete your View Assist dashboard before installing.  You will need to UPDATE your View Assist blueprints using the new blueprints.  This is done by importing the new version of the blueprint and choosing to update the existing.  This SHOULD allow for you to keep all settings but be warned that this is beta so problems may exist with keeping these settings in some cases.
+You will want to delete your View Assist dashboard before installing.  I suggest that you save your dashboard as a text file (Raw configuration copy/paste).  You will need to UPDATE your View Assist blueprints using the new blueprints.  This is done by importing the new version of the blueprint and choosing to update the existing.  This SHOULD allow for you to keep all settings but be warned that this is beta so problems may exist with keeping these settings in some cases.
 
 
 ## HACS
