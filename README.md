@@ -29,13 +29,16 @@ You will want to delete your View Assist dashboard before installing.  I suggest
 ## HACS
 * Install HACS if you have not already
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=dinki&repository=https%3A%2F%2Fgithub.com%2Fdinki%2Fview_assist_integration)
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?repository=https%3A%2F%2Fgithub.com%2Fdinki%2Fview_assist_integration&owner=dinki)
 
 * Click Open your Home Assistant instance and open a repository inside the Home Assistant Community Store. 
 to add this as a custom repository, or add it manually.
 * Click "Add" to confirm, and then click "Download" to download and install the integration
 Restart Home Assistant
 * Search for "View Assist" in HACS and install then restart
+* In Home Assistant go to Settings -> Devices and Services -> Add integration -> Search for View Assist and add
+* Configure the device(s)
 
 ## Manual Install
 
