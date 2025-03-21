@@ -16,7 +16,7 @@ DASHBOARD_DIR = "dashboard"
 
 DASHBOARD_NAME = "View Assist"
 DEFAULT_VIEW = "clock"
-DEFAULT_VIEWS = ["clock", "weather", "alarm", "music", "info", "intent"]
+DEFAULT_VIEWS = ["alarm", "camera", "clock", "info", "infopic", "intent", "list", "locate", "music", "sports", "thermostat", "weather", "webpage"]
 
 BROWSERMOD_DOMAIN = "browser_mod"
 REMOTE_ASSIST_DISPLAY_DOMAIN = "remote_assist_display"
