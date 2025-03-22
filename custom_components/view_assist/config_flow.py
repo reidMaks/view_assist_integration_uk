@@ -33,6 +33,7 @@ from .const import (
     CONF_HIDE_SIDEBAR,
     CONF_HOME,
     CONF_INTENT,
+    # CONF_INTENT_DEVICE,
     CONF_MEDIAPLAYER_DEVICE,
     CONF_MIC_DEVICE,
     CONF_MIC_TYPE,
@@ -93,6 +94,9 @@ BASE_SCHEMA = {
     vol.Required(CONF_MUSICPLAYER_DEVICE): EntitySelector(
         EntitySelectorConfig(domain=MEDIAPLAYER_DOMAIN)
     ),
+    # vol.Optional(CONF_INTENT_DEVICE): EntitySelector(
+    #     EntitySelectorConfig(domain=SENSOR_DOMAIN)
+    # ),    
 }
 
 DISPLAY_SCHEMA = {
@@ -222,6 +226,10 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                 CONF_MUSICPLAYER_DEVICE,
                 default=self.config_entry.data[CONF_MUSICPLAYER_DEVICE],
             ): EntitySelector(EntitySelectorConfig(domain=MEDIAPLAYER_DOMAIN)),
+            # vol.Optional(
+            #     CONF_INTENT_DEVICE,
+            #     default=self.config_entry.data.get(CONF_INTENT_DEVICE),
+            # ): EntitySelector(EntitySelectorConfig(domain=SENSOR_DOMAIN)),            
         }
 
         if self.va_type == VAType.VIEW_AUDIO:
