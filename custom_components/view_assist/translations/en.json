@@ -70,13 +70,18 @@
         "description": "",
         "data": {
           "dashboard": "Dashboard",
-          "home": "Home Screen",
-          "music": "Music View",
-          "intent": "Intent View",
-          "assist_prompt": "Assist Prompt",
-          "status_icons_size": "Status Icon Size",
-          "font_style": "Font Style",
-          "status_icons": "Launch Icons",
+          "home": "Home screen",
+          "music": "Music view",
+          "intent": "Intent view",
+          "background": "Default background",
+          "rotate_background": "Enable image rotation",
+          "rotate_background_source": "Image source",
+          "rotate_background_path": "Image path",
+          "rotate_background_interval": "Rotation interval",
+          "assist_prompt": "Assist prompt",
+          "status_icons_size": "Status icon size",
+          "font_style": "Font style",
+          "status_icons": "Launch icons",
           "use_24_hour_time": "Use 24h time",
           "hide_sidebar": "Hide sidemenu",
           "hide_header": "Hide header bar"
@@ -86,7 +91,9 @@
           "home": "The screen to return to after timeout",
           "music": "The view to return to when in music mode",
           "intent": "The view to display for default HA actions for displaying those entities",
-          "background": "The default background image",
+          "background": "The default background image url",
+          "rotate_background_path": "Load images from in local mode and save to if in download mode.  A path under config/view_assist",
+          "rotate_background_interval": "Interval in minutes to rotate the background",
           "assist_prompt": "The Assist notification prompt style to use for wake word detection and intent processing",
           "status_icons_size": "Size of the icons in the status icon display",
           "font_style": "The default font to use for this satellite device. Font name must match perfectly and be available",
@@ -150,6 +157,13 @@
         "BrowserMod": "BrowserMod",
         "Remote Assist Display": "Remote Assist Display",
         "Stream Assist": "Stream Assist"
+      }
+    },
+    "rotate_backgound_source_selector": {
+      "options": {
+        "local_sequence": "Local file path sequence",
+        "local_random": "Local file path random",
+        "download": "Download random image from Unsplash"
       }
     }
   }

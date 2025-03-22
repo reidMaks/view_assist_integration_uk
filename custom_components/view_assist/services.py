@@ -48,7 +48,7 @@ from .dashboard import (
     DashboardManagerException,
     DownloadManagerException,
 )
-from .helpers import get_mimic_entity_id, get_random_image
+from .helpers import get_mimic_entity_id
 from .timers import TIMERS, VATimers, decode_time_sentence
 
 _LOGGER = logging.getLogger(__name__)
@@ -192,13 +192,6 @@ class VAServices:
             "get_timers",
             self.async_handle_get_timers,
             schema=GET_TIMERS_SERVICE_SCHEMA,
-            supports_response=SupportsResponse.ONLY,
-        )
-
-        self.hass.services.async_register(
-            DOMAIN,
-            "get_random_image",
-            self.async_handle_get_random_image,
             supports_response=SupportsResponse.ONLY,
         )
 
@@ -397,21 +390,6 @@ class VAServices:
             include_expired=include_expired,
         )
         return {"result": result}
-
-    async def async_handle_get_random_image(self, call: ServiceCall) -> ServiceResponse:
-        """Handle random image selection.
-
-        name: View Assist Select Random Image
-        description: Selects a random image from the specified directory or downloads a new image
-        """
-        directory: str = call.data.get("directory")
-        source: str = call.data.get(
-            "source", "local"
-        )  # Default to "local" if source is not provided
-
-        return await self.hass.async_add_executor_job(
-            get_random_image, self.hass, directory, source
-        )
 
     # ----------------------------------------------------------------
     # VIEWS

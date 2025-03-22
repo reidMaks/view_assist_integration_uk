@@ -541,3 +541,5 @@ class DashboardManager:
             # Save dashboard config back to HA
             if modified:
                 await dashboard_store.async_save(dashboard_config)
+
+

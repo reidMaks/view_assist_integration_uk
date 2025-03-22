@@ -2,9 +2,11 @@
 
 import asyncio
 from asyncio import Task
+from datetime import datetime as dt
 import logging
+import random
 
-from homeassistant.const import CONF_MODE
+from homeassistant.const import CONF_MODE, EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.dispatcher import (
@@ -16,6 +18,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 from .const import (
     BROWSERMOD_DOMAIN,
     CONF_DO_NOT_DISTURB,
+    CYCLE_VIEWS,
     DOMAIN,
     REMOTE_ASSIST_DISPLAY_DOMAIN,
     USE_VA_NAVIGATION_FOR_BROWSERMOD,
@@ -25,10 +28,13 @@ from .const import (
     VAMode,
 )
 from .helpers import (
+    async_get_download_image,
+    async_get_filesystem_images,
     get_device_name_from_id,
     get_display_type_from_browser_id,
-    get_random_image,
     get_revert_settings_for_mode,
+    get_sensor_entity_from_instance,
+    make_url_from_file_path,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -45,6 +51,7 @@ class EntityListeners:
 
         self.revert_view_task: Task | None = None
         self.cycle_view_task: Task | None = None
+        self.rotate_background_task: Task | None = None
 
         # Add microphone mute switch listener
         mic_device = config_entry.runtime_data.mic_device
@@ -61,9 +68,11 @@ class EntityListeners:
         )
 
         # Add listener to set_state service to call sensor_attribute_changed
-        hass.bus.async_listen(
-            VA_ATTRIBUTE_UPDATE_EVENT.format(config_entry.entry_id),
-            self.async_set_state_changed_attribute,
+        config_entry.async_on_unload(
+            hass.bus.async_listen(
+                VA_ATTRIBUTE_UPDATE_EVENT.format(config_entry.entry_id),
+                self.async_set_state_changed_attribute,
+            )
         )
 
         # Add mic mute switch listener
@@ -80,7 +89,32 @@ class EntityListeners:
             )
         )
 
+        if hass.is_running:
+            self._after_ha_start()
+        else:
+            hass.bus.async_listen_once(
+                EVENT_HOMEASSISTANT_STARTED, self._after_ha_start
+            )
+
         self.update_entity()
+
+    @callback
+    def _after_ha_start(self, *args):
+        """Run after HA has started."""
+
+        # Run display rotate task if set for device
+        if self.config_entry.runtime_data.rotate_background:
+            _LOGGER.debug(
+                "Starting rotate background image task for %s",
+                self.config_entry.runtime_data.name,
+            )
+            self.rotate_background_task = (
+                self.config_entry.async_create_background_task(
+                    self.hass,
+                    self.async_set_background_image(),
+                    f"{self.config_entry.runtime_data.name} rotate image task",
+                )
+            )
 
     async def _display_revert_delay(self, path: str, timeout: int = 0):
         """Display revert function.  To be called from task."""
@@ -200,6 +234,62 @@ class EntityListeners:
             )
             view_index += 1
             await asyncio.sleep(self.config_entry.runtime_data.view_timeout)
+
+    async def async_set_background_image(self):
+        """Set random background image."""
+        source = self.config_entry.runtime_data.rotate_background_source
+        path = self.config_entry.runtime_data.rotate_background_path
+        interval = self.config_entry.runtime_data.rotate_background_interval
+        entity_id = get_sensor_entity_from_instance(
+            self.hass, self.config_entry.entry_id
+        )
+        image_index = 0
+
+        # Clean path
+        path.removeprefix("/").removesuffix("/")
+
+        try:
+            if source in ["local_sequence", "local_random"]:
+                image_list = await async_get_filesystem_images(self.hass, path)
+                if not image_list:
+                    return
+
+            while True:
+                if source == "local_sequence":
+                    image = image_list[image_index]
+                    image_index += 1
+                    if image_index == len(image_list):
+                        image_index = 0
+
+                elif source == "local_random":
+                    image = random.choice(image_list)
+
+                elif source == "download":
+                    image = await async_get_download_image(
+                        self.hass, self.config_entry, path
+                    )
+                else:
+                    return
+
+                image_url = make_url_from_file_path(self.hass, image)
+                # Add parameter to override cache
+                image_url = f"{image_url}?v={dt.now().strftime('%Y%m%d%H%M%S')}"
+
+                _LOGGER.debug(
+                    "Setting %s background image to %s",
+                    self.config_entry.runtime_data.name,
+                    image_url,
+                )
+
+                await self.hass.services.async_call(
+                    DOMAIN,
+                    "set_state",
+                    service_data={"entity_id": entity_id, "background": image_url},
+                )
+                # Interval is in minutes.  Convert to seconds
+                await asyncio.sleep(interval * 60)
+        except Exception as ex:  # noqa: BLE001
+            _LOGGER.error("Error in image rotation.  %s", ex)
 
     def update_entity(self):
         """Dispatch message that entity is listening for to update."""
@@ -374,22 +464,9 @@ class EntityListeners:
             # Add start cycle mode
             # Pull cycle_mode attribute
             self.cycle_view_task = self.hass.async_create_task(
-                self.async_cycle_display_view(
-                    views=["music", "info", "weather", "clock"]
-                )
+                self.async_cycle_display_view(views=CYCLE_VIEWS)
             )
             _LOGGER.debug("START MODE: %s", new_mode)
         elif new_mode == VAMode.HOLD:
             # Hold mode, so cancel any revert timer
             self._cancel_display_revert_task()
-        elif new_mode == VAMode.ROTATE:
-            #
-            # Test image rotate service
-            #
-            image_path = await self.hass.async_add_executor_job(
-                get_random_image,
-                self.hass,
-                "/config/www/viewassist/backgrounds",
-                "local",
-            )
-            _LOGGER.debug("START MODE: %s %s", new_mode, image_path)
