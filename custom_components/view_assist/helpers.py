@@ -1,9 +1,7 @@
 """Helper functions."""
 
 import logging
-import os
 from pathlib import Path
-import random
 from typing import Any
 
 import requests
@@ -11,13 +9,15 @@ import requests
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
-from homeassistant.util import datetime
+from homeassistant.util import slugify
 
 from .const import (
     BROWSERMOD_DOMAIN,
     CONF_DEV_MIMIC,
     CONF_DISPLAY_DEVICE,
     DOMAIN,
+    IMAGE_PATH,
+    RANDOM_IMAGE_URL,
     REMOTE_ASSIST_DISPLAY_DOMAIN,
     VAMODE_REVERTS,
     VAConfigEntry,
@@ -284,95 +284,77 @@ def get_entities_by_attr_filter(
 # ----------------------------------------------------------------
 # Images
 # ----------------------------------------------------------------
-def get_random_image(
-    hass: HomeAssistant, directory: str, source: str
-) -> dict[str, Any]:
-    """Return a random image from supplied directory or url."""
+async def async_get_download_image(
+    hass: HomeAssistant, config: VAConfigEntry, save_path: str = IMAGE_PATH
+) -> Path:
+    """Get url from unsplash random image endpoint."""
+    return await hass.async_add_executor_job(
+        get_download_image, hass, config, save_path
+    )
 
-    valid_extensions = (".jpeg", ".jpg", ".tif", ".png")
 
-    if source == "local":
-        config_dir = hass.config.config_dir
-        # Translate /local/ to /config/www/ for directory validation
-        if "local" in directory:
-            filesystem_directory = directory.replace("local", f"{config_dir}/www/", 1)
-        elif "config" in directory:
-            filesystem_directory = directory.replace("config", f"{config_dir}/{DOMAIN}")
-        else:
-            filesystem_directory = f"{config_dir}/{directory}"
+def get_download_image(
+    hass: HomeAssistant, config: VAConfigEntry, save_path: str = IMAGE_PATH
+) -> Path:
+    """Get url from unsplash random image endpoint."""
+    path = Path(hass.config.config_dir, DOMAIN, save_path)
+    filename = (
+        f"downloaded_{config.entry_id.lower()}_{slugify(config.runtime_data.name)}.jpg"
+    )
+    image: Path | None = None
 
-        # Remove any //
-        filesystem_directory = filesystem_directory.replace("//", "/")
-
-        # Verify the directory exists
-        if not Path.is_dir(Path(filesystem_directory)):
-            return {"error": f"The directory '{filesystem_directory}' does not exist."}
-
-        # List only image files with the valid extensions
-        dir_files = os.listdir(filesystem_directory)
-        images = [f for f in dir_files if f.lower().endswith(valid_extensions)]
-
-        # Check if any images were found
-        if not images:
-            return {
-                "error": f"No images found in the directory '{filesystem_directory}'."
-            }
-
-        # Select a random image
-        selected_image = random.choice(images)
-
-        # Replace /config/www/ with /local/ for constructing the relative path
-        if filesystem_directory.startswith(f"{config_dir}/www/"):
-            relative_path = filesystem_directory.replace(
-                f"{config_dir}/www/", "/local/"
-            )
-        else:
-            relative_path = directory
-
-        # Ensure trailing slash in the relative path
-        if not relative_path.endswith("/"):
-            relative_path += "/"
-
-        # Construct the image path
-        image_path = f"{relative_path}{selected_image}"
-
-        # Remove any //
-        image_path = image_path.replace("//", "/")
-
-    elif source == "download":
-        url = "https://unsplash.it/640/425?random"
-        response = requests.get(url, timeout=10)
-
-        if response.status_code == 200:
-            current_time = datetime.now().strftime("%Y%m%d%H%M%S")
-            filename = f"random_{current_time}.jpg"
-            full_path = Path(f"{directory}/{filename}")
-
-            with Path.open(full_path, "wb") as file:
-                file.write(response.content)
-
-            # Remove previous background image
-            for file in os.listdir(directory):
-                if file.startswith("random_") and file != filename:
-                    Path(f"{directory}/{filename}").unlink(missing_ok=True)
-
-            image_path = full_path
-        else:
-            # Return existing image if the download fails
-            existing_files = [
-                Path(f"{directory}/{filename}")
-                for file in os.listdir(directory)
-                if file.startswith("random_")
-            ]
-            image_path = existing_files[0] if existing_files else None
-
-        if not image_path:
-            return {
-                "error": "Failed to download a new image and no existing images found."
-            }
-
+    try:
+        response = requests.get(RANDOM_IMAGE_URL, timeout=10)
+    except TimeoutError:
+        _LOGGER.warning(
+            "Timeout trying to fetch random image from %s", RANDOM_IMAGE_URL
+        )
     else:
-        return {"error": "Invalid source specified. Use 'local' or 'download'."}
+        if response.status_code == 200:
+            try:
+                # Ensure path exists
+                path.mkdir(parents=True, exist_ok=True)
+                with Path(path, filename).open(mode="wb") as file:
+                    file.write(response.content)
+            except OSError as ex:
+                _LOGGER.warning(
+                    "Unable to save downloaded random image file.  Error is %s", ex
+                )
 
-    # Return the image path in a dictionary
-    return {"image_path": image_path}
+    image = Path(path, filename)
+    if image.exists():
+        return image
+
+    _LOGGER.warning("No existing images found for background")
+    return None
+
+
+async def async_get_filesystem_images(hass: HomeAssistant, fs_path: str) -> list[Path]:
+    """Get url from filesystem random image."""
+    return await hass.async_add_executor_job(get_filesystem_images, hass, fs_path)
+
+
+def get_filesystem_images(hass: HomeAssistant, fs_path: str) -> list[Path]:
+    """Get url from filesystem random image."""
+    valid_extensions = (".jpeg", ".jpg", ".tif", ".png")
+    path = Path(hass.config.config_dir, DOMAIN, fs_path)
+    if not path.exists():
+        _LOGGER.warning("Random image path %s does not exist", path)
+        return None
+
+    image_list = [
+        f for f in path.iterdir() if f.is_file and f.name.endswith(valid_extensions)
+    ]
+
+    # Check if any images were found
+    if not image_list:
+        _LOGGER.warning("No images found in random image path - %s", path)
+        return None
+
+    return image_list
+
+
+def make_url_from_file_path(hass: HomeAssistant, path: Path) -> str:
+    """Make a url from the file path."""
+    url = path.as_uri()
+    return url.replace("file://", "").replace(hass.config.config_dir, "")

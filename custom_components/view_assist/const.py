@@ -11,17 +11,37 @@ GITHUB_BRANCH = "viewassist-integrationprep"  # "main"
 GITHUB_TOKEN_FILE = "github.token"
 GITHUB_PATH = "View Assist dashboard and views"
 VIEWS_DIR = "views"
+COMMUNITY_VIEWS_DIR = "community_contributions"
 DASHBOARD_DIR = "dashboard"
 
 DASHBOARD_NAME = "View Assist"
 DEFAULT_VIEW = "clock"
-DEFAULT_VIEWS = ["alarm", "camera", "clock", "info", "infopic", "intent", "list", "locate", "music", "sports", "thermostat", "weather", "webpage"]
+DEFAULT_VIEWS = [
+    "alarm",
+    "camera",
+    "clock",
+    "info",
+    "infopic",
+    "intent",
+    "list",
+    "locate",
+    "music",
+    "sports",
+    "thermostat",
+    "weather",
+    "webpage",
+]
+CYCLE_VIEWS = ["music", "info", "weather", "clock"]
 
 BROWSERMOD_DOMAIN = "browser_mod"
 REMOTE_ASSIST_DISPLAY_DOMAIN = "remote_assist_display"
 USE_VA_NAVIGATION_FOR_BROWSERMOD = True
-VA_SUB_DIRS = ["audio", "images"]
+
+IMAGE_PATH = "images"
+AUDIO_PATH = "audio"
+VA_SUB_DIRS = [AUDIO_PATH, IMAGE_PATH]
 URL_BASE = "view_assist"
+RANDOM_IMAGE_URL = "https://unsplash.it/1280/800?random"
 JSMODULES = [
     {
         "name": "View Assist Helper",
@@ -115,6 +135,10 @@ CONF_MIC_UNMUTE = "micunmute"
 CONF_DEV_MIMIC = "dev_mimic"
 CONF_HIDE_HEADER = "hide_header"
 CONF_HIDE_SIDEBAR = "hide_sidebar"
+CONF_ROTATE_BACKGROUND = "rotate_background"
+CONF_ROTATE_BACKGROUND_SOURCE = "rotate_background_source"
+CONF_ROTATE_BACKGROUND_PATH = "rotate_background_path"
+CONF_ROTATE_BACKGROUND_INTERVAL = "rotate_background_interval"
 
 # Config default values
 DEFAULT_NAME = "View Assist"
@@ -138,6 +162,10 @@ DEFAULT_USE_ANNOUNCE = True
 DEFAULT_MIC_UNMUTE = False
 DEFAULT_HIDE_SIDEBAR = True
 DEFAULT_HIDE_HEADER = True
+DEFAULT_ROTATE_BACKGROUND = False
+DEFAULT_ROTATE_BACKGROUND_SOURCE = "local_sequence"
+DEFAULT_ROTATE_BACKGROUND_PATH = f"{IMAGE_PATH}/backgrounds"
+DEFAULT_ROTATE_BACKGROUND_INTERVAL = 60
 
 # Service attributes
 ATTR_EVENT_NAME = "event_name"
@@ -148,6 +176,7 @@ ATTR_DOWNLOAD_IF_MISSING = "download_if_missing"
 ATTR_FORCE_DOWNLOAD = "force_download"
 ATTR_OVERWRITE = "overwrite"
 ATTR_BACKUP_EXISTING_DIR = "backup_existing_dir"
+ATTR_COMMUNITY_VIEW = "community_view"
 ATTR_EXTRA = "extra"
 ATTR_TYPE = "type"
 ATTR_TIMER_ID = "timer_id"
@@ -181,6 +210,10 @@ class RuntimeData:
         self.music: str = DEFAULT_VIEW_MUSIC
         self.intent: str = DEFAULT_VIEW_INTENT
         self.background: str = DEFAULT_VIEW_BACKGROUND
+        self.rotate_background: bool = False
+        self.rotate_background_source: str = "local"
+        self.rotate_background_path: str = ""
+        self.rotate_background_interval: int = 60
         self.assist_prompt: VAAssistPrompt = DEFAULT_ASSIST_PROMPT
         self.status_icons_size: VAIconSizes = DEFAULT_STATUS_ICON_SIZE
         self.font_style: str = DEFAULT_FONT_STYLE

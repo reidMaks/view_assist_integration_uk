@@ -23,6 +23,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from .alarm_repeater import ALARMS, VAAlarmRepeater
 from .const import (
     ATTR_BACKUP_EXISTING_DIR,
+    ATTR_COMMUNITY_VIEW,
     ATTR_DEVICE,
     ATTR_DOWNLOAD_IF_MISSING,
     ATTR_EVENT_DATA,
@@ -47,7 +48,7 @@ from .dashboard import (
     DashboardManagerException,
     DownloadManagerException,
 )
-from .helpers import get_mimic_entity_id, get_random_image
+from .helpers import get_mimic_entity_id
 from .timers import TIMERS, VATimers, decode_time_sentence
 
 _LOGGER = logging.getLogger(__name__)
@@ -135,6 +136,7 @@ VIEW_SERVICE_SCHEMA = vol.Schema(
 )
 LOAD_VIEW_SERVICE_SCHEMA = VIEW_SERVICE_SCHEMA.extend(
     {
+        vol.Optional(ATTR_COMMUNITY_VIEW, default=False): bool,
         vol.Optional(ATTR_DOWNLOAD_IF_MISSING, default=True): bool,
         vol.Optional(ATTR_FORCE_DOWNLOAD, default=False): bool,
     }
@@ -190,13 +192,6 @@ class VAServices:
             "get_timers",
             self.async_handle_get_timers,
             schema=GET_TIMERS_SERVICE_SCHEMA,
-            supports_response=SupportsResponse.ONLY,
-        )
-
-        self.hass.services.async_register(
-            DOMAIN,
-            "get_random_image",
-            self.async_handle_get_random_image,
             supports_response=SupportsResponse.ONLY,
         )
 
@@ -396,21 +391,6 @@ class VAServices:
         )
         return {"result": result}
 
-    async def async_handle_get_random_image(self, call: ServiceCall) -> ServiceResponse:
-        """Handle random image selection.
-
-        name: View Assist Select Random Image
-        description: Selects a random image from the specified directory or downloads a new image
-        """
-        directory: str = call.data.get("directory")
-        source: str = call.data.get(
-            "source", "local"
-        )  # Default to "local" if source is not provided
-
-        return await self.hass.async_add_executor_job(
-            get_random_image, self.hass, directory, source
-        )
-
     # ----------------------------------------------------------------
     # VIEWS
     # ----------------------------------------------------------------
@@ -422,6 +402,7 @@ class VAServices:
         force_download = call.data.get(ATTR_FORCE_DOWNLOAD)
         overwrite = call.data.get(ATTR_OVERWRITE)
         backup = call.data.get(ATTR_BACKUP_EXISTING_DIR, False)
+        community_view = call.data.get(ATTR_COMMUNITY_VIEW, False)
         dm: DashboardManager = self.hass.data[DOMAIN][DASHBOARD_MANAGER]
         try:
             await dm.add_view(
@@ -430,6 +411,7 @@ class VAServices:
                 force_download=force_download,
                 overwrite=overwrite,
                 backup_existing_dir=backup,
+                community_view=community_view,
             )
         except (DownloadManagerException, DashboardManagerException) as ex:
             raise HomeAssistantError(ex) from ex

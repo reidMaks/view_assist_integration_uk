@@ -39,6 +39,10 @@ from .const import (
     CONF_MIC_UNMUTE,
     CONF_MUSIC,
     CONF_MUSICPLAYER_DEVICE,
+    CONF_ROTATE_BACKGROUND,
+    CONF_ROTATE_BACKGROUND_INTERVAL,
+    CONF_ROTATE_BACKGROUND_PATH,
+    CONF_ROTATE_BACKGROUND_SOURCE,
     CONF_STATUS_ICON_SIZE,
     CONF_STATUS_ICONS,
     CONF_USE_24H_TIME,
@@ -55,6 +59,10 @@ from .const import (
     DEFAULT_MIC_UNMUTE,
     DEFAULT_MODE,
     DEFAULT_NAME,
+    DEFAULT_ROTATE_BACKGROUND,
+    DEFAULT_ROTATE_BACKGROUND_INTERVAL,
+    DEFAULT_ROTATE_BACKGROUND_PATH,
+    DEFAULT_ROTATE_BACKGROUND_SOURCE,
     DEFAULT_STATUS_ICON_SIZE,
     DEFAULT_STATUS_ICONS,
     DEFAULT_TYPE,
@@ -173,12 +181,12 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         """Handle options flow."""
-        self.va_type = self.config_entry.data[CONF_TYPE]
 
         # Display an options menu if display device
         # Display reconfigure form if audio only
 
         # Also need to be in strings.json and translation files.
+        self.va_type = self.config_entry.data[CONF_TYPE]
 
         if self.va_type == VAType.VIEW_AUDIO:
             return self.async_show_menu(
@@ -284,6 +292,43 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                         CONF_BACKGROUND, DEFAULT_VIEW_BACKGROUND
                     ),
                 ): str,
+                vol.Optional(
+                    CONF_ROTATE_BACKGROUND,
+                    default=self.config_entry.options.get(
+                        CONF_ROTATE_BACKGROUND, DEFAULT_ROTATE_BACKGROUND
+                    ),
+                ): bool,
+                vol.Optional(
+                    CONF_ROTATE_BACKGROUND_SOURCE,
+                    default=self.config_entry.options.get(
+                        CONF_ROTATE_BACKGROUND_SOURCE,
+                        DEFAULT_ROTATE_BACKGROUND_SOURCE,
+                    ),
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        translation_key="rotate_backgound_source_selector",
+                        options=[
+                            "local_sequence",
+                            "local_random",
+                            "download",
+                        ],
+                        mode=SelectSelectorMode.LIST,
+                    )
+                ),
+                vol.Optional(
+                    CONF_ROTATE_BACKGROUND_PATH,
+                    default=self.config_entry.options.get(
+                        CONF_ROTATE_BACKGROUND_PATH,
+                        DEFAULT_ROTATE_BACKGROUND_PATH,
+                    ),
+                ): str,
+                vol.Optional(
+                    CONF_ROTATE_BACKGROUND_INTERVAL,
+                    default=self.config_entry.options.get(
+                        CONF_ROTATE_BACKGROUND_INTERVAL,
+                        DEFAULT_ROTATE_BACKGROUND_INTERVAL,
+                    ),
+                ): int,
                 vol.Optional(
                     CONF_ASSIST_PROMPT,
                     default=self.config_entry.options.get(
