@@ -5,6 +5,7 @@ import logging
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.helpers.start import async_at_started
 
 from .alarm_repeater import ALARMS, VAAlarmRepeater
 from .const import DOMAIN, RuntimeData, VAConfigEntry
@@ -99,10 +100,7 @@ async def run_if_first_display_instance(hass: HomeAssistant, entry: VAConfigEntr
         hass.data[DOMAIN][DASHBOARD_MANAGER] = dm
         await dm.setup_dashboard()
 
-    if hass.is_running:
-        await setup_frontend()
-    else:
-        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, setup_frontend)
+    async_at_started(hass, setup_frontend)
 
 
 def set_runtime_data_from_config(config_entry: VAConfigEntry):

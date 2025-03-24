@@ -6,7 +6,8 @@ from datetime import datetime as dt
 import logging
 import random
 
-from homeassistant.const import CONF_MODE, EVENT_HOMEASSISTANT_STARTED
+from homeassistant.config_entries import ConfigEntryState
+from homeassistant.const import CONF_MODE
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.dispatcher import (
@@ -14,6 +15,7 @@ from homeassistant.helpers.dispatcher import (
     async_dispatcher_send,
 )
 from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.start import async_at_started
 
 from .const import (
     BROWSERMOD_DOMAIN,
@@ -23,6 +25,7 @@ from .const import (
     REMOTE_ASSIST_DISPLAY_DOMAIN,
     USE_VA_NAVIGATION_FOR_BROWSERMOD,
     VA_ATTRIBUTE_UPDATE_EVENT,
+    VA_BACKGROUND_UPDATE_EVENT,
     VAConfigEntry,
     VADisplayType,
     VAMode,
@@ -32,6 +35,7 @@ from .helpers import (
     async_get_filesystem_images,
     get_device_name_from_id,
     get_display_type_from_browser_id,
+    get_entity_attribute,
     get_revert_settings_for_mode,
     get_sensor_entity_from_instance,
     make_url_from_file_path,
@@ -89,32 +93,63 @@ class EntityListeners:
             )
         )
 
-        if hass.is_running:
-            self._after_ha_start()
-        else:
-            hass.bus.async_listen_once(
-                EVENT_HOMEASSISTANT_STARTED, self._after_ha_start
-            )
+        async_at_started(hass, self._after_ha_start)
 
         self.update_entity()
 
-    @callback
-    def _after_ha_start(self, *args):
+    async def _after_ha_start(self, *args):
         """Run after HA has started."""
+        # Wait for instance to finish loading
+        while self.config_entry.state != ConfigEntryState.LOADED:
+            await asyncio.sleep(0.1)
 
         # Run display rotate task if set for device
         if self.config_entry.runtime_data.rotate_background:
-            _LOGGER.debug(
-                "Starting rotate background image task for %s",
-                self.config_entry.runtime_data.name,
-            )
-            self.rotate_background_task = (
-                self.config_entry.async_create_background_task(
-                    self.hass,
-                    self.async_set_background_image(),
-                    f"{self.config_entry.runtime_data.name} rotate image task",
+            # Set task based on mode
+            if (
+                self.config_entry.runtime_data.rotate_background_source
+                == "link_to_entity"
+            ):
+                if self.config_entry.runtime_data.rotate_background_linked_entity:
+                    _LOGGER.debug(
+                        "Starting rotate background linked image listener for %s, linked to %s",
+                        self.config_entry.runtime_data.name,
+                        self.config_entry.runtime_data.rotate_background_linked_entity,
+                    )
+                    # Add listener for background changes
+                    self.config_entry.async_on_unload(
+                        self.hass.bus.async_listen(
+                            VA_BACKGROUND_UPDATE_EVENT.format(
+                                self.config_entry.runtime_data.rotate_background_linked_entity
+                            ),
+                            self.async_set_background_image,
+                        )
+                    )
+                    # Set initial background from linked entity
+                    await self.async_set_background_image(
+                        get_entity_attribute(
+                            self.hass,
+                            self.config_entry.runtime_data.rotate_background_linked_entity,
+                            "background",
+                        )
+                    )
+                else:
+                    _LOGGER.warning(
+                        "%s is set to link its background image but no linked entity provided",
+                        self.config_entry.runtime_data.name,
+                    )
+            else:
+                _LOGGER.debug(
+                    "Starting rotate background image task for %s",
+                    self.config_entry.runtime_data.name,
                 )
-            )
+                self.rotate_background_task = (
+                    self.config_entry.async_create_background_task(
+                        self.hass,
+                        self.async_background_image_rotation_task(),
+                        f"{self.config_entry.runtime_data.name} rotate image task",
+                    )
+                )
 
     async def _display_revert_delay(self, path: str, timeout: int = 0):
         """Display revert function.  To be called from task."""
@@ -235,14 +270,11 @@ class EntityListeners:
             view_index += 1
             await asyncio.sleep(self.config_entry.runtime_data.view_timeout)
 
-    async def async_set_background_image(self):
-        """Set random background image."""
+    async def async_background_image_rotation_task(self):
+        """Task to get background image for image rotation."""
         source = self.config_entry.runtime_data.rotate_background_source
         path = self.config_entry.runtime_data.rotate_background_path
         interval = self.config_entry.runtime_data.rotate_background_interval
-        entity_id = get_sensor_entity_from_instance(
-            self.hass, self.config_entry.entry_id
-        )
         image_index = 0
 
         # Clean path
@@ -275,21 +307,40 @@ class EntityListeners:
                 # Add parameter to override cache
                 image_url = f"{image_url}?v={dt.now().strftime('%Y%m%d%H%M%S')}"
 
-                _LOGGER.debug(
-                    "Setting %s background image to %s",
-                    self.config_entry.runtime_data.name,
-                    image_url,
-                )
+                # Set new background
+                await self.async_set_background_image(image_url)
 
-                await self.hass.services.async_call(
-                    DOMAIN,
-                    "set_state",
-                    service_data={"entity_id": entity_id, "background": image_url},
-                )
                 # Interval is in minutes.  Convert to seconds
                 await asyncio.sleep(interval * 60)
         except Exception as ex:  # noqa: BLE001
             _LOGGER.error("Error in image rotation.  %s", ex)
+
+    async def async_set_background_image(self, image_url_or_event: str | Event):
+        """Set random background image either from url or event."""
+        if isinstance(image_url_or_event, Event):
+            # This was raised from a linked entity for the background
+            image_url = image_url_or_event.data["new_value"]
+        else:
+            image_url = image_url_or_event
+
+        if image_url:
+            entity_id = get_sensor_entity_from_instance(
+                self.hass, self.config_entry.entry_id
+            )
+            _LOGGER.debug(
+                "Setting %s background image to %s",
+                self.config_entry.runtime_data.name,
+                image_url,
+            )
+
+            await self.hass.services.async_call(
+                DOMAIN,
+                "set_state",
+                service_data={
+                    "entity_id": entity_id,
+                    "background": image_url,
+                },
+            )
 
     def update_entity(self):
         """Dispatch message that entity is listening for to update."""

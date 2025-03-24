@@ -13,7 +13,12 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.config_validation import make_entity_service_schema
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
-from .const import DOMAIN, VA_ATTRIBUTE_UPDATE_EVENT, VAConfigEntry
+from .const import (
+    DOMAIN,
+    VA_ATTRIBUTE_UPDATE_EVENT,
+    VA_BACKGROUND_UPDATE_EVENT,
+    VAConfigEntry,
+)
 from .helpers import get_device_id_from_entity_id
 
 _LOGGER = logging.getLogger(__name__)
@@ -136,6 +141,12 @@ class ViewAssistSensor(SensorEntity):
                 self.hass.bus.fire(
                     VA_ATTRIBUTE_UPDATE_EVENT.format(self.config.entry_id), kwargs
                 )
+
+                # Fire background changed event to support linking device backgrounds
+                if k == "background":
+                    self.hass.bus.fire(
+                        VA_BACKGROUND_UPDATE_EVENT.format(self.entity_id), kwargs
+                    )
 
             # Set the value of named vartiables or add/update to extra_data dict
             if hasattr(self.config.runtime_data, k):
