@@ -139,6 +139,7 @@ CONF_HIDE_SIDEBAR = "hide_sidebar"
 CONF_ROTATE_BACKGROUND = "rotate_background"
 CONF_ROTATE_BACKGROUND_SOURCE = "rotate_background_source"
 CONF_ROTATE_BACKGROUND_PATH = "rotate_background_path"
+CONF_ROTATE_BACKGROUND_LINKED_ENTITY = "rotate_background_linked_entity"
 CONF_ROTATE_BACKGROUND_INTERVAL = "rotate_background_interval"
 
 # Config default values
@@ -188,6 +189,7 @@ ATTR_RESUME_MEDIA = "resume_media"
 ATTR_MAX_REPEATS = "max_repeats"
 
 VA_ATTRIBUTE_UPDATE_EVENT = "va_attr_update_event_{}"
+VA_BACKGROUND_UPDATE_EVENT = "va_background_update_{}"
 
 
 class RuntimeData:
@@ -215,6 +217,7 @@ class RuntimeData:
         self.rotate_background: bool = False
         self.rotate_background_source: str = "local"
         self.rotate_background_path: str = ""
+        self.rotate_background_linked_entity: str = ""
         self.rotate_background_interval: int = 60
         self.assist_prompt: VAAssistPrompt = DEFAULT_ASSIST_PROMPT
         self.status_icons_size: VAIconSizes = DEFAULT_STATUS_ICON_SIZE

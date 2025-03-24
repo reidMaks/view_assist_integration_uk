@@ -42,6 +42,7 @@ from .const import (
     CONF_MUSICPLAYER_DEVICE,
     CONF_ROTATE_BACKGROUND,
     CONF_ROTATE_BACKGROUND_INTERVAL,
+    CONF_ROTATE_BACKGROUND_LINKED_ENTITY,
     CONF_ROTATE_BACKGROUND_PATH,
     CONF_ROTATE_BACKGROUND_SOURCE,
     CONF_STATUS_ICON_SIZE,
@@ -82,6 +83,7 @@ from .const import (
     VAMicType,
     VAType,
 )
+from .helpers import get_sensor_entity_from_instance
 
 BASE_SCHEMA = {
     vol.Required(CONF_NAME): str,
@@ -96,7 +98,7 @@ BASE_SCHEMA = {
     ),
     # vol.Optional(CONF_INTENT_DEVICE): EntitySelector(
     #     EntitySelectorConfig(domain=SENSOR_DOMAIN)
-    # ),    
+    # ),
 }
 
 DISPLAY_SCHEMA = {
@@ -190,7 +192,7 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
         # Display reconfigure form if audio only
 
         # Also need to be in strings.json and translation files.
-        self.va_type = self.config_entry.data[CONF_TYPE]
+        self.va_type = self.config_entry.data[CONF_TYPE]  # pylint: disable=attribute-defined-outside-init
 
         if self.va_type == VAType.VIEW_AUDIO:
             return self.async_show_menu(
@@ -229,7 +231,7 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
             # vol.Optional(
             #     CONF_INTENT_DEVICE,
             #     default=self.config_entry.data.get(CONF_INTENT_DEVICE),
-            # ): EntitySelector(EntitySelectorConfig(domain=SENSOR_DOMAIN)),            
+            # ): EntitySelector(EntitySelectorConfig(domain=SENSOR_DOMAIN)),
         }
 
         if self.va_type == VAType.VIEW_AUDIO:
@@ -319,6 +321,7 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                             "local_sequence",
                             "local_random",
                             "download",
+                            "link_to_entity",
                         ],
                         mode=SelectSelectorMode.LIST,
                     )
@@ -330,6 +333,22 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                         DEFAULT_ROTATE_BACKGROUND_PATH,
                     ),
                 ): str,
+                vol.Optional(
+                    CONF_ROTATE_BACKGROUND_LINKED_ENTITY,
+                    default=self.config_entry.options.get(
+                        CONF_ROTATE_BACKGROUND_LINKED_ENTITY, vol.UNDEFINED
+                    ),
+                ): EntitySelector(
+                    EntitySelectorConfig(
+                        integration=DOMAIN,
+                        domain=SENSOR_DOMAIN,
+                        exclude_entities=[
+                            get_sensor_entity_from_instance(
+                                self.hass, self.config_entry.entry_id
+                            )
+                        ],
+                    )
+                ),
                 vol.Optional(
                     CONF_ROTATE_BACKGROUND_INTERVAL,
                     default=self.config_entry.options.get(
