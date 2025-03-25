@@ -258,3 +258,7 @@ save_view:
       default: true
       selector:
         boolean:
+set_master_config:
+  name: "Set View Assist master config"
+  descritpion: "Set config parameters for all View Assist devices"
+
