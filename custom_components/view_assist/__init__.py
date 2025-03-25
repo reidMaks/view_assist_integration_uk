@@ -2,7 +2,7 @@
 
 import logging
 
-from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.start import async_at_started
@@ -19,6 +19,7 @@ from .helpers import (
 )
 from .http import HTTPManager
 from .js_modules import JSModuleRegistration
+from .master_config import MASTER_CONFIG, MasterConfigManager
 from .services import VAServices
 from .templates import setup_va_templates
 from .timers import TIMERS, VATimers
@@ -69,6 +70,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
 
 async def run_if_first_instance(hass: HomeAssistant, entry: VAConfigEntry):
     """Things to run only for first instance of integration."""
+    master_config = MasterConfigManager(hass, entry)
+    hass.data[DOMAIN][MASTER_CONFIG] = master_config
+    await master_config.load()
 
     # Inisitialise service
     services = VAServices(hass, entry)
