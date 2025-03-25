@@ -279,6 +279,9 @@ async def async_register_websockets(hass: HomeAssistant):
                     "timers": timer_info,
                     "background": data.background,
                     "dashboard": data.dashboard,
+                    "home": data.home,
+                    "music": data.music,
+                    "intent": data.intent,
                     "hide_sidebar": data.hide_sidebar,
                     "hide_header": data.hide_header,
                 }
