@@ -1,4 +1,4 @@
-const version = "1.0.3"
+const version = "1.0.4"
 const TIMEOUT_ERROR = "SELECTTREE-TIMEOUT";
 
 export async function await_element(el, hard = false) {
@@ -364,6 +364,9 @@ class ViewAssist {
     if (!this.variables.config?.mimic_device) {
       await this.hide_header(this.variables.config?.hide_header);
       await this.hide_sidebar(this.variables.config?.hide_sidebar);
+      setTimeout(() => {
+        this.hide_header(this.variables.config?.hide_header);
+      }, 10);
     }
   }
 
@@ -412,22 +415,27 @@ class ViewAssist {
     let reload = false;
     const old_config = this.variables?.config
 
-    // Set variables to payload
-    this.variables.config = payload
+    if (event == "config_update" && payload.home != this.variables.config.home) {
+      console.log("Changed home view")
+      reload = true;
+    }
 
     // Entity id and mimic device
     if (payload.entity_id && payload.entity_id != localStorage.getItem("view_assist_sensor")) {
       console.log("Set view assist sensor value")
       localStorage.setItem("view_assist_sensor", payload.entity_id);
       localStorage.setItem("view_assist_mimic_device", payload.mimic_device);
-      reload = true
+      reload = true;
     }
+
+    // Set variables to payload
+    this.variables.config = payload
 
     if (!payload.mimic_device) {
 
       // On update of config, go to default page
       if (event == "connection" || reload) {
-        this.browser_navigate(payload.dashboard);
+        this.browser_navigate(payload.home);
       } else if (event == "registered") {
           location.reload();
       } else {
@@ -451,6 +459,7 @@ class ViewAssist {
     // Navigate the browser window
     if (!this.variables.config.mimic_device) {
       if (!path) return;
+      console.log("Navigating to " + path)
       history.pushState(null, "", path);
       window.dispatchEvent(new CustomEvent("location-changed"));
     }
