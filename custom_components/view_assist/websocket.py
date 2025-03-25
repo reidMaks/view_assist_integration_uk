@@ -24,6 +24,7 @@ from .helpers import (
     get_entity_id_by_browser_id,
     get_mimic_entity_id,
 )
+from .master_config import MASTER_CONFIG
 from .timers import TIMERS, VATimers
 
 _LOGGER = logging.getLogger(__name__)
@@ -146,9 +147,16 @@ async def async_register_websockets(hass: HomeAssistant):
 
             async_dispatcher_connect(
                 hass,
+                f"{DOMAIN}_master_config_update",
+                send_config_update,
+            )
+
+            async_dispatcher_connect(
+                hass,
                 f"{DOMAIN}_{config.entry_id}_navigate",
                 browser_navigate,
             )
+
         else:
             async_dispatcher_connect(
                 hass,
@@ -250,6 +258,7 @@ async def async_register_websockets(hass: HomeAssistant):
             )
             try:
                 output = {
+                    "master_config": hass.data[DOMAIN][MASTER_CONFIG].config,
                     "browser_id": browser_id,
                     "entity_id": entity_id,
                     "mimic_device": mimic,
