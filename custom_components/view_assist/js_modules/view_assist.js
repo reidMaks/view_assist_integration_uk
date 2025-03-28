@@ -1,4 +1,4 @@
-const version = "1.0.4"
+const version = "1.0.5"
 const TIMEOUT_ERROR = "SELECTTREE-TIMEOUT";
 
 export async function await_element(el, hard = false) {
@@ -303,20 +303,28 @@ class ViewAssist {
     await selectTree(
       elMain, "$ partial-panel-resolver"
     ).then((el) => {
-      enabled ? el?.style.setProperty("--mdc-top-app-bar-width", "100% !important") : el?.style.removeProperty("--mdc-top-app-bar-width")
+      enabled ? el.style.setProperty("--mdc-top-app-bar-width", "100% !important") : el.style.removeProperty("--mdc-top-app-bar-width")
     });
 
     await selectTree(
       elMain, "$ ha-drawer ha-sidebar"
     ).then((el) => {
-      enabled ? el?.style.setProperty("display", "none !important") : el?.style.removeProperty("display")
+      enabled ? el.style.setProperty("display", "none !important") : el.style.removeProperty("display")
     });
 
     await selectTree(
       elMain, "$ partial-panel-resolver ha-panel-lovelace $ hui-root $ ha-menu-button"
     ).then((el) => {
-      enabled ? el?.style?.setProperty("display", "none") : el?.style?.removeProperty("display")
+      enabled ? el.style.setProperty("display", "none") : el.style.removeProperty("display")
     });
+
+    // Hide white line on left
+    await selectTree(
+      elMain, "$ ha-drawer $ aside"
+    ).then((el) => {
+      el.style.setProperty("display", "none");
+    });
+
   }
 
   async initializeWhenReady(attempts = 0) {
