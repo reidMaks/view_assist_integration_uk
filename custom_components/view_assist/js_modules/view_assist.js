@@ -322,7 +322,7 @@ class ViewAssist {
     await selectTree(
       elMain, "$ ha-drawer $ aside"
     ).then((el) => {
-      el.style.setProperty("display", "none");
+      enabled ? el.style.setProperty("display", "none") : el.style.removeProperty("display");
     });
 
   }
