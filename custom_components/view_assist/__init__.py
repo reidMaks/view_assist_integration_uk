@@ -17,7 +17,7 @@ from .helpers import (
     get_loaded_instance_count,
     is_first_instance,
 )
-from .http import HTTPManager
+from .http_url import HTTPManager
 from .js_modules import JSModuleRegistration
 from .master_config import MASTER_CONFIG, MasterConfigManager
 from .services import VAServices
