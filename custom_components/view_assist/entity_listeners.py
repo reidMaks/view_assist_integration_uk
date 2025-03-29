@@ -16,6 +16,8 @@ from homeassistant.helpers.dispatcher import (
 )
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.start import async_at_started
+from .helpers import get_key
+
 
 from .const import (
     BROWSERMOD_DOMAIN,
@@ -90,6 +92,15 @@ class EntityListeners:
         config_entry.async_on_unload(
             async_track_state_change_event(
                 hass, mediaplayer_device, self._async_on_mediaplayer_device_mute_change
+            )
+        )
+
+        # Add intent sensor listener
+
+        intent_device = self.config_entry.data["intent_device"]
+        config_entry.async_on_unload(
+            async_track_state_change_event(
+                hass, intent_device, self._async_on_intent_device_change
             )
         )
 
@@ -404,6 +415,60 @@ class EntityListeners:
 
         self.config_entry.runtime_data.status_icons = status_icons
         self.update_entity()
+
+    async def _async_on_intent_device_change(
+        self, event: Event[EventStateChangedData]
+    ) -> None:
+        entity_id = get_sensor_entity_from_instance(
+                self.hass, self.config_entry.entry_id
+            )
+        if intent_new_state := event.data["new_state"].attributes.get(
+            "intent_output"):
+            speech_text = get_key("response.speech.plain.speech", intent_new_state)
+            await self.hass.services.async_call(
+                DOMAIN,
+                "set_state",
+                service_data={
+                    "entity_id": entity_id,
+                    "last_said": speech_text,
+                },
+            )
+
+            # Get changed entities and format for buttons
+            changed_entities = get_key("response.data.success", intent_new_state)
+            prefixes = ('light', 'switch', 'cover', 'boolean', 'input_boolean')
+
+            # Filtering the list based on prefixes
+            filtered_list = ( [
+                    item["id"]
+                    for item in changed_entities
+                    if item.get("id", "").startswith(prefixes)
+                ]
+                if changed_entities
+                else []
+            )
+            # Creating the final result
+            filtered_entities = [
+                {
+                    "type": "custom:button-card",
+                    "entity": entity,
+                    "tap_action": {"action": "toggle"},
+                    "double_tap_action": {"action": "more-info"},
+                }
+                for entity in filtered_list
+            ]
+
+            # Check to make sure filtered_entities is not empty before proceeding
+            if filtered_entities:
+                await self.hass.services.async_call(
+                    DOMAIN,
+                    "set_state",
+                    service_data={
+                        "entity_id": entity_id,
+                        "intent_entities": filtered_entities,
+                    },
+                )
+                await self.async_browser_navigate(self.config_entry.runtime_data.intent)
 
     def get_mute_switch(self, target_device: str, mic_type: str):
         """Get mute switch."""

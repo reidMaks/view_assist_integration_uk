@@ -116,7 +116,7 @@ CONF_MIC_DEVICE = "mic_device"
 CONF_MEDIAPLAYER_DEVICE = "mediaplayer_device"
 CONF_MUSICPLAYER_DEVICE = "musicplayer_device"
 CONF_DISPLAY_DEVICE = "display_device"
-# CONF_INTENT_DEVICE = "intent_device"
+CONF_INTENT_DEVICE = "intent_device"
 CONF_DASHBOARD = "dashboard"
 CONF_HOME = "home"
 CONF_INTENT = "intent"
@@ -205,7 +205,7 @@ class RuntimeData:
         self.mediaplayer_device: str = ""
         self.musicplayer_device: str = ""
         self.display_device: str = ""
-        # self.intent_device: str = ""
+        self.intent_device: str = ""
         self.dev_mimic: bool = False
 
         # Dashboard options
