@@ -1,4 +1,4 @@
-const version = "1.0.4"
+const version = "1.0.5"
 const TIMEOUT_ERROR = "SELECTTREE-TIMEOUT";
 
 export async function await_element(el, hard = false) {
@@ -282,13 +282,13 @@ class ViewAssist {
     await selectTree(
       elMain, "hui-view-container"
     ).then((el) => {
-      enabled ? el?.style.setProperty("padding-top", "0px") : el?.style.removeProperty("padding-top")
+      enabled ? el.style.setProperty("padding-top", "0px") : el.style.removeProperty("padding-top")
     });
 
     await selectTree(
       elMain, ".header"
     ).then((el) => {
-      enabled ? el?.style.setProperty("display", "none"): el?.style.removeProperty("display")
+      enabled ? el.style.setProperty("display", "none"): el.style.removeProperty("display")
     });
   }
 
@@ -303,20 +303,28 @@ class ViewAssist {
     await selectTree(
       elMain, "$ partial-panel-resolver"
     ).then((el) => {
-      enabled ? el?.style.setProperty("--mdc-top-app-bar-width", "100% !important") : el?.style.removeProperty("--mdc-top-app-bar-width")
+      enabled ? el.style.setProperty("--mdc-top-app-bar-width", "100% !important") : el.style.removeProperty("--mdc-top-app-bar-width")
     });
 
     await selectTree(
       elMain, "$ ha-drawer ha-sidebar"
     ).then((el) => {
-      enabled ? el?.style.setProperty("display", "none !important") : el?.style.removeProperty("display")
+      enabled ? el.style.setProperty("display", "none !important") : el.style.removeProperty("display")
     });
 
     await selectTree(
       elMain, "$ partial-panel-resolver ha-panel-lovelace $ hui-root $ ha-menu-button"
     ).then((el) => {
-      enabled ? el?.style?.setProperty("display", "none") : el?.style?.removeProperty("display")
+      enabled ? el.style.setProperty("display", "none") : el.style.removeProperty("display")
     });
+
+    // Hide white line on left
+    await selectTree(
+      elMain, "$ ha-drawer $ aside"
+    ).then((el) => {
+      enabled ? el.style.setProperty("display", "none") : el.style.removeProperty("display");
+    });
+
   }
 
   async initializeWhenReady(attempts = 0) {
@@ -384,7 +392,6 @@ class ViewAssist {
           browser_id: localStorage.getItem("browser_mod-browser-id"),
         })
         this.connected = true;
-        console.log("ViewAssist connected to server")
       } catch {
         console.log("Unable to connect to server")
       }
@@ -397,7 +404,6 @@ class ViewAssist {
     // Handle incomming messages from the server
     let event = msg["event"];
     let payload = msg["payload"];
-    console.log("event:", event, " -> ", payload);
 
     if (event == "connection" || event == "config_update" || event == "registered") {
       await this.process_config(event, payload);
@@ -416,13 +422,11 @@ class ViewAssist {
     const old_config = this.variables?.config
 
     if (event == "config_update" && payload.home != this.variables.config.home) {
-      console.log("Changed home view")
       reload = true;
     }
 
     // Entity id and mimic device
     if (payload.entity_id && payload.entity_id != localStorage.getItem("view_assist_sensor")) {
-      console.log("Set view assist sensor value")
       localStorage.setItem("view_assist_sensor", payload.entity_id);
       localStorage.setItem("view_assist_mimic_device", payload.mimic_device);
       reload = true;
@@ -459,7 +463,6 @@ class ViewAssist {
     // Navigate the browser window
     if (!this.variables.config.mimic_device) {
       if (!path) return;
-      console.log("Navigating to " + path)
       history.pushState(null, "", path);
       window.dispatchEvent(new CustomEvent("location-changed"));
     }

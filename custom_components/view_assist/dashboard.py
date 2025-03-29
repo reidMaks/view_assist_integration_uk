@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 import datetime as dt
 import logging
+import operator
 from pathlib import Path
 from typing import Any
 import urllib.parse
@@ -18,8 +19,14 @@ from homeassistant.components.lovelace import (
     LovelaceData,
     dashboard,
 )
-from homeassistant.const import CONF_ID, CONF_MODE, CONF_TYPE, EVENT_PANELS_UPDATED
-from homeassistant.core import HomeAssistant
+from homeassistant.const import (
+    CONF_ID,
+    CONF_MODE,
+    CONF_TYPE,
+    EVENT_LOVELACE_UPDATED,
+    EVENT_PANELS_UPDATED,
+)
+from homeassistant.core import Event, HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util.yaml import load_yaml_dict, save_yaml
 
@@ -37,6 +44,8 @@ from .const import (
     VIEWS_DIR,
     VAConfigEntry,
 )
+from .helpers import differ_to_json, json_to_dictdiffer
+from .utils import dictdiff
 from .websocket import MockWSConnection
 
 _LOGGER = logging.getLogger(__name__)
@@ -212,7 +221,7 @@ class DownloadManager:
         base = self.hass.config.path(f"{DOMAIN}/{DASHBOARD_DIR}")
         exists = Path(base, DASHBOARD_FILE).exists()
 
-        if exists and overwrite:
+        if exists and not overwrite:
             raise DownloadManagerException(
                 "Cannot download dashboard.  Dashboard file already exists and overwrite set to false"
             )
@@ -279,6 +288,12 @@ class DashboardManager:
         self.hass = hass
         self.config = config
         self.download_manager = DownloadManager(hass)
+        self.build_mode: bool = False
+
+        # Experimental - listen for dashboard change and write out changes
+        config.async_on_unload(
+            hass.bus.async_listen(EVENT_LOVELACE_UPDATED, self._dashboard_changed)
+        )
 
     async def _save_to_yaml_file(
         self,
@@ -292,16 +307,18 @@ class DashboardManager:
         # Check if file exists
         if Path(file_path).exists():
             if not overwrite:
-                return False
+                raise DashboardManagerException(
+                    f"Unable to save {file_path}.  File exists and overwrite set to false"
+                )
             if overwrite and backup_existing:
-                if await DownloadManager(self.hass).backup_file_or_folder(file_path):
-                    await self.hass.async_add_executor_job(
-                        save_yaml,
-                        file_path,
-                        data,
-                    )
-                    return True
-        raise DashboardManagerException(f"Unable to save {file_path}")
+                await DownloadManager(self.hass).backup_file_or_folder(file_path)
+
+        await self.hass.async_add_executor_job(
+            save_yaml,
+            file_path,
+            data,
+        )
+        return True
 
     @property
     def dashboard_key(self) -> str:
@@ -318,6 +335,8 @@ class DashboardManager:
         """Config VA dashboard."""
         if not self.dashboard_exists:
             _LOGGER.debug("Initialising View Assist dashboard")
+            self.build_mode = True
+
             # Download dashboard
             base = self.hass.config.path(DOMAIN)
             dashboard_file_path = f"{base}/{DASHBOARD_DIR}/{DASHBOARD_DIR}.yaml"
@@ -335,19 +354,26 @@ class DashboardManager:
             # Load dashboard
             _LOGGER.debug("Adding dashboard")
             await self.add_dashboard(DASHBOARD_NAME, dashboard_file_path)
+            await self._apply_user_dashboard_changes()
 
             # Load views that have successfully downloaded plus others already in directory
             _LOGGER.debug("Adding views")
             for view in await self.hass.async_add_executor_job(Path(view_base).iterdir):
-                await self.add_view(
-                    view.name,
-                    download_if_missing=False,
-                    force_download=False,
-                    overwrite=False,
-                )
+                try:
+                    await self.add_view(
+                        view.name,
+                        download_if_missing=False,
+                        force_download=False,
+                        overwrite=False,
+                    )
+                except DashboardManagerException as ex:
+                    _LOGGER.warning(ex)
 
             # Remove home view
             await self.delete_view("home")
+
+            # Finish
+            self.build_mode = False
 
         else:
             _LOGGER.debug(
@@ -355,7 +381,7 @@ class DashboardManager:
             )
 
     async def view_exists(self, view: str) -> int:
-        """Return if view exists."""
+        """Return index of view if view exists."""
         lovelace: LovelaceData = self.hass.data["lovelace"]
         dashboard_store: dashboard.LovelaceStorage = lovelace.dashboards.get(
             self.dashboard_key
@@ -363,6 +389,8 @@ class DashboardManager:
         # Load dashboard config data
         if dashboard_store:
             dashboard_config = await dashboard_store.async_load(False)
+            if not dashboard_config["views"]:
+                return 0
 
             for index, ex_view in enumerate(dashboard_config["views"]):
                 if ex_view.get("path") == view:
@@ -398,7 +426,46 @@ class DashboardManager:
                         dashboard_config
                     )
 
-    async def add_view(
+    async def update_dashboard(
+        self,
+    ):
+        """Download latest dashboard from github repository and apply."""
+
+        # download dashboard - no backup
+        await self.download_manager.download_dashboard(
+            overwrite=True, backup_if_exists=False
+        )
+
+        # Apply new dashboard to HA
+        base = self.hass.config.path(DOMAIN)
+        dashboard_file_path = f"{base}/{DASHBOARD_DIR}/{DASHBOARD_DIR}.yaml"
+
+        if not Path(dashboard_file_path).exists():
+            # No master dashboard
+            return
+
+        # Load dashboard config file from path
+        if updated_dashboard_config := await self.hass.async_add_executor_job(
+            load_yaml_dict, dashboard_file_path
+        ):
+            lovelace: LovelaceData = self.hass.data["lovelace"]
+            dashboard_store: dashboard.LovelaceStorage = lovelace.dashboards.get(
+                self.dashboard_key
+            )
+            # Load dashboard config data
+            if dashboard_store:
+                dashboard_config = await dashboard_store.async_load(False)
+
+                # Copy views to updated dashboard
+                updated_dashboard_config["views"] = dashboard_config.get("views")
+
+                # Apply
+                self.build_mode = True
+                await dashboard_store.async_save(updated_dashboard_config)
+                await self._apply_user_dashboard_changes()
+                self.build_mode = False
+
+    async def add_update_view(
         self,
         name: str,
         download_if_missing: bool = True,
@@ -468,7 +535,9 @@ class DashboardManager:
                 "cards": [new_view_config],
             }
 
-            if view_index:
+            if not dashboard_config["views"]:
+                dashboard_config["views"] = [new_view]
+            elif view_index:
                 dashboard_config["views"][view_index - 1] = new_view
             elif name == DEFAULT_VIEW:
                 # Insert default view as first view in list
@@ -542,4 +611,86 @@ class DashboardManager:
             if modified:
                 await dashboard_store.async_save(dashboard_config)
 
+    async def _dashboard_changed(self, event: Event):
+        # If in dashboard build mode, ignore changes
+        if self.build_mode:
+            return
 
+        if event.data["url_path"] == self.dashboard_key:
+            try:
+                lovelace: LovelaceData = self.hass.data["lovelace"]
+                dashboard_store: dashboard.LovelaceStorage = lovelace.dashboards.get(
+                    self.dashboard_key
+                )
+                # Load dashboard config data
+                if dashboard_store:
+                    dashboard_config = await dashboard_store.async_load(False)
+
+                    # Remove views from dashboard config for saving
+                    dashboard_only = dashboard_config.copy()
+                    dashboard_only["views"] = [{"title": "Home"}]
+
+                    file_path = Path(self.hass.config.config_dir, DOMAIN, DASHBOARD_DIR)
+                    file_path.mkdir(parents=True, exist_ok=True)
+
+                    if diffs := await self._compare_dashboard_to_master(dashboard_only):
+                        await self._save_to_yaml_file(
+                            Path(file_path, "user_dashboard.yaml"),
+                            diffs,
+                            overwrite=True,
+                            backup_existing=False,
+                        )
+            except Exception as ex:  # noqa: BLE001
+                _LOGGER.error("Error saving dashboard. Error is %s", ex)
+
+    async def _compare_dashboard_to_master(
+        self, comp_dash: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Compare dashboard dict to master and return differences."""
+        # Get master dashboard
+        base = self.hass.config.path(DOMAIN)
+        dashboard_file_path = f"{base}/{DASHBOARD_DIR}/{DASHBOARD_DIR}.yaml"
+
+        if not Path(dashboard_file_path).exists():
+            # No master dashboard
+            return None
+
+        # Load dashboard config file from path
+        if master_dashboard := await self.hass.async_add_executor_job(
+            load_yaml_dict, dashboard_file_path
+        ):
+            if operator.eq(master_dashboard, comp_dash):
+                _LOGGER.debug("They are the same!")
+            else:
+                diffs = dictdiff.diff(master_dashboard, comp_dash, expand=True)
+                return differ_to_json(diffs)
+        return None
+
+    async def _apply_user_dashboard_changes(self):
+        """Apply a user_dashboard changes file to master dashboard."""
+
+        # Get master dashboard
+        base = self.hass.config.path(DOMAIN)
+        user_dashboard_file_path = f"{base}/{DASHBOARD_DIR}/user_dashboard.yaml"
+
+        if not Path(user_dashboard_file_path).exists():
+            # No master dashboard
+            return
+
+        # Load dashboard config file from path
+        _LOGGER.debug("Applying user changes to dashboard")
+        if user_dashboard := await self.hass.async_add_executor_job(
+            load_yaml_dict, user_dashboard_file_path
+        ):
+            lovelace: LovelaceData = self.hass.data["lovelace"]
+            dashboard_store: dashboard.LovelaceStorage = lovelace.dashboards.get(
+                self.dashboard_key
+            )
+            # Load dashboard config data
+            if dashboard_store:
+                dashboard_config = await dashboard_store.async_load(False)
+
+                # Apply
+                user_changes = json_to_dictdiffer(user_dashboard)
+                updated_dashboard = dictdiff.patch(user_changes, dashboard_config)
+                await dashboard_store.async_save(updated_dashboard)

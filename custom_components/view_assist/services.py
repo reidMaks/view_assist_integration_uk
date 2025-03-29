@@ -405,14 +405,17 @@ class VAServices:
         community_view = call.data.get(ATTR_COMMUNITY_VIEW, False)
         dm: DashboardManager = self.hass.data[DOMAIN][DASHBOARD_MANAGER]
         try:
-            await dm.add_view(
-                view_name,
-                download_if_missing=download,
-                force_download=force_download,
-                overwrite=overwrite,
-                backup_existing_dir=backup,
-                community_view=community_view,
-            )
+            if view_name == "dashboard":
+                await dm.update_dashboard()
+            else:
+                await dm.add_update_view(
+                    view_name,
+                    download_if_missing=download,
+                    force_download=force_download,
+                    overwrite=overwrite,
+                    backup_existing_dir=backup,
+                    community_view=community_view,
+                )
         except (DownloadManagerException, DashboardManagerException) as ex:
             raise HomeAssistantError(ex) from ex
 

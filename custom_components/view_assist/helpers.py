@@ -1,5 +1,6 @@
 """Helper functions."""
 
+from functools import reduce
 import logging
 from pathlib import Path
 from typing import Any
@@ -281,6 +282,20 @@ def get_entities_by_attr_filter(
     return matched_entities
 
 
+def get_key(
+    dot_notation_path: str, data: dict
+) -> dict[str, dict | str | int] | str | int:
+    """Try to get a deep value from a dict based on a dot-notation."""
+
+    dn_list = dot_notation_path.split(".")
+
+    try:
+        return reduce(dict.get, dn_list, data)
+    except (TypeError, KeyError) as ex:
+        _LOGGER.error("TYPE ERROR: %s - %s", dn_list, ex)
+        return None
+
+
 # ----------------------------------------------------------------
 # Images
 # ----------------------------------------------------------------
@@ -358,3 +373,48 @@ def make_url_from_file_path(hass: HomeAssistant, path: Path) -> str:
     """Make a url from the file path."""
     url = path.as_uri()
     return url.replace("file://", "").replace(hass.config.config_dir, "")
+
+
+def differ_to_json(diffs: list) -> dict:
+    """Convert dictdiffer output to json for saving to file."""
+    output = {}
+    for diff in diffs:
+        chg_type = diff[0]
+        if not output.get(chg_type):
+            output[chg_type] = []
+
+        if chg_type in ("add", "remove"):
+            output[chg_type].append(
+                {
+                    "path": diff[1],
+                    "key": diff[2][0][0],
+                    "value": diff[2][0][1],
+                }
+            )
+        elif chg_type == "change":
+            output[chg_type].append(
+                {
+                    "path": diff[1],
+                    "orig": diff[2][0],
+                    "updated": diff[2][1],
+                }
+            )
+
+    return output
+
+
+def json_to_dictdiffer(jsondiff: dict) -> list:
+    """Convert json to dictdiffer format for rebuiling changes."""
+    output = []
+    for chg_type, changes in jsondiff.items():
+        for change in changes:
+            if chg_type in ("add", "remove"):
+                output.append(
+                    (chg_type, change["path"], [(change["key"], change["value"])])
+                )
+            elif chg_type == "change":
+                output.append(
+                    (chg_type, change["path"], (change["orig"], change["updated"]))
+                )
+
+    return output
