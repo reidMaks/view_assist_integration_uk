@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 import logging
 import operator
+from os import PathLike
 from pathlib import Path
 from typing import Any
 import urllib.parse
@@ -256,7 +257,7 @@ class DashboardManager:
 
     async def _save_to_yaml_file(
         self,
-        file_path: str,
+        file_path: str | PathLike,
         data: dict[str, Any],
     ) -> bool:
         """Save dict to yaml file."""
@@ -320,6 +321,9 @@ class DashboardManager:
 
             # Finish
             self.build_mode = False
+
+            # Fire refresh event
+            self.hass.bus.async_fire(EVENT_PANELS_UPDATED)
 
         else:
             _LOGGER.debug(
@@ -523,14 +527,27 @@ class DashboardManager:
         try:
             file_path = Path(self.hass.config.path(DOMAIN), VIEWS_DIR, name)
 
-            # Load user view version if exists - for later feature
-            if not download_from_repo and Path(file_path, f"user_{name}.yaml").exists():
-                file = Path(file_path, f"user_{name}.yaml")
-            else:
+            # Load in order of existence - user view version (for later feature), default version, saved version
+            file: Path
+            file_options = [f"user_{name}.yaml", f"{name}.yaml", f"{name}.saved.yaml"]
+
+            if download_from_repo:
                 file = Path(file_path, f"{name}.yaml")
-            new_view_config = await self.hass.async_add_executor_job(
-                load_yaml_dict, file
-            )
+
+            for file_option in file_options:
+                if Path(file_path, file_option).exists():
+                    file = Path(file_path, file_option)
+                    break
+
+            if file:
+                _LOGGER.debug("Loading view %s from %s", name, file)
+                new_view_config = await self.hass.async_add_executor_job(
+                    load_yaml_dict, file
+                )
+            else:
+                raise DashboardManagerException(
+                    f"Unable to load view {name}.  Unable to find a yaml file"
+                )
         except OSError as ex:
             raise DashboardManagerException(
                 f"Unable to load view {name}.  Error is {ex}"
@@ -551,7 +568,7 @@ class DashboardManager:
             if backup_current_view:
                 await self.save_view(name)
 
-            _LOGGER.debug("Loading view %s", name)
+            _LOGGER.debug("Adding view %s to dashboard", name)
             # Create new view and add it to dashboard
             new_view = {
                 "type": "panel",
@@ -598,12 +615,20 @@ class DashboardManager:
             # Make list of existing view names for this dashboard
             for view in dashboard_config["views"]:
                 if view.get("path") == view_name.lower():
-                    file_path = self.hass.config.path(
-                        f"{DOMAIN}/views/{view_name.lower()}/{view_name.lower()}.saved.yaml"
+                    file_path = Path(
+                        self.hass.config.path(DOMAIN), VIEWS_DIR, view_name.lower()
                     )
-                    return await self._save_to_yaml_file(
-                        file_path,
-                        view.get("cards", [])[0],
+                    file_name = f"{view_name.lower()}.saved.yaml"
+
+                    if view.get("cards", []):
+                        # Ensure path exists
+                        file_path.mkdir(parents=True, exist_ok=True)
+                        return await self._save_to_yaml_file(
+                            Path(file_path, file_name),
+                            view.get("cards", [])[0],
+                        )
+                    raise DashboardManagerException(
+                        f"No view data to save for {view_name} view"
                     )
         return False
 
