@@ -149,6 +149,7 @@ DEFAULT_DASHBOARD = "/view-assist"
 DEFAULT_VIEW_HOME = "/view-assist/clock"
 DEFAULT_VIEW_MUSIC = "/view-assist/music"
 DEFAULT_VIEW_INTENT = "/view-assist/intent"
+DEFAULT_VIEW_INFO = "info"
 DEFAULT_VIEW_BACKGROUND = "/view_assist/dashboard/background.jpg"
 DEFAULT_ASSIST_PROMPT = VAAssistPrompt.BLUR_POPUP
 DEFAULT_STATUS_ICON_SIZE = VAIconSizes.LARGE

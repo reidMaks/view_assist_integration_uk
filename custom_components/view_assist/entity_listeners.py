@@ -31,6 +31,7 @@ from .const import (
     VAConfigEntry,
     VADisplayType,
     VAMode,
+    DEFAULT_VIEW_INFO,
 )
 from .helpers import (
     async_get_download_image,
@@ -468,7 +469,21 @@ class EntityListeners:
                         "intent_entities": filtered_entities,
                     },
                 )
-                await self.async_browser_navigate(self.config_entry.runtime_data.intent)
+                await self.async_browser_navigate(self.config_entry.runtime_data.intent)    
+            else:
+                word_count = len(speech_text.split())
+                message_font_size = ["14vw", "8vw", "6vw", "4vw"][min(word_count // 6, 3)]
+                await self.hass.services.async_call(
+                    DOMAIN,
+                    "set_state",
+                    service_data={
+                        "entity_id": entity_id,
+                        "title": "AI Response",
+                        "message_font_size": message_font_size,
+                        "message": speech_text,
+                    },
+                 )
+                await self.async_browser_navigate(f"{self.config_entry.runtime_data.dashboard}/{DEFAULT_VIEW_INFO}")
 
     def get_mute_switch(self, target_device: str, mic_type: str):
         """Get mute switch."""
