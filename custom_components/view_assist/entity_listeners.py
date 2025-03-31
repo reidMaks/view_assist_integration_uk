@@ -97,13 +97,14 @@ class EntityListeners:
         )
 
         # Add intent sensor listener
+        intent_device = self.config_entry.data.get("intent_device")
 
-        intent_device = self.config_entry.data["intent_device"]
-        config_entry.async_on_unload(
-            async_track_state_change_event(
-                hass, intent_device, self._async_on_intent_device_change
+        if intent_device:
+            config_entry.async_on_unload(
+                async_track_state_change_event(
+                    hass, intent_device, self._async_on_intent_device_change
+                )
             )
-        )
 
         async_at_started(hass, self._after_ha_start)
 
