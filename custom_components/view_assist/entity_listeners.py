@@ -5,10 +5,17 @@ from asyncio import Task
 from datetime import datetime as dt
 import logging
 import random
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_MODE
-from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
+from homeassistant.core import (
+    Event,
+    EventStateChangedData,
+    HomeAssistant,
+    State,
+    callback,
+)
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.dispatcher import (
     async_dispatcher_connect,
@@ -16,13 +23,13 @@ from homeassistant.helpers.dispatcher import (
 )
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.start import async_at_started
-from .helpers import get_key
-
 
 from .const import (
     BROWSERMOD_DOMAIN,
+    CC_CONVERSATION_ENDED_EVENT,
     CONF_DO_NOT_DISTURB,
     CYCLE_VIEWS,
+    DEFAULT_VIEW_INFO,
     DOMAIN,
     REMOTE_ASSIST_DISPLAY_DOMAIN,
     USE_VA_NAVIGATION_FOR_BROWSERMOD,
@@ -32,7 +39,6 @@ from .const import (
     VADisplayType,
     VAEvent,
     VAMode,
-    DEFAULT_VIEW_INFO,
 )
 from .helpers import (
     async_get_download_image,
@@ -40,6 +46,8 @@ from .helpers import (
     get_device_name_from_id,
     get_display_type_from_browser_id,
     get_entity_attribute,
+    get_entity_id_from_conversation_device_id,
+    get_key,
     get_revert_settings_for_mode,
     get_sensor_entity_from_instance,
     make_url_from_file_path,
@@ -106,6 +114,14 @@ class EntityListeners:
                     hass, intent_device, self._async_on_intent_device_change
                 )
             )
+
+        # Add listener for custom conversation intent event
+        config_entry.async_on_unload(
+            hass.bus.async_listen(
+                CC_CONVERSATION_ENDED_EVENT,
+                self._async_cc_on_conversation_ended_handler,
+            )
+        )
 
         async_at_started(hass, self._after_ha_start)
 
@@ -420,14 +436,40 @@ class EntityListeners:
         self.config_entry.runtime_data.status_icons = status_icons
         self.update_entity()
 
+    async def _async_cc_on_conversation_ended_handler(self, event: Event):
+        """Handle custom conversation integration conversation ended event."""
+        # Get VA entity from device id
+        _LOGGER.warning("CC Event: %s", event)
+        entity_id = get_sensor_entity_from_instance(
+            self.hass, self.config_entry.entry_id
+        )
+        if (
+            event.data.get("device_id")
+            and get_entity_id_from_conversation_device_id(event.data["device_id"])
+            == entity_id
+        ):
+            # mic device id matches this VA entity
+            # reformat event data
+            state = get_key("result.response.speech.plain.speech", event.data)
+            attributes = {"intent_output": event.data["result"]}
+
+            # Wrap event into HA State update event
+            state = State(entity_id=entity_id, state=state, attributes=attributes)
+            await self._async_on_intent_device_change(
+                Event[EventStateChangedData](
+                    event_type=CC_CONVERSATION_ENDED_EVENT,
+                    data=EventStateChangedData(new_state=state),
+                )
+            )
+
     async def _async_on_intent_device_change(
         self, event: Event[EventStateChangedData]
     ) -> None:
         entity_id = get_sensor_entity_from_instance(
-                self.hass, self.config_entry.entry_id
-            )
-        if intent_new_state := event.data["new_state"].attributes.get(
-            "intent_output"):
+            self.hass, self.config_entry.entry_id
+        )
+        _LOGGER.warning("INTENT NEW STATE: %s", event)
+        if intent_new_state := event.data["new_state"].attributes.get("intent_output"):
             speech_text = get_key("response.speech.plain.speech", intent_new_state)
             await self.hass.services.async_call(
                 DOMAIN,
@@ -440,10 +482,11 @@ class EntityListeners:
 
             # Get changed entities and format for buttons
             changed_entities = get_key("response.data.success", intent_new_state)
-            prefixes = ('light', 'switch', 'cover', 'boolean', 'input_boolean')
+            prefixes = ("light", "switch", "cover", "boolean", "input_boolean")
 
             # Filtering the list based on prefixes
-            filtered_list = ( [
+            filtered_list = (
+                [
                     item["id"]
                     for item in changed_entities
                     if item.get("id", "").startswith(prefixes)
@@ -472,10 +515,12 @@ class EntityListeners:
                         "intent_entities": filtered_entities,
                     },
                 )
-                await self.async_browser_navigate(self.config_entry.runtime_data.intent)    
+                await self.async_browser_navigate(self.config_entry.runtime_data.intent)
             else:
                 word_count = len(speech_text.split())
-                message_font_size = ["14vw", "8vw", "6vw", "4vw"][min(word_count // 6, 3)]
+                message_font_size = ["14vw", "8vw", "6vw", "4vw"][
+                    min(word_count // 6, 3)
+                ]
                 await self.hass.services.async_call(
                     DOMAIN,
                     "set_state",
@@ -485,8 +530,10 @@ class EntityListeners:
                         "message_font_size": message_font_size,
                         "message": speech_text,
                     },
-                 )
-                await self.async_browser_navigate(f"{self.config_entry.runtime_data.dashboard}/{DEFAULT_VIEW_INFO}")
+                )
+                await self.async_browser_navigate(
+                    f"{self.config_entry.runtime_data.dashboard}/{DEFAULT_VIEW_INFO}"
+                )
 
     def get_mute_switch(self, target_device: str, mic_type: str):
         """Get mute switch."""

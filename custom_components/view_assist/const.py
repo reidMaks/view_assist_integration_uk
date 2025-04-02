@@ -36,6 +36,7 @@ CYCLE_VIEWS = ["music", "info", "weather", "clock"]
 
 BROWSERMOD_DOMAIN = "browser_mod"
 REMOTE_ASSIST_DISPLAY_DOMAIN = "remote_assist_display"
+CUSTOM_CONVERSATION_DOMAIN = "custom_conversation"
 USE_VA_NAVIGATION_FOR_BROWSERMOD = True
 
 IMAGE_PATH = "images"
@@ -190,6 +191,7 @@ ATTR_MAX_REPEATS = "max_repeats"
 
 VA_ATTRIBUTE_UPDATE_EVENT = "va_attr_update_event_{}"
 VA_BACKGROUND_UPDATE_EVENT = "va_background_update_{}"
+CC_CONVERSATION_ENDED_EVENT = f"{CUSTOM_CONVERSATION_DOMAIN}_conversation_ended"
 
 
 class RuntimeData:
