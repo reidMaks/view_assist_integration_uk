@@ -395,8 +395,9 @@ class ViewAssist {
     if (this.connected) {
       // Update time delta and set 5 min refresh interval
       await this.set_time_delta();
+      var t = this;
       this.serverTimeHandler = setInterval(function () {
-        this.set_time_delta();
+        t.set_time_delta();
       }, 300 * 1000);
     }
   }
