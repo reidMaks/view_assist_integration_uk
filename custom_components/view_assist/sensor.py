@@ -109,6 +109,8 @@ class ViewAssistSensor(SensorEntity):
         # Only add these attributes if they exist
         if r.display_device:
             attrs["display_device"] = r.display_device
+        if r.intent_device:
+            attrs["intent_device"] = r.intent_device
 
         # Add extra_data attributes from runtime data
         attrs.update(self.config.runtime_data.extra_data)

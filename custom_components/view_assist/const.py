@@ -117,7 +117,7 @@ CONF_MIC_DEVICE = "mic_device"
 CONF_MEDIAPLAYER_DEVICE = "mediaplayer_device"
 CONF_MUSICPLAYER_DEVICE = "musicplayer_device"
 CONF_DISPLAY_DEVICE = "display_device"
-# CONF_INTENT_DEVICE = "intent_device"
+CONF_INTENT_DEVICE = "intent_device"
 CONF_DASHBOARD = "dashboard"
 CONF_HOME = "home"
 CONF_INTENT = "intent"
@@ -150,6 +150,7 @@ DEFAULT_DASHBOARD = "/view-assist"
 DEFAULT_VIEW_HOME = "/view-assist/clock"
 DEFAULT_VIEW_MUSIC = "/view-assist/music"
 DEFAULT_VIEW_INTENT = "/view-assist/intent"
+DEFAULT_VIEW_INFO = "info"
 DEFAULT_VIEW_BACKGROUND = "/view_assist/dashboard/background.jpg"
 DEFAULT_ASSIST_PROMPT = VAAssistPrompt.BLUR_POPUP
 DEFAULT_STATUS_ICON_SIZE = VAIconSizes.LARGE
@@ -204,7 +205,7 @@ class RuntimeData:
         self.mediaplayer_device: str = ""
         self.musicplayer_device: str = ""
         self.display_device: str = ""
-        # self.intent_device: str = ""
+        self.intent_device: str = ""
         self.dev_mimic: bool = False
 
         # Dashboard options
