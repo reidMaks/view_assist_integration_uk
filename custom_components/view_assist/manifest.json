@@ -2,10 +2,10 @@
   "domain": "view_assist",
   "name": "View Assist",
   "version": "0.0.1",
-  "documentation": "https://github.com/dinki/View-Assist",
-  "dependencies": ["lovelace"],
   "codeowners": ["@dinki"],
   "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/dinki/view_assist_integration",
+  "issue_tracker": "https://github.com/dinki/view_assist_integration/issues",
   "requirements": ["wordtodigits==1.0.2"]
-
 }
