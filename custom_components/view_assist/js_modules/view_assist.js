@@ -1,4 +1,4 @@
-const version = "1.0.5"
+const version = "1.0.6"
 const TIMEOUT_ERROR = "SELECTTREE-TIMEOUT";
 
 export async function await_element(el, hard = false) {
@@ -267,10 +267,10 @@ class VAData {
 class ViewAssist {
   constructor(hass) {
     this._hass = hass
+    this.serverTimeHandler = null;
     this.variables = new VAData();
-    this.connect_ws = true;
     this.connected = false;
-    this.initializeWhenReady();
+    this.initialize();
   }
 
   async hide_header(enabled) {
@@ -327,76 +327,77 @@ class ViewAssist {
 
   }
 
-  async initializeWhenReady(attempts = 0) {
-    if (attempts > 50) {
-      console.log("Failed to initialize after 50 attempts");
-      return;
-    }
-
+  async initialize() {
     try {
       // Connect to server websocket
-      if (this.connect_ws) {
-        await this.connect("connected")
-        window.addEventListener("connection-status", (ev) => this.connect(ev.detail, 2000));
+      await this.connect();
+      await this.hide_sections();
+
+      if (this.connected) {
+        window.addEventListener("connection-status", (ev) => {
+          if (ev.detail == "connected") {
+            this.connect()
+          } else {
+            this.connected = false;
+            clearInterval(this.serverTimeHandler)
+          }
+        });
+
+        window.addEventListener("location-changed", () => {
+          this.hide_sections();
+        });
+
+        customElements.define("viewassist-countdown", CountdownTimer)
+        customElements.define("viewassist-clock", Clock)
       }
-
-      window.addEventListener("location-changed", () => {
-        //console.log("Location changed, hiding sections");
-        this.hide_sections();
-      });
-
-      // Update time delta and set 5 min refresh interval
-      await this.set_time_delta();
-      var t = this;
-      const delta = setInterval(function () {
-        t.set_time_delta();
-      }, 300 * 1000);
-
-
-      const bc = await Promise.resolve(customElements.whenDefined("button-card"))
-      if (!bc) {
-        throw new Error("No button-card element");
-      }
-
-      customElements.define("viewassist-countdown", CountdownTimer)
-      customElements.define("viewassist-clock", Clock)
 
     } catch (e) {
-      console.log("Initialization retry:", e.message);
-      setTimeout(() => this.initializeWhenReady(attempts + 1), 100);
+      console.log("Error on initialisation: ", e.message);
     }
   }
 
   async hide_sections() {
     // Hide header and sidebar
     if (!this.variables.config?.mimic_device) {
-      await this.hide_header(this.variables.config?.hide_header);
-      await this.hide_sidebar(this.variables.config?.hide_sidebar);
       setTimeout(() => {
         this.hide_header(this.variables.config?.hide_header);
-      }, 10);
+        this.hide_sidebar(this.variables.config?.hide_sidebar);
+      }, 100);
+
     }
   }
 
-  async connect(state, delay = 0) {
+  async connect(attempts = 1) {
     // Subscribe to server updates
+    try {
+      const conn = (await hass()).connection;
+      conn.subscribeMessage((msg) => this.incoming_message(msg), {
+        type: "view_assist/connect",
+        browser_id: localStorage.getItem("browser_mod-browser-id"),
+      })
 
-    if (delay != 0) await new Promise(r => setTimeout(r, delay));
-
-    if (state === "connected") {
-      try {
-
-        const conn = (await hass()).connection;
-        conn.subscribeMessage((msg) => this.incoming_message(msg), {
-          type: "view_assist/connect",
-          browser_id: localStorage.getItem("browser_mod-browser-id"),
-        })
-        this.connected = true;
-      } catch {
-        console.log("Unable to connect to server")
-      }
-    } else {
+      // Test connection - this will fail if integration not yet loaded
+      // and cause a retry
+      const delta = await this._hass.callWS({
+        type: 'view_assist/get_server_time_delta',
+        epoch: new Date().getTime()
+      })
+      this.connected = true;
+    }  catch {
       this.connected = false;
+      if (attempts < 50) {
+        setTimeout(() => this.connect(attempts + 1), 500);
+      } else {
+        console.log("View Assist - Unable to connect to server")
+      }
+    }
+
+    if (this.connected) {
+      // Update time delta and set 5 min refresh interval
+      await this.set_time_delta();
+      this.serverTimeHandler = setInterval(function () {
+        this.set_time_delta();
+      }, 300 * 1000);
     }
   }
 
@@ -404,9 +405,9 @@ class ViewAssist {
     // Handle incomming messages from the server
     let event = msg["event"];
     let payload = msg["payload"];
-
+    //console.log("Event: " + event + ", Payload: " + JSON.stringify(payload))
     if (event == "connection" || event == "config_update" || event == "registered") {
-      await this.process_config(event, payload);
+      this.process_config(event, payload);
     }
     if (event == "timer_update") {
       this.variables.config.timers = payload
@@ -415,9 +416,12 @@ class ViewAssist {
       if (payload["variables"]) this.variables.navigation = payload["variables"];
       this.browser_navigate(payload["path"]);
     }
+    if (event == "reload") {
+      location.reload()
+    }
   }
 
-  async process_config(event, payload) {
+  process_config(event, payload) {
     let reload = false;
     const old_config = this.variables?.config
 
@@ -436,7 +440,6 @@ class ViewAssist {
     this.variables.config = payload
 
     if (!payload.mimic_device) {
-
       // On update of config, go to default page
       if (event == "connection" || reload) {
         this.browser_navigate(payload.home);

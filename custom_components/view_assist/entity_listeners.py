@@ -28,6 +28,7 @@ from .const import (
     VA_BACKGROUND_UPDATE_EVENT,
     VAConfigEntry,
     VADisplayType,
+    VAEvent,
     VAMode,
 )
 from .helpers import (
@@ -210,8 +211,8 @@ class EntityListeners:
                 # Use own VA navigation
                 async_dispatcher_send(
                     self.hass,
-                    f"{DOMAIN}_{self.config_entry.entry_id}_navigate",
-                    {"path": path},
+                    f"{DOMAIN}_{self.config_entry.entry_id}_event",
+                    VAEvent("navigate", {"path": path}),
                 )
             else:
                 await self.hass.services.async_call(
@@ -345,7 +346,8 @@ class EntityListeners:
     def update_entity(self):
         """Dispatch message that entity is listening for to update."""
         async_dispatcher_send(
-            self.hass, f"{DOMAIN}_{self.config_entry.entry_id}_update"
+            self.hass,
+            f"{DOMAIN}_{self.config_entry.entry_id}_update",
         )
 
     # ---------------------------------------------------------------------------------------
