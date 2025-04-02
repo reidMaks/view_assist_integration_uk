@@ -53,9 +53,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     # Load entity listeners
     EntityListeners(hass, entry)
 
-    # Load websockets
-    await async_register_websockets(hass)
-
     # Request platform setup
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -97,6 +94,9 @@ async def run_if_first_display_instance(hass: HomeAssistant, entry: VAConfigEntr
 
     # Run dashboard and view setup
     async def setup_frontend(*args):
+        # Load websockets
+        await async_register_websockets(hass)
+
         http = HTTPManager(hass, entry)
         await http.create_url_paths()
 
