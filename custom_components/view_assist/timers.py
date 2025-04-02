@@ -10,7 +10,7 @@ import logging
 import math
 import re
 import time
-from typing import Any
+from typing import Any, Callable
 
 import voluptuous as vol
 import wordtodigits
@@ -18,7 +18,7 @@ import wordtodigits
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, valid_entity_id
 from homeassistant.helpers.storage import Store
-from homeassistant.util import ulid as ulid_util
+from homeassistant.util import ulid as ulid_util, dt as dt_util
 
 from .const import DOMAIN
 from .helpers import get_entity_id_from_conversation_device_id
@@ -141,7 +141,7 @@ class Timer:
     def expires_in_seconds(self) -> int:
         """Get expire in time in seconds."""
         return (
-            dt.datetime.fromtimestamp(self.expires_at) - dt.datetime.now()
+            dt_util.utc_from_timestamp(self.expires_at) - dt_util.utcnow()
         ).total_seconds()
 
     @property
@@ -163,20 +163,20 @@ class Timer:
         """Generate dynamic name."""
         return encode_datetime_to_human(
             self.timer_type,
-            dt.datetime.fromtimestamp(self.expires_at),
+            dt_util.utc_from_timestamp(self.expires_at),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return json output."""
-        dt_now = dt.datetime.now()
-        dt_expiry = dt.datetime.fromtimestamp(self.expires_at)
+        dt_now = dt_util.utcnow()
+        dt_expiry = dt_util.utc_from_timestamp(self.expires_at)
         return {
             "entity_id": self.entity_id,
             "timer_class": self.timer_class,
             "timer_type": self.timer_type,
             "name": self.name,
             "expires": dt_expiry,
-            "original_expiry": dt.datetime.fromtimestamp(self.original_expires_at),
+            "original_expiry": dt_util.utc_from_timestamp(self.original_expires_at),
             "pre_expire_warning": self.pre_expire_warning,
             "expiry": {
                 "seconds": math.ceil(self.expires_in_seconds),
@@ -185,8 +185,8 @@ class Timer:
                 "time": get_formatted_time(dt_expiry),
                 "text": self.dynamic_remaining,
             },
-            "created_at": dt.datetime.fromtimestamp(self.created_at),
-            "updated_at": dt.datetime.fromtimestamp(self.updated_at),
+            "created_at": dt_util.utc_from_timestamp(self.created_at),
+            "updated_at": dt_util.utc_from_timestamp(self.updated_at),
             "status": self.status,
             "extra_info": self.extra_info,
         }
@@ -428,7 +428,7 @@ def decode_time_sentence(sentence: str):
 
 def get_datetime_from_timer_interval(interval: TimerInterval) -> dt.datetime:
     """Return datetime from TimerInterval."""
-    date = dt.datetime.now().replace(microsecond=0)
+    date = dt_util.utcnow().replace(microsecond=0)
     return date + dt.timedelta(
         days=interval.days,
         hours=interval.hours,
@@ -465,7 +465,7 @@ def get_datetime_from_timer_time(
             return 1
         return 0
 
-    dt_now = dt.datetime.now()
+    dt_now = dt_util.utcnow()
 
     # Set pm hour based on meridiem stating pm
     if set_time.meridiem == "pm" and set_time.hour < 12:
@@ -536,7 +536,7 @@ def encode_datetime_to_human(
             return f"{term}s"
         return term
 
-    dt_now = dt.datetime.now()
+    dt_now = dt_util.utcnow()
     delta = timer_dt - dt_now
     delta_s = math.ceil(delta.total_seconds())
 
@@ -588,7 +588,7 @@ class VATimerStore:
         """Initialise."""
         self.hass = hass
         self.store = Store(hass, 1, TIMERS_STORE_NAME)
-        self.listeners = []
+        self.listeners: dict[str, Callable] = {}
         self.timers: dict[str, Timer] = {}
         self.dirty = False
 
@@ -630,19 +630,22 @@ class VATimerStore:
             self.timers[timer_id].updated_at = time.mktime(
                 dt.datetime.now().timetuple()
             )
-        for listener in self.listeners:
-            if inspect.iscoroutinefunction(listener):
-                await listener(self.timers)
+        for entity, callback in self.listeners.items():
+            if inspect.iscoroutinefunction(callback):
+                await callback(self.timers)
             else:
-                listener(self.timers)
+                callback(self.timers)
         await self.save()
 
-    def add_listener(self, callback):
+    def add_listener(self, entity, callback):
         """Add store updated listener."""
-        self.listeners.append(callback)
+        self.listeners[entity] = callback
 
         def remove_listener():
-            self.listeners.remove(callback)
+            try:
+                del self.listeners[entity]
+            except Exception:
+                pass
 
         return remove_listener
 
@@ -760,7 +763,7 @@ class VATimers:
             raise TypeError("Not a valid time or interval object")
 
         expires_unix_ts = time.mktime(expiry.timetuple())
-        time_now_unix = time.mktime(dt.datetime.now().timetuple())
+        time_now_unix = time.mktime(dt_util.utcnow().timetuple())
 
         if not self.is_duplicate_timer(entity_id, name, expires_unix_ts):
             # Add timer_info to extra_info
@@ -794,7 +797,7 @@ class VATimers:
     async def start_timer(self, timer_id: str, timer: Timer):
         """Start timer running."""
 
-        time_now_unix = time.mktime(dt.datetime.now().timetuple())
+        time_now_unix = time.mktime(dt_util.utcnow().timetuple())
         total_seconds = timer.expires_at - time_now_unix
 
         # Fire event if total seconds -ve

@@ -71,7 +71,9 @@ class ViewAssistSensor(SensorEntity):
         )
 
         # Add listener to timer changes
-        self.hass.data[DOMAIN]["timers"].store.add_listener(self.va_update)
+        self.hass.data[DOMAIN]["timers"].store.add_listener(
+            self.entity_id, self.va_update
+        )
 
     @callback
     def va_update(self, *args):
