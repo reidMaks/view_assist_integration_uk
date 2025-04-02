@@ -8,7 +8,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.storage import Store
 
-from .const import DOMAIN, VAConfigEntry
+from .const import DOMAIN, VAConfigEntry, VAEvent
 
 MASTER_CONFIG = "master_config"
 
@@ -64,6 +64,5 @@ class MasterConfigManager:
 
         await self.save()
         async_dispatcher_send(
-            self._hass,
-            f"{DOMAIN}_master_config_update",
+            self._hass, f"{DOMAIN}_event", VAEvent("master_config_update")
         )

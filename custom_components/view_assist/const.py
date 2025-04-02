@@ -1,5 +1,6 @@
 """Integration classes and constants."""
 
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
@@ -46,7 +47,7 @@ JSMODULES = [
     {
         "name": "View Assist Helper",
         "filename": "view_assist.js",
-        "version": "1.0.5",
+        "version": "1.0.6",
     },
 ]
 
@@ -237,3 +238,11 @@ class RuntimeData:
 
         # Extra data for holding key/value pairs passed in by set_state service call
         self.extra_data: dict[str, Any] = {}
+
+
+@dataclass
+class VAEvent:
+    """View Assist event."""
+
+    event_name: str
+    payload: dict | None = None

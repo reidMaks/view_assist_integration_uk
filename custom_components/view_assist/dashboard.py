@@ -28,6 +28,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import Event, HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.util.yaml import load_yaml_dict, save_yaml
 
 from .const import (
@@ -43,6 +44,7 @@ from .const import (
     GITHUB_TOKEN_FILE,
     VIEWS_DIR,
     VAConfigEntry,
+    VAEvent,
 )
 from .helpers import differ_to_json, json_to_dictdiffer
 from .utils import dictdiff
@@ -323,7 +325,7 @@ class DashboardManager:
             self.build_mode = False
 
             # Fire refresh event
-            self.hass.bus.async_fire(EVENT_PANELS_UPDATED)
+            async_dispatcher_send(self.hass, f"{DOMAIN}_event", VAEvent("reload"))
 
         else:
             _LOGGER.debug(
