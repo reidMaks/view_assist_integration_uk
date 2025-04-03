@@ -1,7 +1,6 @@
 {
   "domain": "view_assist",
   "name": "View Assist",
-  "version": "0.0.1",
   "codeowners": ["@dinki"],
   "config_flow": true,
   "dependencies": ["http","lovelace"],
@@ -9,5 +8,6 @@
   "integration_type": "device",
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/dinki/view_assist_integration/issues",
-  "requirements": ["wordtodigits==1.0.2"]
+  "requirements": ["wordtodigits==1.0.2"],
+  "version": "0.0.1"
 }
