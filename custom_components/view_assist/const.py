@@ -86,8 +86,8 @@ class VAType(StrEnum):
 class VAAssistPrompt(StrEnum):
     """Assist prompt types enum."""
 
-    BLUR_POPUP = "blur pop up"
-    FLASHING_BAR = "flashing bar"
+    BLUR_POPUP = "blur_pop_up"
+    FLASHING_BAR = "flashing_bar"
 
 
 class VAIconSizes(StrEnum):
@@ -101,16 +101,16 @@ class VAIconSizes(StrEnum):
 class VAMicType(StrEnum):
     """Mic types."""
 
-    HA_VOICE_SATELLITE = "Home Assistant Voice Satellite"
-    HASS_MIC = "HassMic"
-    STREAM_ASSIST = "Stream Assist"
+    HA_VOICE_SATELLITE = "home_assistant_voice_satellite"
+    HASS_MIC = "hassmic"
+    STREAM_ASSIST = "stream_assist"
 
 
 class VADisplayType(StrEnum):
     """Display types."""
 
-    BROWSERMOD = "BrowserMod"
-    REMOTE_ASSIST_DISPLAY = "Remote Assist Display"
+    BROWSERMOD = "browser_mod"
+    REMOTE_ASSIST_DISPLAY = "remote_assist_display"
 
 
 # Config keys

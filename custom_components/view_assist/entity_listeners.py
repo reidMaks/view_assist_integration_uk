@@ -5,7 +5,6 @@ from asyncio import Task
 from datetime import datetime as dt
 import logging
 import random
-from typing import Any
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_MODE
@@ -38,6 +37,7 @@ from .const import (
     VAConfigEntry,
     VADisplayType,
     VAEvent,
+    VAMicType,
     VAMode,
 )
 from .helpers import (
@@ -92,22 +92,26 @@ class EntityListeners:
         )
 
         # Add mic mute switch listener
-        config_entry.async_on_unload(
-            async_track_state_change_event(hass, mute_switch, self._async_on_mic_change)
-        )
+        if mute_switch:
+            config_entry.async_on_unload(
+                async_track_state_change_event(
+                    hass, mute_switch, self._async_on_mic_change
+                )
+            )
 
         # Add media player mute listener
         mediaplayer_device = self.config_entry.data["mediaplayer_device"]
-
-        config_entry.async_on_unload(
-            async_track_state_change_event(
-                hass, mediaplayer_device, self._async_on_mediaplayer_device_mute_change
+        if mediaplayer_device:
+            config_entry.async_on_unload(
+                async_track_state_change_event(
+                    hass,
+                    mediaplayer_device,
+                    self._async_on_mediaplayer_device_mute_change,
+                )
             )
-        )
 
         # Add intent sensor listener
         intent_device = self.config_entry.data.get("intent_device")
-
         if intent_device:
             config_entry.async_on_unload(
                 async_track_state_change_event(
@@ -538,13 +542,13 @@ class EntityListeners:
     def get_mute_switch(self, target_device: str, mic_type: str):
         """Get mute switch."""
 
-        if mic_type == "Stream Assist":
+        if mic_type == VAMicType.STREAM_ASSIST:
             return target_device.replace("sensor", "switch").replace("_stt", "_mic")
-        if mic_type == "HassMic":
+        if mic_type == VAMicType.HASS_MIC:
             return target_device.replace("sensor", "switch").replace(
                 "simple_state", "microphone"
             )
-        if mic_type == "Home Assistant Voice Satellite":
+        if mic_type == VAMicType.HA_VOICE_SATELLITE:
             return target_device.replace("assist_satellite", "switch") + "_mute"
 
         return None

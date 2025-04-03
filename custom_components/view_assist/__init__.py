@@ -30,6 +30,46 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 
+async def async_migrate_entry(
+    hass: HomeAssistant,
+    entry: VAConfigEntry,
+) -> bool:
+    """Migrate config entry if needed."""
+    # No migration needed
+    _LOGGER.debug(
+        "Config Migration from v%s.%s - %s",
+        entry.version,
+        entry.minor_version,
+        entry.options,
+    )
+    if entry.minor_version == 1 and entry.options:
+        new_options = {**entry.options}
+        # Migrate options keys
+        migration_keys = {
+            "blur pop up": "blur_pop_up",
+            "flashing bar": "flashing_bar",
+            "Home Assistant Voice Satellite": "home_assistant_voice_satellite",
+            "HassMic": "hassmic",
+            "Stream Assist": "stream_assist",
+            "BrowserMod": "browser_mod",
+            "Remote Assist Display": "remote_assist_display",
+        }
+        for key, value in new_options.items():
+            if isinstance(value, str) and value in migration_keys:
+                new_options[key] = migration_keys.get(value)
+
+        hass.config_entries.async_update_entry(
+            entry, options=new_options, minor_version=2, version=1
+        )
+
+        _LOGGER.debug(
+            "Migration to configuration version %s.%s successful",
+            entry.version,
+            entry.minor_version,
+        )
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     """Set up View Assist from a config entry."""
     hass.data.setdefault(DOMAIN, {})
