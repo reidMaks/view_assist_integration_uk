@@ -445,9 +445,11 @@ class EntityListeners:
         )
         if (
             event.data.get("device_id")
-            and get_entity_id_from_conversation_device_id(event.data["device_id"])
+            and get_entity_id_from_conversation_device_id(
+                self.hass, event.data["device_id"]
+            )
             == entity_id
-        ):
+        ):        
             # mic device id matches this VA entity
             # reformat event data
             state = get_key("result.response.speech.plain.speech", event.data)
