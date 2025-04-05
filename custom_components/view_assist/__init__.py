@@ -45,15 +45,6 @@ async def async_migrate_entry(
     if entry.minor_version == 1 and entry.options:
         new_options = {**entry.options}
         # Migrate options keys
-        migration_keys = {
-            "blur pop up": "blur_pop_up",
-            "flashing bar": "flashing_bar",
-            "Home Assistant Voice Satellite": "home_assistant_voice_satellite",
-            "HassMic": "hassmic",
-            "Stream Assist": "stream_assist",
-            "BrowserMod": "browser_mod",
-            "Remote Assist Display": "remote_assist_display",
-        }
         for key, value in new_options.items():
             if isinstance(value, str) and value in OPTION_KEY_MIGRATIONS:
                 new_options[key] = OPTION_KEY_MIGRATIONS.get(value)
