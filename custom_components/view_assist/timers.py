@@ -1,6 +1,7 @@
 """Class to handle timers with persistent storage."""
 
 import asyncio
+from collections.abc import Callable
 import contextlib
 from dataclasses import dataclass, field
 import datetime as dt
@@ -10,7 +11,8 @@ import logging
 import math
 import re
 import time
-from typing import Any, Callable
+from typing import Any
+import zoneinfo
 
 import voluptuous as vol
 import wordtodigits
@@ -18,7 +20,7 @@ import wordtodigits
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, valid_entity_id
 from homeassistant.helpers.storage import Store
-from homeassistant.util import ulid as ulid_util, dt as dt_util
+from homeassistant.util import ulid as ulid_util
 
 from .const import DOMAIN
 from .helpers import get_entity_id_from_conversation_device_id
@@ -136,60 +138,6 @@ class Timer:
     updated_at: int = 0
     status: TimerStatus = field(default_factory=TimerStatus.INACTIVE)
     extra_info: dict[str, Any] | None = None
-
-    @property
-    def expires_in_seconds(self) -> int:
-        """Get expire in time in seconds."""
-        return (
-            dt_util.utc_from_timestamp(self.expires_at) - dt_util.utcnow()
-        ).total_seconds()
-
-    @property
-    def expires_in_interval(self) -> dict[str, Any]:
-        """Get expire in time in days, hours, mins, secs tuple."""
-        expires_in = math.ceil(self.expires_in_seconds)
-        days, remainder = divmod(expires_in, 3600 * 24)
-        hours, remainder = divmod(remainder, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        return {
-            "days": days,
-            "hours": hours,
-            "minutes": minutes,
-            "seconds": int(seconds),
-        }
-
-    @property
-    def dynamic_remaining(self) -> str:
-        """Generate dynamic name."""
-        return encode_datetime_to_human(
-            self.timer_type,
-            dt_util.utc_from_timestamp(self.expires_at),
-        )
-
-    def to_dict(self) -> dict[str, Any]:
-        """Return json output."""
-        dt_now = dt_util.utcnow()
-        dt_expiry = dt_util.utc_from_timestamp(self.expires_at)
-        return {
-            "entity_id": self.entity_id,
-            "timer_class": self.timer_class,
-            "timer_type": self.timer_type,
-            "name": self.name,
-            "expires": dt_expiry,
-            "original_expiry": dt_util.utc_from_timestamp(self.original_expires_at),
-            "pre_expire_warning": self.pre_expire_warning,
-            "expiry": {
-                "seconds": math.ceil(self.expires_in_seconds),
-                "interval": self.expires_in_interval,
-                "day": get_named_day(dt_expiry, dt_now),
-                "time": get_formatted_time(dt_expiry),
-                "text": self.dynamic_remaining,
-            },
-            "created_at": dt_util.utc_from_timestamp(self.created_at),
-            "updated_at": dt_util.utc_from_timestamp(self.updated_at),
-            "status": self.status,
-            "extra_info": self.extra_info,
-        }
 
 
 REGEX_DAYS = (
@@ -428,7 +376,7 @@ def decode_time_sentence(sentence: str):
 
 def get_datetime_from_timer_interval(interval: TimerInterval) -> dt.datetime:
     """Return datetime from TimerInterval."""
-    date = dt_util.utcnow().replace(microsecond=0)
+    date = dt.datetime.now().replace(microsecond=0)
     return date + dt.timedelta(
         days=interval.days,
         hours=interval.hours,
@@ -465,7 +413,7 @@ def get_datetime_from_timer_time(
             return 1
         return 0
 
-    dt_now = dt_util.utcnow()
+    dt_now = dt.datetime.now()
 
     # Set pm hour based on meridiem stating pm
     if set_time.meridiem == "pm" and set_time.hour < 12:
@@ -536,7 +484,7 @@ def encode_datetime_to_human(
             return f"{term}s"
         return term
 
-    dt_now = dt_util.utcnow()
+    dt_now = dt.datetime.now()
     delta = timer_dt - dt_now
     delta_s = math.ceil(delta.total_seconds())
 
@@ -630,7 +578,8 @@ class VATimerStore:
             self.timers[timer_id].updated_at = time.mktime(
                 dt.datetime.now().timetuple()
             )
-        for entity, callback in self.listeners.items():
+
+        for callback in self.listeners.values():
             if inspect.iscoroutinefunction(callback):
                 await callback(self.timers)
             else:
@@ -642,10 +591,8 @@ class VATimerStore:
         self.listeners[entity] = callback
 
         def remove_listener():
-            try:
+            with contextlib.suppress(Exception):
                 del self.listeners[entity]
-            except Exception:
-                pass
 
         return remove_listener
 
@@ -670,6 +617,7 @@ class VATimers:
         """Initialise."""
         self.hass = hass
         self.config = config
+        self.tz: zoneinfo.ZoneInfo = zoneinfo.ZoneInfo(self.hass.config.time_zone)
 
         self.store = VATimerStore(hass)
         self.timer_tasks: dict[str, asyncio.Task] = {}
@@ -700,7 +648,7 @@ class VATimers:
                 else VA_EVENT_PREFIX
             ).format(event_type)
             event_data = {"timer_id": timer_id}
-            event_data.update(timer.to_dict())
+            event_data.update(self.format_timer_output(timer))
             self.hass.bus.async_fire(event_name, event_data)
             _LOGGER.debug("Timer event fired: %s - %s", event_name, event_data)
 
@@ -763,7 +711,7 @@ class VATimers:
             raise TypeError("Not a valid time or interval object")
 
         expires_unix_ts = time.mktime(expiry.timetuple())
-        time_now_unix = time.mktime(dt_util.utcnow().timetuple())
+        time_now_unix = time.mktime(dt.datetime.now().timetuple())
 
         if not self.is_duplicate_timer(entity_id, name, expires_unix_ts):
             # Add timer_info to extra_info
@@ -790,14 +738,14 @@ class VATimers:
                 await self.start_timer(timer_id, timer)
 
             encoded_time = encode_datetime_to_human(timer_info_class, expiry)
-            return timer_id, timer.to_dict(), encoded_time
+            return timer_id, self.format_timer_output(timer), encoded_time
 
         return None, None, "already exists"
 
     async def start_timer(self, timer_id: str, timer: Timer):
         """Start timer running."""
 
-        time_now_unix = time.mktime(dt_util.utcnow().timetuple())
+        time_now_unix = time.mktime(dt.datetime.now().timetuple())
         total_seconds = timer.expires_at - time_now_unix
 
         # Fire event if total seconds -ve
@@ -915,12 +863,12 @@ class VATimers:
 
         if include_expired:
             timers = [
-                {"id": tid, **timer.to_dict()}
+                {"id": tid, **self.format_timer_output(timer)}
                 for tid, timer in self.store.timers.items()
             ]
         else:
             timers = [
-                {"id": tid, **timer.to_dict()}
+                {"id": tid, **self.format_timer_output(timer)}
                 for tid, timer in self.store.timers.items()
                 if timer.status != TimerStatus.EXPIRED
             ]
@@ -951,6 +899,61 @@ class VATimers:
             timers = sorted(timers, key=lambda d: d["expiry"]["seconds"])
 
         return timers
+
+    def format_timer_output(self, timer: Timer) -> dict[str, Any]:
+        """Format timer output."""
+
+        def expires_in_seconds(expires_at: int) -> int:
+            """Get expire in time in seconds."""
+            return (
+                dt.datetime.fromtimestamp(expires_at) - dt.datetime.now()
+            ).total_seconds()
+
+        def expires_in_interval(expires_at: int) -> dict[str, Any]:
+            """Get expire in time in days, hours, mins, secs tuple."""
+            expires_in = math.ceil(expires_in_seconds(expires_at))
+            days, remainder = divmod(expires_in, 3600 * 24)
+            hours, remainder = divmod(remainder, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            return {
+                "days": days,
+                "hours": hours,
+                "minutes": minutes,
+                "seconds": int(seconds),
+            }
+
+        def dynamic_remaining(timer_type: TimerClass, expires_at: int) -> str:
+            """Generate dynamic name."""
+            return encode_datetime_to_human(
+                timer_type,
+                dt.datetime.fromtimestamp(expires_at),
+            )
+
+        dt_now = dt.datetime.now(self.tz)
+        dt_expiry = dt.datetime.fromtimestamp(timer.expires_at, self.tz)
+
+        return {
+            "entity_id": timer.entity_id,
+            "timer_class": timer.timer_class,
+            "timer_type": timer.timer_type,
+            "name": timer.name,
+            "expires": dt_expiry,
+            "original_expiry": dt.datetime.fromtimestamp(
+                timer.original_expires_at, self.tz
+            ),
+            "pre_expire_warning": timer.pre_expire_warning,
+            "expiry": {
+                "seconds": math.ceil(expires_in_seconds(timer.expires_at)),
+                "interval": expires_in_interval(timer.expires_at),
+                "day": get_named_day(dt_expiry, dt_now),
+                "time": get_formatted_time(dt_expiry),
+                "text": dynamic_remaining(timer.timer_type, timer.expires_at),
+            },
+            "created_at": dt.datetime.fromtimestamp(timer.created_at, self.tz),
+            "updated_at": dt.datetime.fromtimestamp(timer.updated_at, self.tz),
+            "status": timer.status,
+            "extra_info": timer.extra_info,
+        }
 
     async def _wait_for_timer(
         self, timer_id: str, seconds: int, updated_at: int, fire_warning: bool = True
