@@ -21,6 +21,7 @@ from .const import (
     VAConfigEntry,
 )
 from .helpers import get_device_id_from_entity_id
+from .timers import VATimers
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -72,9 +73,8 @@ class ViewAssistSensor(SensorEntity):
         )
 
         # Add listener to timer changes
-        self.hass.data[DOMAIN]["timers"].store.add_listener(
-            self.entity_id, self.va_update
-        )
+        timers: VATimers = self.hass.data[DOMAIN]["timers"]
+        timers.store.add_listener(self.entity_id, self.va_update)
 
     @callback
     def va_update(self, *args):
@@ -125,7 +125,8 @@ class ViewAssistSensor(SensorEntity):
         attrs.update(self.config.runtime_data.extra_data)
 
         # display timers
-        attrs["timers"] = self.hass.data[DOMAIN]["timers"].get_timers(
+        timers: VATimers = self.hass.data[DOMAIN]["timers"]
+        attrs["timers"] = timers.get_timers(
             device_or_entity_id=self.entity_id, include_expired=True
         )
 
