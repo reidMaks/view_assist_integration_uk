@@ -248,3 +248,15 @@ class VAEvent:
 
     event_name: str
     payload: dict | None = None
+
+
+# TODO: Remove this when BP/Views updated
+OPTION_KEY_MIGRATIONS = {
+    "blur pop up": "blur_pop_up",
+    "flashing bar": "flashing_bar",
+    "Home Assistant Voice Satellite": "home_assistant_voice_satellite",
+    "HassMic": "hassmic",
+    "Stream Assist": "stream_assist",
+    "BrowserMod": "browser_mod",
+    "Remote Assist Display": "remote_assist_display",
+}

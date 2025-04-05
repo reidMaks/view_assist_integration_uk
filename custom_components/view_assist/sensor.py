@@ -15,6 +15,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from .const import (
     DOMAIN,
+    OPTION_KEY_MIGRATIONS,
     VA_ATTRIBUTE_UPDATE_EVENT,
     VA_BACKGROUND_UPDATE_EVENT,
     VAConfigEntry,
@@ -81,6 +82,14 @@ class ViewAssistSensor(SensorEntity):
         _LOGGER.debug("Updating: %s", self.entity_id)
         self.schedule_update_ha_state(True)
 
+    # TODO: Remove this when BPs/Views migrated
+    def get_option_key_migration_value(self, value: str) -> str:
+        """Get the original option key for a given new option key."""
+        for key, key_value in OPTION_KEY_MIGRATIONS.items():
+            if key_value == value:
+                return key
+        return value
+
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return entity attributes."""
@@ -96,13 +105,13 @@ class ViewAssistSensor(SensorEntity):
             "do_not_disturb": r.do_not_disturb,
             "status_icons": r.status_icons,
             "status_icons_size": r.status_icons_size,
-            "assist_prompt": r.assist_prompt,
+            "assist_prompt": self.get_option_key_migration_value(r.assist_prompt),
             "font_style": r.font_style,
             "use_24_hour_time": r.use_24_hour_time,
             "use_announce": r.use_announce,
             "background": r.background,
             "weather_entity": r.weather_entity,
-            "mic_type": r.mic_type,
+            "mic_type": self.get_option_key_migration_value(r.mic_type),
             "voice_device_id": self._voice_device_id,
         }
 

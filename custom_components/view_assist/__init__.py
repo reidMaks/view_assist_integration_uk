@@ -8,7 +8,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.start import async_at_started
 
 from .alarm_repeater import ALARMS, VAAlarmRepeater
-from .const import DOMAIN, RuntimeData, VAConfigEntry
+from .const import DOMAIN, OPTION_KEY_MIGRATIONS, RuntimeData, VAConfigEntry
 from .dashboard import DASHBOARD_MANAGER, DashboardManager
 from .entity_listeners import EntityListeners
 from .helpers import (
@@ -55,8 +55,8 @@ async def async_migrate_entry(
             "Remote Assist Display": "remote_assist_display",
         }
         for key, value in new_options.items():
-            if isinstance(value, str) and value in migration_keys:
-                new_options[key] = migration_keys.get(value)
+            if isinstance(value, str) and value in OPTION_KEY_MIGRATIONS:
+                new_options[key] = OPTION_KEY_MIGRATIONS.get(value)
 
         hass.config_entries.async_update_entry(
             entry, options=new_options, minor_version=2, version=1
