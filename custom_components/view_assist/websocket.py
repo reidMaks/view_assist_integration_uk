@@ -14,7 +14,7 @@ from homeassistant.components.websocket_api import (
     event_message,
     websocket_command,
 )
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from .const import DOMAIN, VAEvent
@@ -148,7 +148,7 @@ async def async_register_websockets(hass: HomeAssistant):
             )
 
         async def send_register_event():
-            await send_event("registered")
+            await send_event(VAEvent("registered"))
 
         unsubscribe.append(timers.store.add_listener(va_entity, send_timer_update))
 
