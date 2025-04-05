@@ -443,7 +443,6 @@ class EntityListeners:
     async def _async_cc_on_conversation_ended_handler(self, event: Event):
         """Handle custom conversation integration conversation ended event."""
         # Get VA entity from device id
-        _LOGGER.debug("Received CC Event: %s", event)
         entity_id = get_sensor_entity_from_instance(
             self.hass, self.config_entry.entry_id
         )
@@ -454,6 +453,7 @@ class EntityListeners:
             )
             == entity_id
         ):
+            _LOGGER.debug("Received CC event for %s: %s", entity_id, event)
             # mic device id matches this VA entity
             # reformat event data
             state = get_key("result.response.speech.plain.speech", event.data)
@@ -466,6 +466,12 @@ class EntityListeners:
                     event_type=CC_CONVERSATION_ENDED_EVENT,
                     data=EventStateChangedData(new_state=state),
                 )
+            )
+        else:
+            _LOGGER.debug(
+                "Received CC event for %s but device id does not match: %s",
+                entity_id,
+                event.data["device_id"],
             )
 
     async def _async_on_intent_device_change(
