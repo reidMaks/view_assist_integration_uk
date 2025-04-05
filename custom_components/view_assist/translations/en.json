@@ -1,6 +1,5 @@
 {
   "config": {
-    "title": "Advanced Config Flow Example",
     "abort": {
       "already_configured": "Device is already configured",
       "reconfigure_successful": "Reconfiguration successful",
@@ -140,8 +139,8 @@
     },
     "assist_prompt_selector": {
       "options": {
-        "blur pop up": "Blurs the screen and shows pop up",
-        "flashing bar": "Flashing bar at bottom"
+        "blur_pop_up": "Blurs the screen and shows pop up",
+        "flashing_bar": "Flashing bar at bottom"
       }
     },
       "status_icons_size_selector": {
@@ -153,16 +152,16 @@
     },
     "mic_type_selector": {
       "options": {
-        "Home Assistant Voice Satellite": "Home Assistant Voice Satellite",
-        "HassMic": "HassMic",
-        "Stream Assist": "Stream Assist"
+        "home_assistant_voice_satellite": "Home Assistant Voice Satellite",
+        "hassmic": "HassMic",
+        "stream_assist": "Stream Assist"
       }
     },
     "display_type_selector": {
       "options": {
-        "BrowserMod": "BrowserMod",
-        "Remote Assist Display": "Remote Assist Display",
-        "Stream Assist": "Stream Assist"
+        "browser_mod": "BrowserMod",
+        "remote_assist_display": "Remote Assist Display",
+        "stream_assist": "Stream Assist"
       }
     },
     "rotate_backgound_source_selector": {

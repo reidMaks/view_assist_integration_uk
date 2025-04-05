@@ -233,5 +233,5 @@ save_view:
         text:
 set_master_config:
   name: "Set View Assist master config"
-  descritpion: "Set config parameters for all View Assist devices"
+  description: "Set config parameters for all View Assist devices"
 

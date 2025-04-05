@@ -5,7 +5,6 @@ from asyncio import Task
 from datetime import datetime as dt
 import logging
 import random
-from typing import Any
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_MODE
@@ -38,6 +37,7 @@ from .const import (
     VAConfigEntry,
     VADisplayType,
     VAEvent,
+    VAMicType,
     VAMode,
 )
 from .helpers import (
@@ -92,22 +92,26 @@ class EntityListeners:
         )
 
         # Add mic mute switch listener
-        config_entry.async_on_unload(
-            async_track_state_change_event(hass, mute_switch, self._async_on_mic_change)
-        )
+        if mute_switch:
+            config_entry.async_on_unload(
+                async_track_state_change_event(
+                    hass, mute_switch, self._async_on_mic_change
+                )
+            )
 
         # Add media player mute listener
         mediaplayer_device = self.config_entry.data["mediaplayer_device"]
-
-        config_entry.async_on_unload(
-            async_track_state_change_event(
-                hass, mediaplayer_device, self._async_on_mediaplayer_device_mute_change
+        if mediaplayer_device:
+            config_entry.async_on_unload(
+                async_track_state_change_event(
+                    hass,
+                    mediaplayer_device,
+                    self._async_on_mediaplayer_device_mute_change,
+                )
             )
-        )
 
         # Add intent sensor listener
         intent_device = self.config_entry.data.get("intent_device")
-
         if intent_device:
             config_entry.async_on_unload(
                 async_track_state_change_event(
@@ -439,7 +443,6 @@ class EntityListeners:
     async def _async_cc_on_conversation_ended_handler(self, event: Event):
         """Handle custom conversation integration conversation ended event."""
         # Get VA entity from device id
-        _LOGGER.warning("CC Event: %s", event)
         entity_id = get_sensor_entity_from_instance(
             self.hass, self.config_entry.entry_id
         )
@@ -449,7 +452,8 @@ class EntityListeners:
                 self.hass, event.data["device_id"]
             )
             == entity_id
-        ):        
+        ):
+            _LOGGER.debug("Received CC event for %s: %s", entity_id, event)
             # mic device id matches this VA entity
             # reformat event data
             state = get_key("result.response.speech.plain.speech", event.data)
@@ -463,6 +467,12 @@ class EntityListeners:
                     data=EventStateChangedData(new_state=state),
                 )
             )
+        else:
+            _LOGGER.debug(
+                "Received CC event for %s but device id does not match: %s",
+                entity_id,
+                event.data["device_id"],
+            )
 
     async def _async_on_intent_device_change(
         self, event: Event[EventStateChangedData]
@@ -470,7 +480,6 @@ class EntityListeners:
         entity_id = get_sensor_entity_from_instance(
             self.hass, self.config_entry.entry_id
         )
-        _LOGGER.warning("INTENT NEW STATE: %s", event)
         if intent_new_state := event.data["new_state"].attributes.get("intent_output"):
             speech_text = get_key("response.speech.plain.speech", intent_new_state)
             await self.hass.services.async_call(
@@ -540,13 +549,13 @@ class EntityListeners:
     def get_mute_switch(self, target_device: str, mic_type: str):
         """Get mute switch."""
 
-        if mic_type == "Stream Assist":
+        if mic_type == VAMicType.STREAM_ASSIST:
             return target_device.replace("sensor", "switch").replace("_stt", "_mic")
-        if mic_type == "HassMic":
+        if mic_type == VAMicType.HASS_MIC:
             return target_device.replace("sensor", "switch").replace(
                 "simple_state", "microphone"
             )
-        if mic_type == "Home Assistant Voice Satellite":
+        if mic_type == VAMicType.HA_VOICE_SATELLITE:
             return target_device.replace("assist_satellite", "switch") + "_mute"
 
         return None

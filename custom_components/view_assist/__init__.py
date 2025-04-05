@@ -8,7 +8,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.start import async_at_started
 
 from .alarm_repeater import ALARMS, VAAlarmRepeater
-from .const import DOMAIN, RuntimeData, VAConfigEntry
+from .const import DOMAIN, OPTION_KEY_MIGRATIONS, RuntimeData, VAConfigEntry
 from .dashboard import DASHBOARD_MANAGER, DashboardManager
 from .entity_listeners import EntityListeners
 from .helpers import (
@@ -28,6 +28,46 @@ from .websocket import async_register_websockets
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
+
+
+async def async_migrate_entry(
+    hass: HomeAssistant,
+    entry: VAConfigEntry,
+) -> bool:
+    """Migrate config entry if needed."""
+    # No migration needed
+    _LOGGER.debug(
+        "Config Migration from v%s.%s - %s",
+        entry.version,
+        entry.minor_version,
+        entry.options,
+    )
+    if entry.minor_version == 1 and entry.options:
+        new_options = {**entry.options}
+        # Migrate options keys
+        migration_keys = {
+            "blur pop up": "blur_pop_up",
+            "flashing bar": "flashing_bar",
+            "Home Assistant Voice Satellite": "home_assistant_voice_satellite",
+            "HassMic": "hassmic",
+            "Stream Assist": "stream_assist",
+            "BrowserMod": "browser_mod",
+            "Remote Assist Display": "remote_assist_display",
+        }
+        for key, value in new_options.items():
+            if isinstance(value, str) and value in OPTION_KEY_MIGRATIONS:
+                new_options[key] = OPTION_KEY_MIGRATIONS.get(value)
+
+        hass.config_entries.async_update_entry(
+            entry, options=new_options, minor_version=2, version=1
+        )
+
+        _LOGGER.debug(
+            "Migration to configuration version %s.%s successful",
+            entry.version,
+            entry.minor_version,
+        )
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
