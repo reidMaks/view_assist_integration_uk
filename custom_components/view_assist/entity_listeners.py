@@ -268,6 +268,14 @@ class EntityListeners:
                 {"target": self.browser_or_device_id, "path": path},
             )
 
+        else:
+            # Use own VA navigation
+            async_dispatcher_send(
+                self.hass,
+                f"{DOMAIN}_{self.config_entry.entry_id}_event",
+                VAEvent("navigate", {"path": path}),
+            )
+
         # If this was a revert action, end here
         if is_revert_action:
             return

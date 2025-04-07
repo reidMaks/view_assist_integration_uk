@@ -126,6 +126,7 @@ async def run_if_first_display_instance(hass: HomeAssistant, entry: VAConfigEntr
     # Run dashboard and view setup
     async def setup_frontend(*args):
         # Load websockets
+        hass.data[DOMAIN]["va_browser_ids"] = {}
         await async_register_websockets(hass)
 
         http = HTTPManager(hass, entry)
