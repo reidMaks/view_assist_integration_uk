@@ -138,6 +138,24 @@ get_timers:
       required: false
       selector:
         text:
+snooze_timer:
+  name: Snooze a timer
+  description: Snooze an expired timer for a certain time
+  fields:
+    timer_id:
+      name: "Timer id"
+      description: "The id of the timer"
+      required: true
+      selector:
+        text:
+    time:
+      name: "Snooze duration"
+      description: "The snooze duration in minutes"
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
 sound_alarm:
   name: "Sound alarm"
   description: "Sound alarm on a media device with an attempt to restore any already playing media"
