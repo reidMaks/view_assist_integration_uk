@@ -1,5 +1,8 @@
 """Config flow handler."""
 
+import logging
+from typing import Any
+
 import voluptuous as vol
 
 from homeassistant.components.assist_satellite import DOMAIN as ASSIST_SAT_DOMAIN
@@ -8,7 +11,7 @@ from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.weather import DOMAIN as WEATHER_DOMAIN
 from homeassistant.config_entries import ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_MODE, CONF_NAME, CONF_TYPE
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.selector import (
     DeviceSelector,
     DeviceSelectorConfig,
@@ -79,11 +82,14 @@ from .const import (
     DOMAIN,
     REMOTE_ASSIST_DISPLAY_DOMAIN,
     VAAssistPrompt,
+    VAConfigEntry,
     VAIconSizes,
     VAMicType,
     VAType,
 )
-from .helpers import get_sensor_entity_from_instance
+from .helpers import get_devices_for_domain, get_sensor_entity_from_instance
+
+_LOGGER = logging.getLogger(__name__)
 
 BASE_SCHEMA = {
     vol.Required(CONF_NAME): str,
@@ -96,7 +102,7 @@ BASE_SCHEMA = {
     vol.Required(CONF_MUSICPLAYER_DEVICE): EntitySelector(
         EntitySelectorConfig(domain=MEDIAPLAYER_DOMAIN)
     ),
-    vol.Optional(CONF_INTENT_DEVICE): EntitySelector(
+    vol.Optional(CONF_INTENT_DEVICE, default=vol.UNDEFINED): EntitySelector(
         EntitySelectorConfig(domain=SENSOR_DOMAIN)
     ),
 }
@@ -114,6 +120,64 @@ DISPLAY_SCHEMA = {
     ),
     vol.Required(CONF_DEV_MIMIC, default=False): bool,
 }
+
+
+def get_display_schema(
+    hass: HomeAssistant, config: VAConfigEntry | None = None
+) -> dict[str, Any]:
+    """Get display device options."""
+    domain_filters = [BROWSERMOD_DOMAIN, REMOTE_ASSIST_DISPLAY_DOMAIN]
+
+    display_devices: dict[str, Any] = hass.data[DOMAIN]["va_browser_ids"]
+
+    # Add suported domain devices
+    for domain in domain_filters:
+        domain_devices = get_devices_for_domain(hass, domain)
+        if domain_devices:
+            for device in domain_devices:
+                display_devices[device.id] = device.name
+
+    # Add current setting if not already in list
+    if config is not None:
+        if config.runtime_data.display_device not in display_devices:
+            display_devices[config.runtime_data.display_device] = (
+                config.runtime_data.display_device
+            )
+
+    # Make into options dict
+
+    options = [
+        {
+            "value": key,
+            "label": value,
+        }
+        for key, value in display_devices.items()
+    ]
+
+    return (
+        {
+            vol.Required(CONF_DISPLAY_DEVICE): SelectSelector(
+                SelectSelectorConfig(
+                    options=options,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            vol.Required(CONF_DEV_MIMIC, default=False): bool,
+        }
+        if config is None
+        else {
+            vol.Required(
+                CONF_DISPLAY_DEVICE,
+                default=config.data.get(CONF_DISPLAY_DEVICE, vol.UNDEFINED),
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=options,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            vol.Required(CONF_DEV_MIMIC, default=False): bool,
+        }
+    )
 
 
 class ViewAssistConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -171,7 +235,7 @@ class ViewAssistConfigFlow(ConfigFlow, domain=DOMAIN):
 
         # Define the schema based on the selected type
         if self.type == VAType.VIEW_AUDIO:
-            data_schema = vol.Schema({**BASE_SCHEMA, **DISPLAY_SCHEMA})
+            data_schema = vol.Schema({**BASE_SCHEMA, **get_display_schema(self.hass)})
         else:  # audio_only
             data_schema = vol.Schema(BASE_SCHEMA)
 
@@ -231,34 +295,13 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
             ): EntitySelector(EntitySelectorConfig(domain=MEDIAPLAYER_DOMAIN)),
             vol.Optional(
                 CONF_INTENT_DEVICE,
-                default=self.config_entry.data.get(CONF_INTENT_DEVICE),
+                default=self.config_entry.data.get(CONF_INTENT_DEVICE, vol.UNDEFINED),
             ): EntitySelector(EntitySelectorConfig(domain=SENSOR_DOMAIN)),
         }
 
         if self.va_type == VAType.VIEW_AUDIO:
             data_schema = vol.Schema(
-                {
-                    **BASE_OPTIONS,
-                    vol.Required(
-                        CONF_DISPLAY_DEVICE,
-                        default=self.config_entry.data[CONF_DISPLAY_DEVICE],
-                    ): DeviceSelector(
-                        DeviceSelectorConfig(
-                            filter=[
-                                EntityFilterSelectorConfig(
-                                    integration=BROWSERMOD_DOMAIN
-                                ),
-                                EntityFilterSelectorConfig(
-                                    integration=REMOTE_ASSIST_DISPLAY_DOMAIN,
-                                ),
-                            ],
-                        )
-                    ),
-                    vol.Required(
-                        CONF_DEV_MIMIC,
-                        default=self.config_entry.data.get(CONF_DEV_MIMIC),
-                    ): bool,
-                }
+                {**BASE_OPTIONS, **get_display_schema(self.hass, self.config_entry)}
             )
         else:  # audio_only
             data_schema = vol.Schema(BASE_OPTIONS)

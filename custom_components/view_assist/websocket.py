@@ -92,16 +92,13 @@ async def async_register_websockets(hass: HomeAssistant):
         def get_entity_id(browser_id):
             mimic = False
             entity = get_entity_id_by_browser_id(hass, browser_id)
+
             if not entity:
                 if entity := get_mimic_entity_id(hass):
                     mimic = True
             return entity, mimic
 
         browser_id = msg["browser_id"]
-
-        # Validate browser id not already connected
-        # if connection.subscriptions.get(browser_id):
-        #    connection.subscriptions[browser_id]()
 
         va_entity, mimic = get_entity_id(browser_id)
         _LOGGER.debug(
@@ -152,6 +149,14 @@ async def async_register_websockets(hass: HomeAssistant):
 
         unsubscribe.append(timers.store.add_listener(va_entity, send_timer_update))
 
+        unsubscribe.append(
+            async_dispatcher_connect(
+                hass,
+                f"{DOMAIN}_{browser_id}_registered",
+                send_register_event,
+            )
+        )
+
         if va_entity and not mimic:
             config = get_config_entry_by_entity_id(hass, va_entity)
 
@@ -168,15 +173,12 @@ async def async_register_websockets(hass: HomeAssistant):
                     send_event,
                 )
             )
-
-        else:
-            unsubscribe.append(
-                async_dispatcher_connect(
-                    hass,
-                    f"{DOMAIN}_{browser_id}_registered",
-                    send_register_event,
-                )
-            )
+        elif (
+            str(browser_id).startswith("va-")
+            and browser_id not in hass.data[DOMAIN]["va_browser_ids"]
+        ):
+            # Store browser id in hass.data
+            hass.data[DOMAIN]["va_browser_ids"][browser_id] = browser_id
 
         def close_connection():
             _LOGGER.debug("Browser with id %s disconnected", browser_id)
@@ -266,6 +268,8 @@ async def async_register_websockets(hass: HomeAssistant):
 
         if entity_id:
             config = get_config_entry_by_entity_id(hass, entity_id)
+            if config.disabled_by:
+                return output
             data = config.runtime_data
             timers: VATimers = hass.data[DOMAIN][TIMERS]
             timer_info = timers.get_timers(

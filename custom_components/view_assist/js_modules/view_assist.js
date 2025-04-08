@@ -1,4 +1,4 @@
-const version = "1.0.6"
+const version = "1.0.7"
 const TIMEOUT_ERROR = "SELECTTREE-TIMEOUT";
 
 export async function await_element(el, hard = false) {
@@ -261,6 +261,7 @@ class VAData {
   constructor() {
     this.config;
     this.server_time_delta = 0;
+    this.browser_id = '';
   }
 }
 
@@ -367,13 +368,36 @@ class ViewAssist {
     }
   }
 
+  set_va_browser_id() {
+    // Create a browser id if not already set
+    if (!localStorage.getItem("view_assist_browser_id")) {
+      const s4 = () => { return Math.floor((1 + Math.random()) * 100000).toString(16).substring(1); };
+      const browser_id = `va-${s4()}${s4()}-${s4()}${s4()}`
+      console.log("BrowserID - " + browser_id);
+      localStorage.setItem("view_assist_browser_id", browser_id);
+    }
+    return localStorage.getItem("view_assist_browser_id");
+  }
+
+  get_browser_id() {
+    // Get the browser id
+    if (window.browser_mod && localStorage.getItem("browser_mod-browser-id")) {
+      return localStorage.getItem("browser_mod-browser-id");
+    }
+    if (localStorage.getItem("view_assist_browser_id")) {
+      return localStorage.getItem("view_assist_browser_id");
+    }
+    return this.set_va_browser_id();
+  }
+
   async connect(attempts = 1) {
     // Subscribe to server updates
     try {
+      this.variables.browser_id = this.get_browser_id();
       const conn = (await hass()).connection;
       conn.subscribeMessage((msg) => this.incoming_message(msg), {
         type: "view_assist/connect",
-        browser_id: localStorage.getItem("browser_mod-browser-id"),
+        browser_id: this.variables.browser_id,
       })
 
       // Test connection - this will fail if integration not yet loaded
@@ -478,7 +502,8 @@ const ha = await hass();
 
 Promise.all([
   customElements.whenDefined("home-assistant"),
-  customElements.whenDefined("hui-view")
+  customElements.whenDefined("hui-view"),
+  customElements.whenDefined("button-card")
 ]).then(() => {
   console.info(
     `%cVIEW ASSIST ${version} IS INSTALLED
