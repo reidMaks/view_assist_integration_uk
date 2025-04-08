@@ -1,4 +1,4 @@
-const version = "1.0.7"
+const version = "1.0.8"
 const TIMEOUT_ERROR = "SELECTTREE-TIMEOUT";
 
 export async function await_element(el, hard = false) {
@@ -381,7 +381,7 @@ class ViewAssist {
 
   get_browser_id() {
     // Get the browser id
-    if (window.browser_mod && localStorage.getItem("browser_mod-browser-id")) {
+    if ((window.browser_mod || localStorage.getItem("remote_assist_display_settings")) && localStorage.getItem("browser_mod-browser-id")) {
       return localStorage.getItem("browser_mod-browser-id");
     }
     if (localStorage.getItem("view_assist_browser_id")) {
