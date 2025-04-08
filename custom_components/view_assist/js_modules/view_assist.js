@@ -381,7 +381,7 @@ class ViewAssist {
 
   get_browser_id() {
     // Get the browser id
-    if ((window.browser_mod || RemoteAssistDisplay) && localStorage.getItem("browser_mod-browser-id")) {
+    if ((window.browser_mod || localStorage.getItem("remote_assist_display_settings")) && localStorage.getItem("browser_mod-browser-id")) {
       return localStorage.getItem("browser_mod-browser-id");
     }
     if (localStorage.getItem("view_assist_browser_id")) {
