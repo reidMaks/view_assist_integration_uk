@@ -157,6 +157,13 @@ async def async_register_websockets(hass: HomeAssistant):
             )
         )
 
+        if (
+            str(browser_id).startswith("va-")
+            and browser_id not in hass.data[DOMAIN]["va_browser_ids"]
+        ):
+            # Store browser id in hass.data
+            hass.data[DOMAIN]["va_browser_ids"][browser_id] = browser_id
+
         if va_entity and not mimic:
             config = get_config_entry_by_entity_id(hass, va_entity)
 
@@ -173,12 +180,6 @@ async def async_register_websockets(hass: HomeAssistant):
                     send_event,
                 )
             )
-        elif (
-            str(browser_id).startswith("va-")
-            and browser_id not in hass.data[DOMAIN]["va_browser_ids"]
-        ):
-            # Store browser id in hass.data
-            hass.data[DOMAIN]["va_browser_ids"][browser_id] = browser_id
 
         def close_connection():
             _LOGGER.debug("Browser with id %s disconnected", browser_id)
