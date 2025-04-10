@@ -1,4 +1,4 @@
-const version = "1.0.8"
+const version = "1.0.9"
 const TIMEOUT_ERROR = "SELECTTREE-TIMEOUT";
 
 export async function await_element(el, hard = false) {
@@ -266,8 +266,8 @@ class VAData {
 }
 
 class ViewAssist {
-  constructor(hass) {
-    this._hass = hass
+  constructor() {
+    this._hass = null;
     this.serverTimeHandler = null;
     this.variables = new VAData();
     this.connected = false;
@@ -331,8 +331,9 @@ class ViewAssist {
   async initialize() {
     try {
       // Connect to server websocket
+      this._hass = await hass();
       await this.connect();
-      await this.hide_sections();
+      this.hide_sections();
 
       if (this.connected) {
         window.addEventListener("connection-status", (ev) => {
@@ -357,7 +358,7 @@ class ViewAssist {
     }
   }
 
-  async hide_sections() {
+  hide_sections() {
     // Hide header and sidebar
     if (!this.variables.config?.mimic_device) {
       setTimeout(() => {
@@ -407,7 +408,7 @@ class ViewAssist {
         epoch: new Date().getTime()
       })
       this.connected = true;
-    }  catch {
+    } catch {
       this.connected = false;
       if (attempts < 50) {
         setTimeout(() => this.connect(attempts + 1), 500);
@@ -498,7 +499,6 @@ class ViewAssist {
 }
 
 // Initialize when core web components are ready
-const ha = await hass();
 
 Promise.all([
   customElements.whenDefined("home-assistant"),
@@ -512,5 +512,5 @@ Promise.all([
       "color: green; font-weight: bold",
       ""
   );
-  window.viewassist = new ViewAssist(ha).variables;
+  window.viewassist = new ViewAssist().variables;
 });
