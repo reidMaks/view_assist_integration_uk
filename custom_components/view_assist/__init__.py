@@ -8,7 +8,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.start import async_at_started
 
 from .alarm_repeater import ALARMS, VAAlarmRepeater
-from .const import DOMAIN, OPTION_KEY_MIGRATIONS, RuntimeData, VAConfigEntry
+from .const import DOMAIN, OPTION_KEY_MIGRATIONS, RuntimeData, VAConfigEntry, VAEvent
 from .dashboard import DASHBOARD_MANAGER, DashboardManager
 from .entity_listeners import EntityListeners
 from .helpers import (
@@ -86,6 +86,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
 
     # Request platform setup
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Fire config update event
+    # Does nothing on HA reload but sends update to device if config reloaded from config update
+    async_dispatcher_send(
+        hass, f"{DOMAIN}_{entry.entry_id}_event", VAEvent("config_update")
+    )
 
     # Fire display device registration to setup display if first time config
     async_dispatcher_send(
