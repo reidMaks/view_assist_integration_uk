@@ -556,6 +556,7 @@ class EntityListeners:
 
     def get_mute_switch(self, target_device: str, mic_type: str):
         """Get mute switch."""
+        _LOGGER.debug("Mic type: %s, Target device: %s", mic_type, target_device)
 
         if mic_type == VAMicType.STREAM_ASSIST:
             return target_device.replace("sensor", "switch").replace("_stt", "_mic")
@@ -564,7 +565,9 @@ class EntityListeners:
                 "simple_state", "microphone"
             )
         if mic_type == VAMicType.HA_VOICE_SATELLITE:
-            return target_device.replace("assist_satellite", "switch") + "_mute"
+            return target_device.replace("assist_satellite", "switch", 1).replace(
+                "assist_satellite", "mute"
+            )
 
         return None
 

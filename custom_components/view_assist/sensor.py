@@ -124,12 +124,6 @@ class ViewAssistSensor(SensorEntity):
         # Add extra_data attributes from runtime data
         attrs.update(self.config.runtime_data.extra_data)
 
-        # display timers
-        timers: VATimers = self.hass.data[DOMAIN]["timers"]
-        attrs["timers"] = timers.get_timers(
-            device_or_entity_id=self.entity_id, include_expired=True
-        )
-
         return attrs
 
     def set_entity_state(self, **kwargs):
