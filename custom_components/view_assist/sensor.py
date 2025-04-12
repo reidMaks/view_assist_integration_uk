@@ -95,15 +95,16 @@ class ViewAssistSensor(SensorEntity):
         """Return entity attributes."""
         r = self.config.runtime_data
 
-        mic_device = self.config.runtime_data.mic_device
-        mic_type = self.config.runtime_data.mic_type
-        mute_switch = get_mute_switch_entity_id(mic_device, mic_type)
+        # TODO: To be readded when entity selection logic fixed
+        # mic_device = self.config.runtime_data.mic_device
+        # mic_type = self.config.runtime_data.mic_type
+        # mute_switch = get_mute_switch_entity_id(mic_device, mic_type)
 
         attrs = {
             "type": r.type,
             "mic_device": r.mic_device,
             "mic_device_id": get_device_id_from_entity_id(self.hass, r.mic_device),
-            "mute_switch": mute_switch,
+            # "mute_switch": mute_switch, - to be added when entity selection logic fixed
             "mediaplayer_device": r.mediaplayer_device,
             "musicplayer_device": r.musicplayer_device,
             "mode": r.mode,

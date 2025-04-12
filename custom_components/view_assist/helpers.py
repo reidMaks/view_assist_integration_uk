@@ -247,8 +247,6 @@ def get_entity_id_by_browser_id(hass: HomeAssistant, browser_id: str) -> str:
 
 def get_mute_switch_entity_id(target_device: str, mic_type: str):
     """Get mute switch."""
-    _LOGGER.debug("Mic type: %s, Target device: %s", mic_type, target_device)
-
     if mic_type == VAMicType.STREAM_ASSIST:
         return target_device.replace("sensor", "switch").replace("_stt", "_mic")
     if mic_type == VAMicType.HASS_MIC:
@@ -256,9 +254,7 @@ def get_mute_switch_entity_id(target_device: str, mic_type: str):
             "simple_state", "microphone"
         )
     if mic_type == VAMicType.HA_VOICE_SATELLITE:
-        return target_device.replace("assist_satellite", "switch", 1).replace(
-            "assist_satellite", "mute"
-        )
+        return target_device.replace("assist_satellite", "switch") + "_mute"
 
     return None
 
