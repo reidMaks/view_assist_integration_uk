@@ -128,7 +128,8 @@ def get_display_schema(
     """Get display device options."""
     domain_filters = [BROWSERMOD_DOMAIN, REMOTE_ASSIST_DISPLAY_DOMAIN]
 
-    display_devices: dict[str, Any] = hass.data[DOMAIN]["va_browser_ids"]
+    hass_data = hass.data.setdefault(DOMAIN, {})
+    display_devices: dict[str, Any] = hass_data.get("va_browser_ids", {})
 
     # Add suported domain devices
     for domain in domain_filters:
@@ -144,8 +145,11 @@ def get_display_schema(
                 config.runtime_data.display_device
             )
 
-    # Make into options dict
+    # Set a dummy device for initial setup
+    if not display_devices:
+        display_devices = {"dummy": "dummy"}
 
+    # Make into options dict
     options = [
         {
             "value": key,
