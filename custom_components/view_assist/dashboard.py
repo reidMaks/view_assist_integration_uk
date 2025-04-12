@@ -239,7 +239,8 @@ class DownloadManager:
             Path(base, view_name).mkdir(parents=True, exist_ok=True)
 
             # Download view files
-            await self._download_dir(dir_url, Path(base, view_name))
+            return await self._download_dir(dir_url, Path(base, view_name))
+        return False
 
 
 class DashboardManager:
