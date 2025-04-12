@@ -39,7 +39,6 @@ from .const import (
     CONF_INTENT_DEVICE,
     CONF_MEDIAPLAYER_DEVICE,
     CONF_MIC_DEVICE,
-    CONF_MIC_TYPE,
     CONF_MIC_UNMUTE,
     CONF_MUSIC,
     CONF_MUSICPLAYER_DEVICE,
@@ -60,7 +59,6 @@ from .const import (
     DEFAULT_FONT_STYLE,
     DEFAULT_HIDE_HEADER,
     DEFAULT_HIDE_SIDEBAR,
-    DEFAULT_MIC_TYPE,
     DEFAULT_MIC_UNMUTE,
     DEFAULT_MODE,
     DEFAULT_NAME,
@@ -84,7 +82,6 @@ from .const import (
     VAAssistPrompt,
     VAConfigEntry,
     VAIconSizes,
-    VAMicType,
     VAType,
 )
 from .helpers import (
@@ -195,7 +192,7 @@ class ViewAssistConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for View Assist."""
 
     VERSION = 1
-    MINOR_VERSION = 2
+    MINOR_VERSION = 3
 
     @staticmethod
     @callback
@@ -539,18 +536,6 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                         CONF_WEATHER_ENTITY, DEFAULT_WEATHER_ENITITY
                     ),
                 ): EntitySelector(EntitySelectorConfig(domain=WEATHER_DOMAIN)),
-                vol.Optional(
-                    CONF_MIC_TYPE,
-                    default=self.config_entry.options.get(
-                        CONF_MIC_TYPE, DEFAULT_MIC_TYPE
-                    ),
-                ): SelectSelector(
-                    SelectSelectorConfig(
-                        translation_key="mic_type_selector",
-                        options=[e.value for e in VAMicType],
-                        mode=SelectSelectorMode.DROPDOWN,
-                    )
-                ),
                 vol.Optional(
                     CONF_MODE,
                     default=self.config_entry.options.get(CONF_MODE, DEFAULT_MODE),

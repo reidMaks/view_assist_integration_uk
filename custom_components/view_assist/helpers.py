@@ -23,7 +23,6 @@ from .const import (
     VAMODE_REVERTS,
     VAConfigEntry,
     VADisplayType,
-    VAMicType,
     VAMode,
     VAType,
 )
@@ -245,17 +244,17 @@ def get_entity_id_by_browser_id(hass: HomeAssistant, browser_id: str) -> str:
     return None
 
 
-def get_mute_switch_entity_id(target_device: str, mic_type: str):
-    """Get mute switch."""
-    if mic_type == VAMicType.STREAM_ASSIST:
-        return target_device.replace("sensor", "switch").replace("_stt", "_mic")
-    if mic_type == VAMicType.HASS_MIC:
-        return target_device.replace("sensor", "switch").replace(
-            "simple_state", "microphone"
-        )
-    if mic_type == VAMicType.HA_VOICE_SATELLITE:
-        return target_device.replace("assist_satellite", "switch") + "_mute"
-
+def get_mute_switch_entity_id(hass: HomeAssistant, mic_entity_id: str) -> str | None:
+    """Get the mute switch entity id for a device id relating to the mic entity."""
+    entity_registry = er.async_get(hass)
+    if mic_entity := entity_registry.async_get(mic_entity_id):
+        device_id = mic_entity.device_id
+        device_entities = er.async_entries_for_device(entity_registry, device_id)
+        for entity in device_entities:
+            if entity.domain == "switch" and entity.entity_id.endswith(
+                ("_mute", "_mic", "_microphone")
+            ):
+                return entity.entity_id
     return None
 
 
