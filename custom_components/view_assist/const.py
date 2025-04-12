@@ -48,7 +48,7 @@ JSMODULES = [
     {
         "name": "View Assist Helper",
         "filename": "view_assist.js",
-        "version": "1.0.6",
+        "version": "1.0.10",
     },
 ]
 
@@ -79,6 +79,7 @@ VAMODE_REVERTS = {
 class VAType(StrEnum):
     """Sensor type enum."""
 
+    MASTER_CONFIG = "master_config"
     VIEW_AUDIO = "view_audio"
     AUDIO_ONLY = "audio_only"
 

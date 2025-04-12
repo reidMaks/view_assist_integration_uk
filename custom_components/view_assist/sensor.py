@@ -20,7 +20,7 @@ from .const import (
     VA_BACKGROUND_UPDATE_EVENT,
     VAConfigEntry,
 )
-from .helpers import get_device_id_from_entity_id
+from .helpers import get_device_id_from_entity_id, get_mute_switch_entity_id
 from .timers import VATimers
 
 _LOGGER = logging.getLogger(__name__)
@@ -94,10 +94,17 @@ class ViewAssistSensor(SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return entity attributes."""
         r = self.config.runtime_data
+
+        # TODO: To be readded when entity selection logic fixed
+        # mic_device = self.config.runtime_data.mic_device
+        # mic_type = self.config.runtime_data.mic_type
+        # mute_switch = get_mute_switch_entity_id(mic_device, mic_type)
+
         attrs = {
             "type": r.type,
             "mic_device": r.mic_device,
             "mic_device_id": get_device_id_from_entity_id(self.hass, r.mic_device),
+            # "mute_switch": mute_switch, - to be added when entity selection logic fixed
             "mediaplayer_device": r.mediaplayer_device,
             "musicplayer_device": r.musicplayer_device,
             "mode": r.mode,
@@ -123,12 +130,6 @@ class ViewAssistSensor(SensorEntity):
 
         # Add extra_data attributes from runtime data
         attrs.update(self.config.runtime_data.extra_data)
-
-        # display timers
-        timers: VATimers = self.hass.data[DOMAIN]["timers"]
-        attrs["timers"] = timers.get_timers(
-            device_or_entity_id=self.entity_id, include_expired=True
-        )
 
         return attrs
 

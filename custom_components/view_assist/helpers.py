@@ -7,7 +7,7 @@ from typing import Any
 
 import requests
 
-from homeassistant.const import Platform
+from homeassistant.const import CONF_TYPE, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.util import slugify
@@ -23,6 +23,7 @@ from .const import (
     VAMODE_REVERTS,
     VAConfigEntry,
     VADisplayType,
+    VAMicType,
     VAMode,
     VAType,
 )
@@ -51,16 +52,6 @@ def is_first_instance(
     if entries and entries[0].entry_id == config.entry_id:
         return True
     return False
-
-
-def get_loaded_instance_count(hass: HomeAssistant) -> int:
-    """Return number of loaded instances."""
-    entries = [
-        entry
-        for entry in hass.config_entries.async_entries(DOMAIN)
-        if not entry.disabled_by
-    ]
-    return len(entries)
 
 
 def ensure_list(value: str | list[str]):
@@ -103,8 +94,22 @@ def get_config_entry_by_entity_id(hass: HomeAssistant, entity_id: str) -> VAConf
     return None
 
 
+def get_master_config_entry(hass: HomeAssistant) -> VAConfigEntry:
+    """Get master config entry."""
+    entries = [
+        entry
+        for entry in hass.config_entries.async_entries(DOMAIN)
+        if entry.data.get(CONF_TYPE) == VAType.MASTER_CONFIG
+    ]
+    if entries:
+        return entries[0]
+    return None
+
+
 def get_device_name_from_id(hass: HomeAssistant, device_id: str) -> str:
     """Get the browser_id for the device based on device domain."""
+    if device_id.startswith("va-"):
+        return device_id
     device_reg = dr.async_get(hass)
     device = device_reg.async_get(device_id)
 
@@ -117,6 +122,25 @@ def get_device_id_from_entity_id(hass: HomeAssistant, entity_id: str) -> str:
     if entity := entity_registry.async_get(entity_id):
         return entity.device_id
     return None
+
+
+def get_devices_for_domain(hass: HomeAssistant, domain: str) -> list[dr.DeviceEntry]:
+    """Get all devices for a domain."""
+    device_reg = dr.async_get(hass)
+    entries = list(
+        hass.config_entries.async_entries(
+            domain, include_ignore=False, include_disabled=False
+        )
+    )
+
+    if entries:
+        devices = []
+        for entry in entries:
+            devices.extend(
+                device_reg.devices.get_devices_for_config_entry_id(entry.entry_id)
+            )
+        return devices
+    return []
 
 
 def get_device_id_from_name(hass: HomeAssistant, device_name: str) -> str:
@@ -202,8 +226,13 @@ def get_entity_id_by_browser_id(hass: HomeAssistant, browser_id: str) -> str:
     """
     # Browser ID is same as device name, so get device id to VA device with display device
     # set to this id
-    if device_id := get_device_id_from_name(hass, browser_id):
-        # Get all instances of view assist for browser id
+    if browser_id.startswith("va-"):
+        device_id = browser_id
+    else:
+        device_id = get_device_id_from_name(hass, browser_id)
+
+    # Get all instances of view assist for browser id
+    if device_id:
         entry_ids = [
             entry.entry_id
             for entry in hass.config_entries.async_entries(DOMAIN)
@@ -212,6 +241,20 @@ def get_entity_id_by_browser_id(hass: HomeAssistant, browser_id: str) -> str:
 
         if entry_ids:
             return get_sensor_entity_from_instance(hass, entry_ids[0])
+
+    return None
+
+
+def get_mute_switch_entity_id(target_device: str, mic_type: str):
+    """Get mute switch."""
+    if mic_type == VAMicType.STREAM_ASSIST:
+        return target_device.replace("sensor", "switch").replace("_stt", "_mic")
+    if mic_type == VAMicType.HASS_MIC:
+        return target_device.replace("sensor", "switch").replace(
+            "simple_state", "microphone"
+        )
+    if mic_type == VAMicType.HA_VOICE_SATELLITE:
+        return target_device.replace("assist_satellite", "switch") + "_mute"
 
     return None
 

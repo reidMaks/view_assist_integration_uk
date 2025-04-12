@@ -2,24 +2,32 @@
 
 import logging
 
-from homeassistant.const import Platform
+from homeassistant import config_entries
+from homeassistant.const import CONF_TYPE, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import discovery_flow
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.start import async_at_started
 
 from .alarm_repeater import ALARMS, VAAlarmRepeater
-from .const import DOMAIN, OPTION_KEY_MIGRATIONS, RuntimeData, VAConfigEntry
+from .const import (
+    DOMAIN,
+    OPTION_KEY_MIGRATIONS,
+    RuntimeData,
+    VAConfigEntry,
+    VAEvent,
+    VAType,
+)
 from .dashboard import DASHBOARD_MANAGER, DashboardManager
 from .entity_listeners import EntityListeners
 from .helpers import (
     ensure_list,
     get_device_name_from_id,
-    get_loaded_instance_count,
+    get_master_config_entry,
     is_first_instance,
 )
 from .http_url import HTTPManager
 from .js_modules import JSModuleRegistration
-from .master_config import MASTER_CONFIG, MasterConfigManager
 from .services import VAServices
 from .templates import setup_va_templates
 from .timers import TIMERS, VATimers
@@ -65,42 +73,73 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     """Set up View Assist from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
+    has_master_entry = get_master_config_entry(hass)
+    is_master_entry = has_master_entry and entry.data[CONF_TYPE] == VAType.MASTER_CONFIG
+
     # Add runtime data to config entry to have place to store data and
     # make accessible throughout integration
-    entry.runtime_data = RuntimeData()
-    set_runtime_data_from_config(entry)
+    if not is_master_entry:
+        entry.runtime_data = RuntimeData()
+        set_runtime_data_from_config(entry)
 
     # Add config change listener
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
-    # Run first instance only functions
-    if is_first_instance(hass, entry, display_instance_only=False):
-        await run_if_first_instance(hass, entry)
+    if not has_master_entry:
+        # Start a config flow to add a master entry if no master entry
+        _LOGGER.debug("No master entry found, starting config flow")
+        if is_first_instance(hass, entry):
+            discovery_flow.async_create_flow(
+                hass,
+                DOMAIN,
+                {"source": config_entries.SOURCE_INTEGRATION_DISCOVERY},
+                {"name": VAType.MASTER_CONFIG},
+            )
 
-    # Run first display instance only functions
-    if is_first_instance(hass, entry, display_instance_only=True):
-        await run_if_first_display_instance(hass, entry)
+        # Run first instance only functions
+        if is_first_instance(hass, entry, display_instance_only=False):
+            await load_common_functions(hass, entry)
 
-    # Load entity listeners
-    EntityListeners(hass, entry)
+        # Run first display instance only functions
+        if is_first_instance(hass, entry, display_instance_only=True):
+            await load_common_display_functions(hass, entry)
 
-    # Request platform setup
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    if is_master_entry:
+        await load_common_functions(hass, entry)
+        await load_common_display_functions(hass, entry)
 
-    # Fire display device registration to setup display if first time config
-    async_dispatcher_send(
-        hass,
-        f"{DOMAIN}_{get_device_name_from_id(hass, entry.runtime_data.display_device)}_registered",
-    )
+    else:
+        # Add runtime data to config entry to have place to store data and
+        # make accessible throughout integration
+        entry.runtime_data = RuntimeData()
+        set_runtime_data_from_config(entry)
+
+        # Add config change listener
+        entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+
+        # Set entity listeners
+        EntityListeners(hass, entry)
+
+        # Request platform setup
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+        # Fire config update event
+        # Does nothing on HA reload but sends update to device if config reloaded from config update
+        async_dispatcher_send(
+            hass, f"{DOMAIN}_{entry.entry_id}_event", VAEvent("config_update")
+        )
+
+        # Fire display device registration to setup display if first time config
+        async_dispatcher_send(
+            hass,
+            f"{DOMAIN}_{get_device_name_from_id(hass, entry.runtime_data.display_device)}_registered",
+        )
 
     return True
 
 
-async def run_if_first_instance(hass: HomeAssistant, entry: VAConfigEntry):
+async def load_common_functions(hass: HomeAssistant, entry: VAConfigEntry):
     """Things to run only for first instance of integration."""
-    master_config = MasterConfigManager(hass, entry)
-    hass.data[DOMAIN][MASTER_CONFIG] = master_config
-    await master_config.load()
 
     # Inisitialise service
     services = VAServices(hass, entry)
@@ -120,11 +159,15 @@ async def run_if_first_instance(hass: HomeAssistant, entry: VAConfigEntry):
     setup_va_templates(hass)
 
 
-async def run_if_first_display_instance(hass: HomeAssistant, entry: VAConfigEntry):
+async def load_common_display_functions(hass: HomeAssistant, entry: VAConfigEntry):
     """Things to run only one when multiple instances exist."""
 
     # Run dashboard and view setup
     async def setup_frontend(*args):
+        # Initiate var to hold VA browser ids.  Do not reset if exists
+        # as this is used to track browser ids across reloads
+        if not hass.data[DOMAIN].get("va_browser_ids"):
+            hass.data[DOMAIN]["va_browser_ids"] = {}
         # Load websockets
         await async_register_websockets(hass)
 
@@ -162,10 +205,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: VAConfigEntry):
     """Unload a config entry."""
 
     # Unload js resources
-    if get_loaded_instance_count(hass) <= 1:
+    if entry.data[CONF_TYPE] == VAType.MASTER_CONFIG:
         # Unload lovelace module resource if only instance
         _LOGGER.debug("Removing javascript modules cards")
         jsloader = JSModuleRegistration(hass)
         await jsloader.async_unregister()
+        return True
 
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

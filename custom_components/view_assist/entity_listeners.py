@@ -37,7 +37,6 @@ from .const import (
     VAConfigEntry,
     VADisplayType,
     VAEvent,
-    VAMicType,
     VAMode,
 )
 from .helpers import (
@@ -48,6 +47,7 @@ from .helpers import (
     get_entity_attribute,
     get_entity_id_from_conversation_device_id,
     get_key,
+    get_mute_switch_entity_id,
     get_revert_settings_for_mode,
     get_sensor_entity_from_instance,
     make_url_from_file_path,
@@ -72,7 +72,7 @@ class EntityListeners:
         # Add microphone mute switch listener
         mic_device = config_entry.runtime_data.mic_device
         mic_type = config_entry.runtime_data.mic_type
-        mute_switch = self.get_mute_switch(mic_device, mic_type)
+        mute_switch = get_mute_switch_entity_id(mic_device, mic_type)
 
         # Add browser navigate service listener
         config_entry.async_on_unload(
@@ -266,6 +266,14 @@ class EntityListeners:
                 REMOTE_ASSIST_DISPLAY_DOMAIN,
                 "navigate",
                 {"target": self.browser_or_device_id, "path": path},
+            )
+
+        else:
+            # Use own VA navigation
+            async_dispatcher_send(
+                self.hass,
+                f"{DOMAIN}_{self.config_entry.entry_id}_event",
+                VAEvent("navigate", {"path": path}),
             )
 
         # If this was a revert action, end here
@@ -545,20 +553,6 @@ class EntityListeners:
                 await self.async_browser_navigate(
                     f"{self.config_entry.runtime_data.dashboard}/{DEFAULT_VIEW_INFO}"
                 )
-
-    def get_mute_switch(self, target_device: str, mic_type: str):
-        """Get mute switch."""
-
-        if mic_type == VAMicType.STREAM_ASSIST:
-            return target_device.replace("sensor", "switch").replace("_stt", "_mic")
-        if mic_type == VAMicType.HASS_MIC:
-            return target_device.replace("sensor", "switch").replace(
-                "simple_state", "microphone"
-            )
-        if mic_type == VAMicType.HA_VOICE_SATELLITE:
-            return target_device.replace("assist_satellite", "switch") + "_mute"
-
-        return None
 
     # ---------------------------------------------------------------------------------------
     # Actions for attributes changed via the set_state service

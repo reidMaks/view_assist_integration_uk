@@ -1,5 +1,8 @@
 """Config flow handler."""
 
+import logging
+from typing import Any
+
 import voluptuous as vol
 
 from homeassistant.components.assist_satellite import DOMAIN as ASSIST_SAT_DOMAIN
@@ -8,7 +11,7 @@ from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.weather import DOMAIN as WEATHER_DOMAIN
 from homeassistant.config_entries import ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_MODE, CONF_NAME, CONF_TYPE
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.selector import (
     DeviceSelector,
     DeviceSelectorConfig,
@@ -79,11 +82,18 @@ from .const import (
     DOMAIN,
     REMOTE_ASSIST_DISPLAY_DOMAIN,
     VAAssistPrompt,
+    VAConfigEntry,
     VAIconSizes,
     VAMicType,
     VAType,
 )
-from .helpers import get_sensor_entity_from_instance
+from .helpers import (
+    get_devices_for_domain,
+    get_master_config_entry,
+    get_sensor_entity_from_instance,
+)
+
+_LOGGER = logging.getLogger(__name__)
 
 BASE_SCHEMA = {
     vol.Required(CONF_NAME): str,
@@ -96,7 +106,7 @@ BASE_SCHEMA = {
     vol.Required(CONF_MUSICPLAYER_DEVICE): EntitySelector(
         EntitySelectorConfig(domain=MEDIAPLAYER_DOMAIN)
     ),
-    vol.Optional(CONF_INTENT_DEVICE): EntitySelector(
+    vol.Optional(CONF_INTENT_DEVICE, default=vol.UNDEFINED): EntitySelector(
         EntitySelectorConfig(domain=SENSOR_DOMAIN)
     ),
 }
@@ -114,6 +124,71 @@ DISPLAY_SCHEMA = {
     ),
     vol.Required(CONF_DEV_MIMIC, default=False): bool,
 }
+
+
+def get_display_schema(
+    hass: HomeAssistant, config: VAConfigEntry | None = None
+) -> dict[str, Any]:
+    """Get display device options."""
+    domain_filters = [BROWSERMOD_DOMAIN, REMOTE_ASSIST_DISPLAY_DOMAIN]
+
+    hass_data = hass.data.setdefault(DOMAIN, {})
+    display_devices: dict[str, Any] = hass_data.get("va_browser_ids", {})
+
+    # Add suported domain devices
+    for domain in domain_filters:
+        domain_devices = get_devices_for_domain(hass, domain)
+        if domain_devices:
+            for device in domain_devices:
+                display_devices[device.id] = device.name
+
+    # Add current setting if not already in list
+    if config is not None:
+        if config.runtime_data.display_device not in display_devices:
+            display_devices[config.runtime_data.display_device] = (
+                config.runtime_data.display_device
+            )
+
+    # Set a dummy device for initial setup
+    if not display_devices:
+        display_devices = {"dummy": "dummy"}
+
+    # Make into options dict
+    options = [
+        {
+            "value": key,
+            "label": value,
+        }
+        for key, value in display_devices.items()
+    ]
+
+    return (
+        {
+            vol.Required(CONF_DISPLAY_DEVICE): SelectSelector(
+                SelectSelectorConfig(
+                    options=options,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            vol.Required(CONF_DEV_MIMIC, default=False): bool,
+        }
+        if config is None
+        else {
+            vol.Required(
+                CONF_DISPLAY_DEVICE,
+                default=config.data.get(CONF_DISPLAY_DEVICE, vol.UNDEFINED),
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=options,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            vol.Required(
+                CONF_DEV_MIMIC,
+                default=config.data.get(CONF_DEV_MIMIC, False),
+            ): bool,
+        }
+    )
 
 
 class ViewAssistConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -144,21 +219,40 @@ class ViewAssistConfigFlow(ConfigFlow, domain=DOMAIN):
             return await self.async_step_options()
 
         # Show the initial form to select the type with descriptive text
-        return self.async_show_form(
-            step_id="user",
-            last_step=False,
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_TYPE, default=DEFAULT_TYPE): SelectSelector(
-                        SelectSelectorConfig(
-                            translation_key="type_selector",
-                            options=[e.value for e in VAType],
-                            mode=SelectSelectorMode.DROPDOWN,
-                        )
-                    ),
-                }
-            ),
-        )
+        if get_master_config_entry(self.hass):
+            return self.async_show_form(
+                step_id="user",
+                last_step=False,
+                data_schema=vol.Schema(
+                    {
+                        vol.Required(CONF_TYPE, default=DEFAULT_TYPE): SelectSelector(
+                            SelectSelectorConfig(
+                                translation_key="type_selector",
+                                options=[
+                                    e.value for e in VAType if e != VAType.MASTER_CONFIG
+                                ],
+                                mode=SelectSelectorMode.DROPDOWN,
+                            )
+                        ),
+                    }
+                ),
+            )
+
+        return self.async_show_form(step_id="master_config", last_step=True)
+
+    async def async_step_integration_discovery(self, discovery_info=None):
+        """Handle the master config integration discovery step.
+
+        This is called from init.py if no master config instance exists
+        """
+        if discovery_info.get(CONF_NAME) != VAType.MASTER_CONFIG:
+            return self.async_abort(reason="wrong integration")
+
+        await self.async_set_unique_id(f"{DOMAIN}_{VAType.MASTER_CONFIG}")
+        self._abort_if_unique_id_configured()
+
+        self.context.update({"title_placeholders": {"name": "Master Configuration"}})
+        return await self.async_step_master_config()
 
     async def async_step_options(self, user_input=None):
         """Handle the options step."""
@@ -171,12 +265,23 @@ class ViewAssistConfigFlow(ConfigFlow, domain=DOMAIN):
 
         # Define the schema based on the selected type
         if self.type == VAType.VIEW_AUDIO:
-            data_schema = vol.Schema({**BASE_SCHEMA, **DISPLAY_SCHEMA})
+            data_schema = vol.Schema({**BASE_SCHEMA, **get_display_schema(self.hass)})
         else:  # audio_only
             data_schema = vol.Schema(BASE_SCHEMA)
 
         # Show the form for the selected type
         return self.async_show_form(step_id="options", data_schema=data_schema)
+
+    async def async_step_master_config(self, discovery_info=None):
+        """Handle the options step."""
+        if discovery_info is not None and not get_master_config_entry(self.hass):
+            return self.async_create_entry(
+                title="Master Configuration", data={"type": VAType.MASTER_CONFIG}
+            )
+        return self.async_show_form(
+            step_id="master_config",
+            data_schema=vol.Schema({}),
+        )
 
 
 class ViewAssistOptionsFlowHandler(OptionsFlow):
@@ -200,8 +305,21 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                 step_id="init",
                 menu_options=["main_config", "dashboard_options", "default_options"],
             )
+        if self.va_type == VAType.MASTER_CONFIG:
+            return await self.async_step_master_config()
 
         return await self.async_step_main_config()
+
+    async def async_step_master_config(self, user_input=None):
+        """Handle master config flow."""
+        if user_input is not None:
+            # This is just updating the core config so update config_entry.data
+            options = self.config_entry.options | user_input
+            return self.async_create_entry(data=options)
+
+        data_schema = vol.Schema({})
+        # Show the form for the selected type
+        return self.async_show_form(step_id="master_config", data_schema=data_schema)
 
     async def async_step_main_config(self, user_input=None):
         """Handle main config flow."""
@@ -231,34 +349,13 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
             ): EntitySelector(EntitySelectorConfig(domain=MEDIAPLAYER_DOMAIN)),
             vol.Optional(
                 CONF_INTENT_DEVICE,
-                default=self.config_entry.data.get(CONF_INTENT_DEVICE),
+                default=self.config_entry.data.get(CONF_INTENT_DEVICE, vol.UNDEFINED),
             ): EntitySelector(EntitySelectorConfig(domain=SENSOR_DOMAIN)),
         }
 
         if self.va_type == VAType.VIEW_AUDIO:
             data_schema = vol.Schema(
-                {
-                    **BASE_OPTIONS,
-                    vol.Required(
-                        CONF_DISPLAY_DEVICE,
-                        default=self.config_entry.data[CONF_DISPLAY_DEVICE],
-                    ): DeviceSelector(
-                        DeviceSelectorConfig(
-                            filter=[
-                                EntityFilterSelectorConfig(
-                                    integration=BROWSERMOD_DOMAIN
-                                ),
-                                EntityFilterSelectorConfig(
-                                    integration=REMOTE_ASSIST_DISPLAY_DOMAIN,
-                                ),
-                            ],
-                        )
-                    ),
-                    vol.Required(
-                        CONF_DEV_MIMIC,
-                        default=self.config_entry.data.get(CONF_DEV_MIMIC),
-                    ): bool,
-                }
+                {**BASE_OPTIONS, **get_display_schema(self.hass, self.config_entry)}
             )
         else:  # audio_only
             data_schema = vol.Schema(BASE_OPTIONS)
