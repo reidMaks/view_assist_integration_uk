@@ -446,9 +446,7 @@ class DashboardManager:
         if master_dashboard := await self.hass.async_add_executor_job(
             load_yaml_dict, dashboard_file_path
         ):
-            if operator.eq(master_dashboard, comp_dash):
-                _LOGGER.debug("They are the same!")
-            else:
+            if not operator.eq(master_dashboard, comp_dash):
                 diffs = dictdiff.diff(master_dashboard, comp_dash, expand=True)
                 return differ_to_json(diffs)
         return None

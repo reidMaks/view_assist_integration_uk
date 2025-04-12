@@ -79,6 +79,7 @@ VAMODE_REVERTS = {
 class VAType(StrEnum):
     """Sensor type enum."""
 
+    MASTER_CONFIG = "master_config"
     VIEW_AUDIO = "view_audio"
     AUDIO_ONLY = "audio_only"
 

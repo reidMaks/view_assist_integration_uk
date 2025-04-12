@@ -231,7 +231,3 @@ save_view:
       required: true
       selector:
         text:
-set_master_config:
-  name: "Set View Assist master config"
-  description: "Set config parameters for all View Assist devices"
-
