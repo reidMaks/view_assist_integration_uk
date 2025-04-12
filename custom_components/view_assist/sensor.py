@@ -20,7 +20,7 @@ from .const import (
     VA_BACKGROUND_UPDATE_EVENT,
     VAConfigEntry,
 )
-from .helpers import get_device_id_from_entity_id
+from .helpers import get_device_id_from_entity_id, get_mute_switch_entity_id
 from .timers import VATimers
 
 _LOGGER = logging.getLogger(__name__)
@@ -94,10 +94,16 @@ class ViewAssistSensor(SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return entity attributes."""
         r = self.config.runtime_data
+
+        mic_device = self.config.runtime_data.mic_device
+        mic_type = self.config.runtime_data.mic_type
+        mute_switch = get_mute_switch_entity_id(mic_device, mic_type)
+
         attrs = {
             "type": r.type,
             "mic_device": r.mic_device,
             "mic_device_id": get_device_id_from_entity_id(self.hass, r.mic_device),
+            "mute_switch": mute_switch,
             "mediaplayer_device": r.mediaplayer_device,
             "musicplayer_device": r.musicplayer_device,
             "mode": r.mode,
