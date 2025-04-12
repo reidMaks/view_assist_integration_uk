@@ -23,6 +23,7 @@ from .const import (
     VAMODE_REVERTS,
     VAConfigEntry,
     VADisplayType,
+    VAMicType,
     VAMode,
     VAType,
 )
@@ -240,6 +241,24 @@ def get_entity_id_by_browser_id(hass: HomeAssistant, browser_id: str) -> str:
 
         if entry_ids:
             return get_sensor_entity_from_instance(hass, entry_ids[0])
+
+    return None
+
+
+def get_mute_switch_entity_id(target_device: str, mic_type: str):
+    """Get mute switch."""
+    _LOGGER.debug("Mic type: %s, Target device: %s", mic_type, target_device)
+
+    if mic_type == VAMicType.STREAM_ASSIST:
+        return target_device.replace("sensor", "switch").replace("_stt", "_mic")
+    if mic_type == VAMicType.HASS_MIC:
+        return target_device.replace("sensor", "switch").replace(
+            "simple_state", "microphone"
+        )
+    if mic_type == VAMicType.HA_VOICE_SATELLITE:
+        return target_device.replace("assist_satellite", "switch", 1).replace(
+            "assist_satellite", "mute"
+        )
 
     return None
 
