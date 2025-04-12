@@ -7,7 +7,7 @@ from typing import Any
 
 import requests
 
-from homeassistant.const import Platform
+from homeassistant.const import CONF_TYPE, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.util import slugify
@@ -53,16 +53,6 @@ def is_first_instance(
     return False
 
 
-def get_loaded_instance_count(hass: HomeAssistant) -> int:
-    """Return number of loaded instances."""
-    entries = [
-        entry
-        for entry in hass.config_entries.async_entries(DOMAIN)
-        if not entry.disabled_by
-    ]
-    return len(entries)
-
-
 def ensure_list(value: str | list[str]):
     """Ensure that a value is a list."""
     if isinstance(value, list):
@@ -100,6 +90,18 @@ def get_config_entry_by_entity_id(hass: HomeAssistant, entity_id: str) -> VAConf
     entity_registry = er.async_get(hass)
     if entity := entity_registry.async_get(entity_id):
         return hass.config_entries.async_get_entry(entity.config_entry_id)
+    return None
+
+
+def get_master_config_entry(hass: HomeAssistant) -> VAConfigEntry:
+    """Get master config entry."""
+    entries = [
+        entry
+        for entry in hass.config_entries.async_entries(DOMAIN)
+        if entry.data.get(CONF_TYPE) == VAType.MASTER_CONFIG
+    ]
+    if entries:
+        return entries[0]
     return None
 
 

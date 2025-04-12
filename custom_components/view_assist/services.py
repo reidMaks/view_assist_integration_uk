@@ -22,7 +22,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .alarm_repeater import ALARMS, VAAlarmRepeater
 from .const import (
-    ATTR_REDOWNLOAD_FROM_REPO,
+    ATTR_BACKUP_CURRENT_VIEW,
     ATTR_COMMUNITY_VIEW,
     ATTR_DEVICE,
     ATTR_EVENT_DATA,
@@ -32,13 +32,13 @@ from .const import (
     ATTR_MAX_REPEATS,
     ATTR_MEDIA_FILE,
     ATTR_PATH,
+    ATTR_REDOWNLOAD_FROM_REPO,
     ATTR_REMOVE_ALL,
     ATTR_RESUME_MEDIA,
     ATTR_TIMER_ID,
     ATTR_TYPE,
     DOMAIN,
     VAConfigEntry,
-    ATTR_BACKUP_CURRENT_VIEW,
 )
 from .dashboard import (
     DASHBOARD_MANAGER,

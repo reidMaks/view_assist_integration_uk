@@ -15,10 +15,7 @@ from homeassistant.components.websocket_api import (
     websocket_command,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.dispatcher import (
-    async_dispatcher_connect,
-    async_dispatcher_send,
-)
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from .const import DOMAIN, VAEvent
 from .helpers import (
@@ -27,7 +24,6 @@ from .helpers import (
     get_entity_id_by_browser_id,
     get_mimic_entity_id,
 )
-from .master_config import MASTER_CONFIG
 from .timers import TIMERS, VATimers
 
 _LOGGER = logging.getLogger(__name__)
@@ -78,7 +74,7 @@ class MockWSConnection:
         return False
 
 
-async def async_register_websockets(hass: HomeAssistant):
+async def async_register_websockets(hass: HomeAssistant):  # noqa: C901
     """Register websocket functions."""
 
     @websocket_command(
@@ -292,7 +288,6 @@ async def async_register_websockets(hass: HomeAssistant):
             )
             try:
                 output = {
-                    "master_config": hass.data[DOMAIN][MASTER_CONFIG].config,
                     "browser_id": browser_id,
                     "entity_id": entity_id,
                     "mimic_device": mimic,

@@ -87,7 +87,11 @@ from .const import (
     VAMicType,
     VAType,
 )
-from .helpers import get_devices_for_domain, get_sensor_entity_from_instance
+from .helpers import (
+    get_devices_for_domain,
+    get_master_config_entry,
+    get_sensor_entity_from_instance,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -128,7 +132,8 @@ def get_display_schema(
     """Get display device options."""
     domain_filters = [BROWSERMOD_DOMAIN, REMOTE_ASSIST_DISPLAY_DOMAIN]
 
-    display_devices: dict[str, Any] = hass.data[DOMAIN]["va_browser_ids"]
+    hass_data = hass.data.setdefault(DOMAIN, {})
+    display_devices: dict[str, Any] = hass_data.get("va_browser_ids", {})
 
     # Add suported domain devices
     for domain in domain_filters:
@@ -144,8 +149,11 @@ def get_display_schema(
                 config.runtime_data.display_device
             )
 
-    # Make into options dict
+    # Set a dummy device for initial setup
+    if not display_devices:
+        display_devices = {"dummy": "dummy"}
 
+    # Make into options dict
     options = [
         {
             "value": key,
@@ -211,21 +219,40 @@ class ViewAssistConfigFlow(ConfigFlow, domain=DOMAIN):
             return await self.async_step_options()
 
         # Show the initial form to select the type with descriptive text
-        return self.async_show_form(
-            step_id="user",
-            last_step=False,
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_TYPE, default=DEFAULT_TYPE): SelectSelector(
-                        SelectSelectorConfig(
-                            translation_key="type_selector",
-                            options=[e.value for e in VAType],
-                            mode=SelectSelectorMode.DROPDOWN,
-                        )
-                    ),
-                }
-            ),
-        )
+        if get_master_config_entry(self.hass):
+            return self.async_show_form(
+                step_id="user",
+                last_step=False,
+                data_schema=vol.Schema(
+                    {
+                        vol.Required(CONF_TYPE, default=DEFAULT_TYPE): SelectSelector(
+                            SelectSelectorConfig(
+                                translation_key="type_selector",
+                                options=[
+                                    e.value for e in VAType if e != VAType.MASTER_CONFIG
+                                ],
+                                mode=SelectSelectorMode.DROPDOWN,
+                            )
+                        ),
+                    }
+                ),
+            )
+
+        return self.async_show_form(step_id="master_config", last_step=True)
+
+    async def async_step_integration_discovery(self, discovery_info=None):
+        """Handle the master config integration discovery step.
+
+        This is called from init.py if no master config instance exists
+        """
+        if discovery_info.get(CONF_NAME) != VAType.MASTER_CONFIG:
+            return self.async_abort(reason="wrong integration")
+
+        await self.async_set_unique_id(f"{DOMAIN}_{VAType.MASTER_CONFIG}")
+        self._abort_if_unique_id_configured()
+
+        self.context.update({"title_placeholders": {"name": "Master Configuration"}})
+        return await self.async_step_master_config()
 
     async def async_step_options(self, user_input=None):
         """Handle the options step."""
@@ -244,6 +271,17 @@ class ViewAssistConfigFlow(ConfigFlow, domain=DOMAIN):
 
         # Show the form for the selected type
         return self.async_show_form(step_id="options", data_schema=data_schema)
+
+    async def async_step_master_config(self, discovery_info=None):
+        """Handle the options step."""
+        if discovery_info is not None and not get_master_config_entry(self.hass):
+            return self.async_create_entry(
+                title="Master Configuration", data={"type": VAType.MASTER_CONFIG}
+            )
+        return self.async_show_form(
+            step_id="master_config",
+            data_schema=vol.Schema({}),
+        )
 
 
 class ViewAssistOptionsFlowHandler(OptionsFlow):
@@ -267,8 +305,21 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                 step_id="init",
                 menu_options=["main_config", "dashboard_options", "default_options"],
             )
+        if self.va_type == VAType.MASTER_CONFIG:
+            return await self.async_step_master_config()
 
         return await self.async_step_main_config()
+
+    async def async_step_master_config(self, user_input=None):
+        """Handle master config flow."""
+        if user_input is not None:
+            # This is just updating the core config so update config_entry.data
+            options = self.config_entry.options | user_input
+            return self.async_create_entry(data=options)
+
+        data_schema = vol.Schema({})
+        # Show the form for the selected type
+        return self.async_show_form(step_id="master_config", data_schema=data_schema)
 
     async def async_step_main_config(self, user_input=None):
         """Handle main config flow."""

@@ -427,7 +427,7 @@ class ViewAssist {
     // Subscribe to server updates
     try {
       this.variables.browser_id = this.get_browser_id();
-      const conn = (await hass()).connection;
+      const conn = this._hass.connection;
       conn.subscribeMessage((msg) => this.incoming_message(msg), {
         type: "view_assist/connect",
         browser_id: this.variables.browser_id,
