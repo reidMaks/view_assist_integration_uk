@@ -1,4 +1,4 @@
-const version = "1.0.7"
+const version = "1.0.10"
 const TIMEOUT_ERROR = "SELECTTREE-TIMEOUT";
 
 export async function await_element(el, hard = false) {
@@ -266,8 +266,8 @@ class VAData {
 }
 
 class ViewAssist {
-  constructor(hass) {
-    this._hass = hass
+  constructor() {
+    this._hass = null;
     this.serverTimeHandler = null;
     this.variables = new VAData();
     this.connected = false;
@@ -328,11 +328,44 @@ class ViewAssist {
 
   }
 
+  display_browser_id() {
+    const display = localStorage.getItem("view_assist_status") == "unregistered";
+
+    if (display && location.pathname.includes("view-assist")) {
+      var browserId = document.getElementById("view_assist_browser_id");
+      if (!browserId) {
+        browserId = document.createElement("div");
+        document.body.append(browserId);
+        browserId.id = "view_assist_browser_id";
+        browserId.attachShadow({ mode: "open" });
+        const vadiv = document.createElement("p");
+        vadiv.innerHTML = this.get_browser_id();
+        browserId.shadowRoot.appendChild(vadiv);
+        const styleEl = document.createElement("style");
+        browserId.shadowRoot.append(styleEl);
+        styleEl.innerHTML = (
+          `:host {
+            position: fixed;
+            right: 1vw;
+            bottom: 0vh;
+            font-size: 5vh;
+            color: white;
+          }`
+        );
+      }
+    } else {
+      const browserId = document.getElementById("view_assist_browser_id");
+      if (browserId) {
+        browserId.remove();
+      }
+    }
+  }
+
   async initialize() {
     try {
       // Connect to server websocket
+      this._hass = await hass();
       await this.connect();
-      await this.hide_sections();
 
       if (this.connected) {
         window.addEventListener("connection-status", (ev) => {
@@ -346,6 +379,7 @@ class ViewAssist {
 
         window.addEventListener("location-changed", () => {
           this.hide_sections();
+          this.display_browser_id();
         });
 
         customElements.define("viewassist-countdown", CountdownTimer)
@@ -357,14 +391,13 @@ class ViewAssist {
     }
   }
 
-  async hide_sections() {
+  hide_sections() {
     // Hide header and sidebar
     if (!this.variables.config?.mimic_device) {
       setTimeout(() => {
         this.hide_header(this.variables.config?.hide_header);
         this.hide_sidebar(this.variables.config?.hide_sidebar);
       }, 100);
-
     }
   }
 
@@ -381,7 +414,7 @@ class ViewAssist {
 
   get_browser_id() {
     // Get the browser id
-    if (window.browser_mod && localStorage.getItem("browser_mod-browser-id")) {
+    if ((window.browser_mod || localStorage.getItem("remote_assist_display_settings")) && localStorage.getItem("browser_mod-browser-id")) {
       return localStorage.getItem("browser_mod-browser-id");
     }
     if (localStorage.getItem("view_assist_browser_id")) {
@@ -407,7 +440,7 @@ class ViewAssist {
         epoch: new Date().getTime()
       })
       this.connected = true;
-    }  catch {
+    } catch {
       this.connected = false;
       if (attempts < 50) {
         setTimeout(() => this.connect(attempts + 1), 500);
@@ -431,8 +464,12 @@ class ViewAssist {
     let event = msg["event"];
     let payload = msg["payload"];
     //console.log("Event: " + event + ", Payload: " + JSON.stringify(payload))
-    if (event == "connection" || event == "config_update" || event == "registered") {
+    if (event == "connection" || event == "config_update") {
+      localStorage.setItem("view_assist_status", "registered");
       this.process_config(event, payload);
+    }
+    if (event == "registered") {
+      location.reload();
     }
     if (event == "timer_update") {
       this.variables.config.timers = payload
@@ -440,6 +477,16 @@ class ViewAssist {
     if (event == "navigate") {
       if (payload["variables"]) this.variables.navigation = payload["variables"];
       this.browser_navigate(payload["path"]);
+    }
+    if (event == "unregistered") {
+      if (localStorage.getItem("view_assist_sensor") || localStorage.getItem("view_assist_mimic_device")) {
+        localStorage.removeItem("view_assist_sensor");
+        localStorage.removeItem("view_assist_mimic_device");
+      }
+      this.variables.config = {}
+      this.hide_sections();
+      localStorage.setItem("view_assist_status", "unregistered");
+      this.display_browser_id();
     }
     if (event == "reload") {
       location.reload()
@@ -450,7 +497,7 @@ class ViewAssist {
     let reload = false;
     const old_config = this.variables?.config
 
-    if (event == "config_update" && payload.home != this.variables.config.home) {
+    if (event == "connection" || event == "config_update") {
       reload = true;
     }
 
@@ -466,13 +513,10 @@ class ViewAssist {
 
     if (!payload.mimic_device) {
       // On update of config, go to default page
-      if (event == "connection" || reload) {
+      if (reload) {
         this.browser_navigate(payload.home);
-      } else if (event == "registered") {
-          location.reload();
-      } else {
-        window.dispatchEvent(new CustomEvent("location-changed"));
       }
+      this.hide_sections();
     }
   }
 
@@ -489,7 +533,7 @@ class ViewAssist {
 
   browser_navigate(path) {
     // Navigate the browser window
-    if (!this.variables.config.mimic_device) {
+    if (!this.variables.config?.mimic_device) {
       if (!path) return;
       history.pushState(null, "", path);
       window.dispatchEvent(new CustomEvent("location-changed"));
@@ -498,7 +542,6 @@ class ViewAssist {
 }
 
 // Initialize when core web components are ready
-const ha = await hass();
 
 Promise.all([
   customElements.whenDefined("home-assistant"),
@@ -512,5 +555,5 @@ Promise.all([
       "color: green; font-weight: bold",
       ""
   );
-  window.viewassist = new ViewAssist(ha).variables;
+  window.viewassist = new ViewAssist().variables;
 });

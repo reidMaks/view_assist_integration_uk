@@ -8,7 +8,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.start import async_at_started
 
 from .alarm_repeater import ALARMS, VAAlarmRepeater
-from .const import DOMAIN, OPTION_KEY_MIGRATIONS, RuntimeData, VAConfigEntry
+from .const import DOMAIN, OPTION_KEY_MIGRATIONS, RuntimeData, VAConfigEntry, VAEvent
 from .dashboard import DASHBOARD_MANAGER, DashboardManager
 from .entity_listeners import EntityListeners
 from .helpers import (
@@ -87,6 +87,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     # Request platform setup
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    # Fire config update event
+    # Does nothing on HA reload but sends update to device if config reloaded from config update
+    async_dispatcher_send(
+        hass, f"{DOMAIN}_{entry.entry_id}_event", VAEvent("config_update")
+    )
+
     # Fire display device registration to setup display if first time config
     async_dispatcher_send(
         hass,
@@ -125,8 +131,11 @@ async def run_if_first_display_instance(hass: HomeAssistant, entry: VAConfigEntr
 
     # Run dashboard and view setup
     async def setup_frontend(*args):
+        # Initiate var to hold VA browser ids.  Do not reset if exists
+        # as this is used to track browser ids across reloads
+        if not hass.data[DOMAIN].get("va_browser_ids"):
+            hass.data[DOMAIN]["va_browser_ids"] = {}
         # Load websockets
-        hass.data[DOMAIN]["va_browser_ids"] = {}
         await async_register_websockets(hass)
 
         http = HTTPManager(hass, entry)

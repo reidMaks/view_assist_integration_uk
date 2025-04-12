@@ -175,7 +175,10 @@ def get_display_schema(
                     mode=SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Required(CONF_DEV_MIMIC, default=False): bool,
+            vol.Required(
+                CONF_DEV_MIMIC,
+                default=config.data.get(CONF_DEV_MIMIC, False),
+            ): bool,
         }
     )
 
