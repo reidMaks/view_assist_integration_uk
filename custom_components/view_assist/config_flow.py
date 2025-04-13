@@ -379,7 +379,9 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
             ): EntitySelector(EntitySelectorConfig(domain=MEDIAPLAYER_DOMAIN)),
             vol.Optional(
                 CONF_INTENT_DEVICE,
-                default=self.config_entry.data.get(CONF_INTENT_DEVICE, vol.UNDEFINED),
+                description={
+                    "suggested_value": self.config_entry.data.get(CONF_INTENT_DEVICE)
+                },
             ): EntitySelector(EntitySelectorConfig(domain=SENSOR_DOMAIN)),
         }
 
