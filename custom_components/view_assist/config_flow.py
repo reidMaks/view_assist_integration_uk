@@ -95,7 +95,23 @@ _LOGGER = logging.getLogger(__name__)
 BASE_SCHEMA = {
     vol.Required(CONF_NAME): str,
     vol.Required(CONF_MIC_DEVICE): EntitySelector(
-        EntitySelectorConfig(domain=[SENSOR_DOMAIN, ASSIST_SAT_DOMAIN])
+        EntitySelectorConfig(
+            filter=[
+                EntityFilterSelectorConfig(
+                    integration="esphome", domain=ASSIST_SAT_DOMAIN
+                ),
+                EntityFilterSelectorConfig(
+                    integration="hassmic", domain=[SENSOR_DOMAIN, ASSIST_SAT_DOMAIN]
+                ),
+                EntityFilterSelectorConfig(
+                    integration="stream_assist",
+                    domain=[SENSOR_DOMAIN, ASSIST_SAT_DOMAIN],
+                ),
+                EntityFilterSelectorConfig(
+                    integration="wyoming", domain=ASSIST_SAT_DOMAIN
+                ),
+            ]
+        )
     ),
     vol.Required(CONF_MEDIAPLAYER_DEVICE): EntitySelector(
         EntitySelectorConfig(domain=MEDIAPLAYER_DOMAIN)
@@ -334,7 +350,24 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
             vol.Required(
                 CONF_MIC_DEVICE, default=self.config_entry.data[CONF_MIC_DEVICE]
             ): EntitySelector(
-                EntitySelectorConfig(domain=[SENSOR_DOMAIN, ASSIST_SAT_DOMAIN])
+                EntitySelectorConfig(
+                    filter=[
+                        EntityFilterSelectorConfig(
+                            integration="esphome", domain=ASSIST_SAT_DOMAIN
+                        ),
+                        EntityFilterSelectorConfig(
+                            integration="hassmic",
+                            domain=[SENSOR_DOMAIN, ASSIST_SAT_DOMAIN],
+                        ),
+                        EntityFilterSelectorConfig(
+                            integration="stream_assist",
+                            domain=[SENSOR_DOMAIN, ASSIST_SAT_DOMAIN],
+                        ),
+                        EntityFilterSelectorConfig(
+                            integration="wyoming", domain=ASSIST_SAT_DOMAIN
+                        ),
+                    ]
+                )
             ),
             vol.Required(
                 CONF_MEDIAPLAYER_DEVICE,
