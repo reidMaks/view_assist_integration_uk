@@ -165,7 +165,7 @@ class VAAlarmRepeater:
             self._get_file_info, media_url
         )
 
-        _LOGGER.debug("Alarm file %s has duration: %s", media_url, duration)
+        _LOGGER.debug("Alarm file duration: %s", duration)
 
         i = 1
         is_playing = media_entity.state == MediaPlayerState.PLAYING
@@ -178,7 +178,10 @@ class VAAlarmRepeater:
                     and is_playing
                 ):
                     # Use native service for MASS for better performance
-                    _LOGGER.debug("Using native Music Assistant announcement service")
+                    _LOGGER.debug(
+                        "Announce %s, using native Music Assistant announcement service",
+                        i,
+                    )
                     response = await self.hass.services.async_call(
                         "music_assistant",
                         "play_announcement",
@@ -201,9 +204,7 @@ class VAAlarmRepeater:
                     # Added to try and keep playing media position
                     await asyncio.sleep(0.5)
                 else:
-                    _LOGGER.debug(
-                        "Using standard play_media service with announce true"
-                    )
+                    _LOGGER.debug("Announce %s, using standard play_media service", i)
                     response = await self.hass.services.async_call(
                         "media_player",
                         "play_media",
@@ -214,10 +215,7 @@ class VAAlarmRepeater:
                         },
                         target={"entity_id": media_entity.entity_id},
                     )
-                    _LOGGER.debug("Service call response: %s", response)
-                    _LOGGER.debug(
-                        "Announce %s, waiting for %ss before next", i, duration + 1
-                    )
+                    _LOGGER.debug("Waiting for %ss before next iteration", duration + 1)
                     await asyncio.sleep(duration + 1)
                 self.announcement_in_progress = False
             except Exception as ex:  # noqa: BLE001
@@ -260,11 +258,18 @@ class VAAlarmRepeater:
         self,
         entity_id: str,
         media_url: str,
-        media_type: MediaType = "music",
+        media_type: MediaType = MediaType.MUSIC,
         resume: bool = True,
-        max_repeats: int = 0,
+        max_repeats: int = 50,
     ):
         """Announce to media player and resume."""
+
+        _LOGGER.debug(
+            "Alarm sound called for %s. Alarm url: %s.  Repeats: %s",
+            entity_id,
+            media_url,
+            max_repeats,
+        )
         if self.alarm_tasks.get(entity_id) and not self.alarm_tasks[entity_id].done():
             # Alarm already in progress on this device
             _LOGGER.warning(
@@ -272,7 +277,7 @@ class VAAlarmRepeater:
             )
             return None
 
-        if media_url.startswith("/"):
+        if not media_url.startswith("http://") and not media_url.startswith("https://"):
             media_url = media_url.removeprefix("/")
             media_url = f"{get_url(self.hass)}/{media_url}"
 
