@@ -4,6 +4,7 @@ import asyncio
 from dataclasses import dataclass
 import io
 import logging
+import math
 import time
 from typing import Any
 
@@ -106,8 +107,7 @@ class VAAlarmRepeater:
     def _get_file_info(self, media_url: str):
         resp = requests.get(media_url, stream=True, timeout=10)
         metadata = mutagen.File(io.BytesIO(resp.content))
-        _LOGGER.debug("Alarm file duration: %s", metadata.info.length)
-        return float(metadata.info.length)
+        return round(float(metadata.info.length), 2)
 
     def _media_player_supports_announce(self, media_player: MediaPlayerEntity) -> bool:
         return (
@@ -165,6 +165,8 @@ class VAAlarmRepeater:
             self._get_file_info, media_url
         )
 
+        _LOGGER.debug("Alarm file %s has duration: %s", media_url, duration)
+
         i = 1
         is_playing = media_entity.state == MediaPlayerState.PLAYING
         _LOGGER.debug("Media state: %s", media_entity.state)
@@ -176,7 +178,8 @@ class VAAlarmRepeater:
                     and is_playing
                 ):
                     # Use native service for MASS for better performance
-                    await self.hass.services.async_call(
+                    _LOGGER.debug("Using native Music Assistant announcement service")
+                    response = await self.hass.services.async_call(
                         "music_assistant",
                         "play_announcement",
                         service_data={"url": media_url},
@@ -198,16 +201,20 @@ class VAAlarmRepeater:
                     # Added to try and keep playing media position
                     await asyncio.sleep(0.5)
                 else:
-                    await self.hass.services.async_call(
+                    _LOGGER.debug(
+                        "Using standard play_media service with announce true"
+                    )
+                    response = await self.hass.services.async_call(
                         "media_player",
                         "play_media",
                         service_data={
                             "media_content_id": media_url,
                             "media_content_type": media_type,
-                            "announce": not is_playing,
+                            "announce": True,
                         },
                         target={"entity_id": media_entity.entity_id},
                     )
+                    _LOGGER.debug("Service call response: %s", response)
                     _LOGGER.debug(
                         "Announce %s, waiting for %ss before next", i, duration + 1
                     )
@@ -263,6 +270,7 @@ class VAAlarmRepeater:
             _LOGGER.warning(
                 "Alarm already in progress on %s.  Ignoring this request", entity_id
             )
+            return None
 
         if media_url.startswith("/"):
             media_url = media_url.removeprefix("/")
