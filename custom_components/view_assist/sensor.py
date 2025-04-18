@@ -18,10 +18,10 @@ from .const import (
     OPTION_KEY_MIGRATIONS,
     VA_ATTRIBUTE_UPDATE_EVENT,
     VA_BACKGROUND_UPDATE_EVENT,
-    VAConfigEntry,
 )
 from .helpers import get_device_id_from_entity_id, get_mute_switch_entity_id
 from .timers import VATimers
+from .typed import VAConfigEntry, VATimeFormat
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -52,14 +52,14 @@ class ViewAssistSensor(SensorEntity):
         self.hass = hass
         self.config = config
 
-        self._attr_name = config.runtime_data.name
-        self._type = config.runtime_data.type
+        self._attr_name = config.runtime_data.core.name
+        self._type = config.runtime_data.core.type
         self._attr_unique_id = f"{self._attr_name}_vasensor"
         self._attr_native_value = ""
         self._attribute_listeners: dict[str, Callable] = {}
 
         self._voice_device_id = get_device_id_from_entity_id(
-            self.hass, self.config.runtime_data.mic_device
+            self.hass, self.config.runtime_data.core.mic_device
         )
 
     async def async_added_to_hass(self) -> None:
@@ -96,31 +96,37 @@ class ViewAssistSensor(SensorEntity):
         r = self.config.runtime_data
 
         attrs = {
-            "type": r.type,
-            "mic_device": r.mic_device,
-            "mic_device_id": get_device_id_from_entity_id(self.hass, r.mic_device),
-            "mute_switch": get_mute_switch_entity_id(self.hass, r.mic_device),
-            "mediaplayer_device": r.mediaplayer_device,
-            "musicplayer_device": r.musicplayer_device,
-            "mode": r.mode,
-            "view_timeout": r.view_timeout,
-            "do_not_disturb": r.do_not_disturb,
-            "status_icons": r.status_icons,
-            "status_icons_size": r.status_icons_size,
-            "assist_prompt": self.get_option_key_migration_value(r.assist_prompt),
-            "font_style": r.font_style,
-            "use_24_hour_time": r.use_24_hour_time,
-            "use_announce": r.use_announce,
-            "background": r.background,
-            "weather_entity": r.weather_entity,
+            # Core settings
+            "type": r.core.type,
+            "mic_device": r.core.mic_device,
+            "mic_device_id": get_device_id_from_entity_id(self.hass, r.core.mic_device),
+            "mute_switch": get_mute_switch_entity_id(self.hass, r.core.mic_device),
+            "mediaplayer_device": r.core.mediaplayer_device,
+            "musicplayer_device": r.core.musicplayer_device,
             "voice_device_id": self._voice_device_id,
+            # Dashboard settings
+            "status_icons": r.dashboard.display_settings.status_icons,
+            "status_icons_size": r.dashboard.display_settings.status_icons_size,
+            "assist_prompt": self.get_option_key_migration_value(
+                r.dashboard.display_settings.assist_prompt
+            ),
+            "font_style": r.dashboard.display_settings.font_style,
+            "use_24_hour_time": r.dashboard.display_settings.time_format
+            == VATimeFormat.HOUR_24,
+            "background": r.dashboard.background_settings.background,
+            # Default settings
+            "mode": r.default.mode,
+            "view_timeout": r.default.view_timeout,
+            "do_not_disturb": r.default.do_not_disturb,
+            "use_announce": r.default.use_announce,
+            "weather_entity": r.default.weather_entity,
         }
 
         # Only add these attributes if they exist
-        if r.display_device:
-            attrs["display_device"] = r.display_device
-        if r.intent_device:
-            attrs["intent_device"] = r.intent_device
+        if r.core.display_device:
+            attrs["display_device"] = r.core.display_device
+        if r.core.intent_device:
+            attrs["intent_device"] = r.core.intent_device
 
         # Add extra_data attributes from runtime data
         attrs.update(self.config.runtime_data.extra_data)

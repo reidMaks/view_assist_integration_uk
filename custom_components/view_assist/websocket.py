@@ -17,7 +17,7 @@ from homeassistant.components.websocket_api import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
-from .const import DOMAIN, VAEvent
+from .const import DOMAIN
 from .helpers import (
     get_config_entry_by_entity_id,
     get_device_id_from_entity_id,
@@ -25,6 +25,7 @@ from .helpers import (
     get_mimic_entity_id,
 )
 from .timers import TIMERS, VATimers
+from .typed import VAEvent, VAScreenMode
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -101,7 +102,7 @@ async def async_register_websockets(hass: HomeAssistant):  # noqa: C901
             entity = get_entity_id_by_browser_id(hass, browser_id)
 
             if not entity:
-                if entity := get_mimic_entity_id(hass):
+                if entity := get_mimic_entity_id(hass, browser_id):
                     mimic = True
             return entity, mimic
 
@@ -291,28 +292,30 @@ async def async_register_websockets(hass: HomeAssistant):  # noqa: C901
                     "browser_id": browser_id,
                     "entity_id": entity_id,
                     "mimic_device": mimic,
-                    "name": data.name,
-                    "mic_entity_id": data.mic_device,
+                    "name": data.core.name,
+                    "mic_entity_id": data.core.mic_device,
                     "mic_device_id": get_device_id_from_entity_id(
-                        hass, data.mic_device
+                        hass, data.core.mic_device
                     ),
-                    "mediaplayer_entity_id": data.mediaplayer_device,
+                    "mediaplayer_entity_id": data.core.mediaplayer_device,
                     "mediaplayer_device_id": get_device_id_from_entity_id(
-                        hass, data.mediaplayer_device
+                        hass, data.core.mediaplayer_device
                     ),
-                    "musicplayer_entity_id": data.musicplayer_device,
+                    "musicplayer_entity_id": data.core.musicplayer_device,
                     "musicplayer_device_id": get_device_id_from_entity_id(
-                        hass, data.musicplayer_device
+                        hass, data.core.musicplayer_device
                     ),
-                    "display_device_id": data.display_device,
+                    "display_device_id": data.core.display_device,
                     "timers": timer_info,
-                    "background": data.background,
-                    "dashboard": data.dashboard,
-                    "home": data.home,
-                    "music": data.music,
-                    "intent": data.intent,
-                    "hide_sidebar": data.hide_sidebar,
-                    "hide_header": data.hide_header,
+                    "background": data.dashboard.background_settings.background,
+                    "dashboard": data.dashboard.dashboard,
+                    "home": data.dashboard.home,
+                    "music": data.dashboard.music,
+                    "intent": data.dashboard.intent,
+                    "hide_sidebar": data.dashboard.display_settings.screen_mode
+                    in [VAScreenMode.HIDE_HEADER_SIDEBAR, VAScreenMode.HIDE_SIDEBAR],
+                    "hide_header": data.dashboard.display_settings.screen_mode
+                    in [VAScreenMode.HIDE_HEADER_SIDEBAR, VAScreenMode.HIDE_HEADER],
                 }
             except Exception:  # noqa: BLE001
                 output = {}
