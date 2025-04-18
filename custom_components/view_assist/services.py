@@ -38,7 +38,6 @@ from .const import (
     ATTR_TIMER_ID,
     ATTR_TYPE,
     DOMAIN,
-    VAConfigEntry,
 )
 from .dashboard import (
     DASHBOARD_MANAGER,
@@ -48,6 +47,7 @@ from .dashboard import (
 )
 from .helpers import get_mimic_entity_id
 from .timers import TIMERS, VATimers, decode_time_sentence
+from .typed import VAConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 

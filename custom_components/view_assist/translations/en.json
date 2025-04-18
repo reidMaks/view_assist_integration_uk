@@ -46,16 +46,17 @@
         "description": "Master configuration options will be available here in future versions"
       },
       "init": {
-        "title": "Reconfigure device",
+        "title": "Configuration",
         "description": "Select which options to amend",
         "menu_options": {
           "main_config": "Core Device Configuration",
           "dashboard_options": "Dashboard Options",
-          "default_options": "Default Options"
+          "default_options": "Default Options",
+          "developer_options": "Developer Options"
         }
       },
       "main_config": {
-        "title": "Core Device Configuration",
+        "title": "{name} Core Device Configuration",
         "description": "",
         "data": {
           "name": "Satellite Name",
@@ -77,54 +78,69 @@
         }
       },
       "dashboard_options": {
-        "title": "Dashboard Options",
+        "title": "{name} Dashboard Options",
         "description": "",
         "data": {
           "dashboard": "Dashboard",
           "home": "Home screen",
           "music": "Music view",
-          "intent": "Intent view",
-          "background": "Default background",
-          "rotate_background": "Enable image rotation",
-          "rotate_background_source": "Image source",
-          "rotate_background_path": "Image path",
-          "rotate_background_linked_entity": "Linked entity",
-          "rotate_background_interval": "Rotation interval",
-          "assist_prompt": "Assist prompt",
-          "status_icons_size": "Status icon size",
-          "font_style": "Font style",
-          "status_icons": "Launch icons",
-          "use_24_hour_time": "Use 24h time",
-          "hide_sidebar": "Hide sidemenu",
-          "hide_header": "Hide header bar"
+          "intent": "Intent view"
         },
         "data_description": {
           "dashboard": "The base dashboard for View Assist (do not include trailing slash)",
           "home": "The screen to return to after timeout",
           "music": "The view to return to when in music mode",
-          "intent": "The view to display for default HA actions for displaying those entities",
-          "background": "The default background image url",
-          "rotate_background_path": "Load images from in local mode, save images to in download mode, ignored in linked mode.  A path under config/view_assist",
-          "rotate_background_linked_entity": "View Assist entity to link the background to",
-          "rotate_background_interval": "Interval in minutes to rotate the background",
-          "assist_prompt": "The Assist notification prompt style to use for wake word detection and intent processing",
-          "status_icons_size": "Size of the icons in the status icon display",
-          "font_style": "The default font to use for this satellite device. Font name must match perfectly and be available",
-          "status_icons": "Advanced option! List of custom launch icons to set on start up. Do not change this if you do not know what you are doing",
-          "use_24_hour_time": "Sets clock display to 24 hour time when enabled",
-          "hide_sidebar": "Hide the sidemenu on the display via View Assist",
-          "hide_header": "Hide the header on the display via View Assist"
+          "intent": "The view to display for default HA actions for displaying those entities"
+        },
+        "sections": {
+          "background_settings": {
+            "name": "Background Settings",
+            "description": "Options for the background image",
+            "data": {
+              "background_mode": "Background image source",
+              "background": "Default background",
+              "rotate_background_path": "Image path",
+              "rotate_background_linked_entity": "Linked entity",
+              "rotate_background_interval": "Rotation interval"
+            },
+            "data_description": {
+              "background": "The default background image url",
+              "rotate_background_path": "Load images from in local mode, save images to in download mode, ignored in linked mode.  A path under config/view_assist",
+              "rotate_background_linked_entity": "View Assist entity to link the background to",
+              "rotate_background_interval": "Interval in minutes to rotate the background"
+            }
+          },
+          "display_settings": {
+            "name": "Display Settings",
+            "description": "Options for the display device",
+            "data": {
+              "assist_prompt": "Assist prompt",
+              "status_icons_size": "Status icon size",
+              "font_style": "Font style",
+              "status_icons": "Launch icons",
+              "time_format": "Time format",
+              "screen_mode": "Show/hide header and sidebar"
+            },
+            "data_description": {
+              "assist_prompt": "The Assist notification prompt style to use for wake word detection and intent processing",
+              "status_icons_size": "Size of the icons in the status icon display",
+              "font_style": "The default font to use for this satellite device. Font name must match perfectly and be available",
+              "status_icons": "Advanced option! List of custom launch icons to set on start up. Do not change this if you do not know what you are doing",
+              "time_format": "Sets clock display time format",
+              "screen_mode": "Show or hide the header and sidebar"
+            }
+          }
         }
       },
       "default_options": {
-        "title": "Default Options",
-        "description": "",
+        "title": "{name} Default Options",
+        "description": "Setting values here will override the master config settings for this device",
         "data": {
           "weather_entity": "Weather entity to use for conditons display",
           "mic_type": "The integration handling microphone input",
           "mode": "Default Mode",
           "view_timeout": "View Timeout",
-          "do_not_disturb": "Do not disturb default on",
+          "do_not_disturb": "Enable do not disturb at startup",
           "use_announce": "Disable announce on this device",
           "micunmute": "Unmute microphone on HA start/restart"
         },
@@ -134,6 +150,17 @@
           "do_not_disturb": "Default state for do not disturb mode on HA restart",
           "use_announce": "Some media player devices, like BrowserMod, cannot use the Home Assistant announce feature while media is playing. This option allows for turning off announce messages if problems arise. Default is on.",
           "micunmute": "Helpful for Stream Assist devices"
+        }
+      },
+      "developer_options": {
+        "title": "{name} Developer Options",
+        "data": {
+          "developer_device": "Developer device",
+          "developer_mimic_device": "Mimic device"
+        },
+        "data_description": {
+          "developer_device": "The browser id of the device you wish to use for development",
+          "developer_mimic_device": "The device to mimic for development"
         }
       }
     }
@@ -174,10 +201,23 @@
     },
     "rotate_backgound_source_selector": {
       "options": {
-        "local_sequence": "Local file path sequence",
-        "local_random": "Local file path random",
-        "download": "Download random image from Unsplash",
-        "link_to_entity": "Linked to another View Assist device"
+        "default_background": "Default background",
+        "local_sequence": "Sequenced image from local file path",
+        "local_random": "Random image from local file path",
+        "download": "Random image from unsplash.com",
+        "link_to_entity": "Mirror another View Assist device"
+      }
+    },
+    "lookup_selector": {
+      "options": {
+        "hour_12": "12 Hour",
+        "hour_24": "24 Hour",
+        "on": "On",
+        "off": "Off",
+        "hide_header_sidebar": "Hide header and side menu",
+        "hide_header": "Hide header",
+        "hide_sidebar": "Hide side menu",
+        "no_hide": "Do not hide elements"
       }
     }
   }

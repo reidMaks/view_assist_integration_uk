@@ -34,9 +34,6 @@ from .const import (
     USE_VA_NAVIGATION_FOR_BROWSERMOD,
     VA_ATTRIBUTE_UPDATE_EVENT,
     VA_BACKGROUND_UPDATE_EVENT,
-    VAConfigEntry,
-    VADisplayType,
-    VAEvent,
     VAMode,
 )
 from .helpers import (
@@ -52,6 +49,7 @@ from .helpers import (
     get_sensor_entity_from_instance,
     make_url_from_file_path,
 )
+from .typed import VABackgroundMode, VAConfigEntry, VADisplayType, VAEvent
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -71,7 +69,7 @@ class EntityListeners:
 
         # Add microphone mute switch listener
         mute_switch = get_mute_switch_entity_id(
-            hass, config_entry.runtime_data.mic_device
+            hass, config_entry.runtime_data.core.mic_device
         )
 
         # Add browser navigate service listener
@@ -138,23 +136,26 @@ class EntityListeners:
             await asyncio.sleep(0.1)
 
         # Run display rotate task if set for device
-        if self.config_entry.runtime_data.rotate_background:
+        if (
+            self.config_entry.runtime_data.dashboard.background_settings.background_mode
+            != VABackgroundMode.DEFAULT_BACKGROUND
+        ):
             # Set task based on mode
             if (
-                self.config_entry.runtime_data.rotate_background_source
-                == "link_to_entity"
+                self.config_entry.runtime_data.dashboard.background_settings.background_mode
+                == VABackgroundMode.LINKED
             ):
-                if self.config_entry.runtime_data.rotate_background_linked_entity:
+                if self.config_entry.runtime_data.dashboard.background_settings.rotate_background_linked_entity:
                     _LOGGER.debug(
                         "Starting rotate background linked image listener for %s, linked to %s",
-                        self.config_entry.runtime_data.name,
-                        self.config_entry.runtime_data.rotate_background_linked_entity,
+                        self.config_entry.runtime_data.core.name,
+                        self.config_entry.runtime_data.dashboard.background_settings.rotate_background_linked_entity,
                     )
                     # Add listener for background changes
                     self.config_entry.async_on_unload(
                         self.hass.bus.async_listen(
                             VA_BACKGROUND_UPDATE_EVENT.format(
-                                self.config_entry.runtime_data.rotate_background_linked_entity
+                                self.config_entry.runtime_data.dashboard.background_settings.rotate_background_linked_entity
                             ),
                             self.async_set_background_image,
                         )
@@ -163,25 +164,25 @@ class EntityListeners:
                     await self.async_set_background_image(
                         get_entity_attribute(
                             self.hass,
-                            self.config_entry.runtime_data.rotate_background_linked_entity,
+                            self.config_entry.runtime_data.dashboard.background_settings.rotate_background_linked_entity,
                             "background",
                         )
                     )
                 else:
                     _LOGGER.warning(
                         "%s is set to link its background image but no linked entity provided",
-                        self.config_entry.runtime_data.name,
+                        self.config_entry.runtime_data.core.name,
                     )
             else:
                 _LOGGER.debug(
                     "Starting rotate background image task for %s",
-                    self.config_entry.runtime_data.name,
+                    self.config_entry.runtime_data.core.name,
                 )
                 self.rotate_background_task = (
                     self.config_entry.async_create_background_task(
                         self.hass,
                         self.async_background_image_rotation_task(),
-                        f"{self.config_entry.runtime_data.name} rotate image task",
+                        f"{self.config_entry.runtime_data.core.name} rotate image task",
                     )
                 )
 
@@ -222,17 +223,17 @@ class EntityListeners:
 
         # Do navigation and set revert if needed
         browser_id = get_device_name_from_id(
-            self.hass, self.config_entry.runtime_data.display_device
+            self.hass, self.config_entry.runtime_data.core.display_device
         )
         display_type = get_display_type_from_browser_id(self.hass, browser_id)
 
         _LOGGER.debug(
             "Navigating: %s, browser_id: %s, path: %s, display_type: %s, mode: %s",
-            self.config_entry.runtime_data.name,
+            self.config_entry.runtime_data.core.name,
             browser_id,
             path,
             display_type,
-            self.config_entry.runtime_data.mode,
+            self.config_entry.runtime_data.default.mode,
         )
 
         # If using BrowserMod
@@ -282,17 +283,17 @@ class EntityListeners:
 
         # Find required revert action
         revert, revert_view = get_revert_settings_for_mode(
-            self.config_entry.runtime_data.mode
+            self.config_entry.runtime_data.default.mode
         )
         revert_path = (
-            getattr(self.config_entry.runtime_data, revert_view)
+            getattr(self.config_entry.runtime_data.dashboard, revert_view)
             if revert_view
             else None
         )
 
         # Set revert action if required
         if revert and path != revert_path:
-            timeout = self.config_entry.runtime_data.view_timeout
+            timeout = self.config_entry.runtime_data.default.view_timeout
             _LOGGER.debug("Adding revert to %s in %ss", revert_path, timeout)
             self.revert_view_task = self.hass.async_create_task(
                 self._display_revert_delay(revert_path, timeout)
@@ -303,27 +304,32 @@ class EntityListeners:
 
         view_index = 0
         _LOGGER.debug("Cycle display started")
-        while self.config_entry.runtime_data.mode == VAMode.CYCLE:
+        while self.config_entry.runtime_data.default.mode == VAMode.CYCLE:
             view_index = view_index % len(views)
             _LOGGER.debug("Cycling to view: %s", views[view_index])
             await self.async_browser_navigate(
-                f"{self.config_entry.runtime_data.dashboard}/{views[view_index]}",
+                f"{self.config_entry.runtime_data.dashboard.dashboard}/{views[view_index]}",
             )
             view_index += 1
-            await asyncio.sleep(self.config_entry.runtime_data.view_timeout)
+            await asyncio.sleep(self.config_entry.runtime_data.default.view_timeout)
 
     async def async_background_image_rotation_task(self):
         """Task to get background image for image rotation."""
-        source = self.config_entry.runtime_data.rotate_background_source
-        path = self.config_entry.runtime_data.rotate_background_path
-        interval = self.config_entry.runtime_data.rotate_background_interval
+        source = (
+            self.config_entry.runtime_data.dashboard.background_settings.background_mode
+        )
+        path = self.config_entry.runtime_data.dashboard.background_settings.rotate_background_path
+        interval = self.config_entry.runtime_data.dashboard.background_settings.rotate_background_interval
         image_index = 0
 
         # Clean path
         path.removeprefix("/").removesuffix("/")
 
         try:
-            if source in ["local_sequence", "local_random"]:
+            if source in [
+                VABackgroundMode.LOCAL_SEQUENCE,
+                VABackgroundMode.LOCAL_RANDOM,
+            ]:
                 image_list = await async_get_filesystem_images(self.hass, path)
                 if not image_list:
                     return
@@ -371,7 +377,7 @@ class EntityListeners:
             )
             _LOGGER.debug(
                 "Setting %s background image to %s",
-                self.config_entry.runtime_data.name,
+                self.config_entry.runtime_data.core.name,
                 image_url,
             )
 
@@ -407,14 +413,15 @@ class EntityListeners:
             return
 
         _LOGGER.debug("MIC MUTE: %s", mic_mute_new_state)
-        status_icons = self.config_entry.runtime_data.status_icons.copy()
+        d = self.config_entry.runtime_data.dashboard.display_settings
+        status_icons = d.status_icons.copy()
 
         if mic_mute_new_state == "on" and "mic" not in status_icons:
             status_icons.append("mic")
         elif mic_mute_new_state == "off" and "mic" in status_icons:
             status_icons.remove("mic")
 
-        self.config_entry.runtime_data.status_icons = status_icons
+        d.status_icons = status_icons
         self.update_entity()
 
     @callback
@@ -434,18 +441,15 @@ class EntityListeners:
             return
 
         _LOGGER.debug("MP MUTE: %s", mp_mute_new_state)
-        status_icons = (
-            self.config_entry.runtime_data.status_icons.copy()
-            if self.config_entry.runtime_data.status_icons
-            else []
-        )
+        d = self.config_entry.runtime_data.dashboard.display_settings
+        status_icons = d.status_icons.copy() if d.status_icons else []
 
         if mp_mute_new_state and "mediaplayer" not in status_icons:
             status_icons.append("mediaplayer")
         elif not mp_mute_new_state and "mediaplayer" in status_icons:
             status_icons.remove("mediaplayer")
 
-        self.config_entry.runtime_data.status_icons = status_icons
+        d.status_icons = status_icons
         self.update_entity()
 
     async def _async_cc_on_conversation_ended_handler(self, event: Event):
@@ -534,7 +538,9 @@ class EntityListeners:
                         "intent_entities": filtered_entities,
                     },
                 )
-                await self.async_browser_navigate(self.config_entry.runtime_data.intent)
+                await self.async_browser_navigate(
+                    self.config_entry.runtime_data.dashboard.intent
+                )
             else:
                 word_count = len(speech_text.split())
                 message_font_size = ["14vw", "8vw", "6vw", "4vw"][
@@ -551,7 +557,7 @@ class EntityListeners:
                     },
                 )
                 await self.async_browser_navigate(
-                    f"{self.config_entry.runtime_data.dashboard}/{DEFAULT_VIEW_INFO}"
+                    f"{self.config_entry.runtime_data.dashboard.dashboard}/{DEFAULT_VIEW_INFO}"
                 )
 
     # ---------------------------------------------------------------------------------------
@@ -586,24 +592,27 @@ class EntityListeners:
         # This is called from our set_service event listener and therefore event data is
         # slightly different.  See set_state_changed_attribute above
         dnd_new_state = event.data["new_value"]
+        d = self.config_entry.runtime_data.dashboard.display_settings
 
         _LOGGER.debug("DND STATE: %s", dnd_new_state)
-        status_icons = self.config_entry.runtime_data.status_icons.copy()
+        status_icons = d.status_icons.copy()
         if dnd_new_state and "dnd" not in status_icons:
             status_icons.append("dnd")
         elif not dnd_new_state and "dnd" in status_icons:
             status_icons.remove("dnd")
 
-        self.config_entry.runtime_data.status_icons = status_icons
+        d.status_icons = status_icons
         self.update_entity()
 
     async def _async_on_mode_state_change(self, event: Event) -> None:
         """Set mode status icon."""
 
         new_mode = event.data["new_value"]
+        r = self.config_entry.runtime_data
+        d = r.dashboard.display_settings
 
         _LOGGER.debug("MODE STATE: %s", new_mode)
-        status_icons = self.config_entry.runtime_data.status_icons.copy()
+        status_icons = d.status_icons.copy()
 
         modes = [VAMode.HOLD, VAMode.CYCLE]
 
@@ -616,7 +625,7 @@ class EntityListeners:
         if new_mode in modes and new_mode not in status_icons:
             status_icons.append(new_mode)
 
-        self.config_entry.runtime_data.status_icons = status_icons
+        d.status_icons = status_icons
         self.update_entity()
 
         if new_mode != VAMode.CYCLE:
@@ -626,24 +635,12 @@ class EntityListeners:
 
         if new_mode == VAMode.NORMAL:
             # Add navigate to default view
-            await self.async_browser_navigate(self.config_entry.runtime_data.home)
+            await self.async_browser_navigate(r.dashboard.home)
             _LOGGER.debug("NAVIGATE TO: %s", new_mode)
 
         elif new_mode == VAMode.MUSIC:
             # Add navigate to music view
-            await self.async_browser_navigate(self.config_entry.runtime_data.music)
-
-            # --------------------------------------------
-            # Service call option
-            # --------------------------------------------
-            # await self.hass.services.async_call(
-            #     "switch",
-            #     "turn_on",
-            #     {
-            #         "entity_id": "switch.android_satellite_viewassist_office_wyoming_mute"
-            #     },
-            # )
-
+            await self.async_browser_navigate(r.dashboard.music)
             _LOGGER.debug("NAVIGATE TO: %s", new_mode)
 
         elif new_mode == VAMode.CYCLE:

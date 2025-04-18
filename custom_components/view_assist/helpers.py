@@ -14,18 +14,15 @@ from homeassistant.util import slugify
 
 from .const import (
     BROWSERMOD_DOMAIN,
-    CONF_DEV_MIMIC,
     CONF_DISPLAY_DEVICE,
     DOMAIN,
     IMAGE_PATH,
     RANDOM_IMAGE_URL,
     REMOTE_ASSIST_DISPLAY_DOMAIN,
     VAMODE_REVERTS,
-    VAConfigEntry,
-    VADisplayType,
     VAMode,
-    VAType,
 )
+from .typed import VAConfigEntry, VADisplayType, VAType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,6 +39,37 @@ def get_integration_entries(
         for entry in hass.config_entries.async_entries(DOMAIN)
         if entry.data[CONF_TYPE] in accepted_types and not entry.disabled_by
     ]
+
+
+def get_entity_list(
+    hass: HomeAssistant,
+    integration: str | list[str] | None = None,
+    domain: str | list[str] | None = None,
+    append: str | list[str] | None = None,
+) -> list[str]:
+    """Get the entity ids of devices not in dnd mode."""
+    if append:
+        matched_entities = ensure_list(append)
+    else:
+        matched_entities = []
+    # Stop full list of entities returning
+    if not integration and not domain:
+        return matched_entities
+
+    if domain and isinstance(domain, str):
+        domain = [domain]
+
+    if integration and isinstance(integration, str):
+        integration = [integration]
+
+    entity_registry = er.async_get(hass)
+    for entity_info, entity_id in entity_registry.entities._index.items():  # noqa: SLF001
+        if integration and entity_info[1] not in integration:
+            continue
+        if domain and entity_info[0] not in domain:
+            continue
+        matched_entities.append(entity_id)
+    return matched_entities
 
 
 def is_first_instance(
@@ -197,7 +225,7 @@ def get_entity_id_from_conversation_device_id(
 ) -> str | None:
     """Get the view assist entity id for a device id relating to the mic entity."""
     for entry in get_integration_entries(hass):
-        mic_entity_id = entry.runtime_data.mic_device
+        mic_entity_id = entry.runtime_data.core.mic_device
         entity_registry = er.async_get(hass)
         mic_entity = entity_registry.async_get(mic_entity_id)
         if mic_entity.device_id == device_id:
@@ -205,16 +233,15 @@ def get_entity_id_from_conversation_device_id(
     return None
 
 
-def get_mimic_entity_id(hass: HomeAssistant) -> str:
+def get_mimic_entity_id(hass: HomeAssistant, browser_id: str | None = None) -> str:
     """Get mimic entity id."""
     # If we reach here, no match for browser_id was found
-    if mimic_entry_ids := [
-        entry.entry_id
-        for entry in get_integration_entries(hass)
-        if entry.data.get(CONF_DEV_MIMIC)
-    ]:
-        return get_sensor_entity_from_instance(hass, mimic_entry_ids[0])
-    return None
+    master_entry = get_master_config_entry(hass)
+    if browser_id:
+        if master_entry.runtime_data.developer_settings.developer_device == browser_id:
+            return master_entry.runtime_data.developer_settings.developer_mimic_device
+        return None
+    return master_entry.runtime_data.developer_settings.developer_mimic_device
 
 
 def get_entity_id_by_browser_id(hass: HomeAssistant, browser_id: str) -> str:
@@ -272,7 +299,7 @@ def get_display_type_from_browser_id(
                 return VADisplayType.BROWSERMOD
             if entry.domain == REMOTE_ASSIST_DISPLAY_DOMAIN:
                 return VADisplayType.REMOTE_ASSIST_DISPLAY
-    return None
+    return "native"
 
 
 def get_revert_settings_for_mode(mode: VAMode) -> tuple:
@@ -354,9 +381,7 @@ def get_download_image(
 ) -> Path:
     """Get url from unsplash random image endpoint."""
     path = Path(hass.config.config_dir, DOMAIN, save_path)
-    filename = (
-        f"downloaded_{config.entry_id.lower()}_{slugify(config.runtime_data.name)}.jpg"
-    )
+    filename = f"downloaded_{config.entry_id.lower()}_{slugify(config.runtime_data.core.name)}.jpg"
     image: Path | None = None
 
     try:
