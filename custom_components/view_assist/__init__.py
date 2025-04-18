@@ -352,7 +352,11 @@ def set_runtime_data_for_config(  # noqa: C901
     else:
         r = config_entry.runtime_data = DeviceRuntimeData()
         r.core = DeviceCoreConfig(**config_entry.data)
-        master_config_options = get_master_config_entry(hass).options
+        master_config_options = (
+            get_master_config_entry(hass).options
+            if get_master_config_entry(hass)
+            else {}
+        )
         # Dashboard options - handles sections
         for attr in r.dashboard.__dict__:
             if value := get_config_value(attr):
