@@ -14,7 +14,7 @@
     "step": {
       "master_config": {
         "title": "Master Configuration",
-        "description": "This adds a master configuration instance of View Assist\n\nIt must be added before you can setup any View Assist device instances if a new install or any more View Assist devices instances if an existing install\n\nPlease restart Home Assistant once you have added this.  You may also need to refresh your Home Assistant devices to enable the full functionality"
+        "description": "This adds a master configuration instance of View Assist\n\nIt must be added before you can setup any View Assist device instances if a new install or any more View Assist devices instances if an existing install\n\nYou may need to refresh any existing View Assist devices to enable the full functionality"
       },
       "options": {
         "title": "Configure a View Assist device",
@@ -41,10 +41,6 @@
   },
   "options": {
     "step": {
-      "master_config": {
-        "title": "Master Configuration",
-        "description": "Master configuration options will be available here in future versions"
-      },
       "init": {
         "title": "Configuration",
         "description": "Select which options to amend",
@@ -79,7 +75,7 @@
       },
       "dashboard_options": {
         "title": "{name} Dashboard Options",
-        "description": "",
+        "description": "{description}",
         "data": {
           "dashboard": "Dashboard",
           "home": "Home screen",
@@ -134,7 +130,7 @@
       },
       "default_options": {
         "title": "{name} Default Options",
-        "description": "Setting values here will override the master config settings for this device",
+        "description": "{description}",
         "data": {
           "weather_entity": "Weather entity to use for conditons display",
           "mic_type": "The integration handling microphone input",

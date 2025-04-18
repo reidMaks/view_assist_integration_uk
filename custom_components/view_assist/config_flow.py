@@ -69,6 +69,11 @@ from .typed import VABackgroundMode, VAConfigEntry, VAScreenMode, VATimeFormat, 
 
 _LOGGER = logging.getLogger(__name__)
 
+MASTER_FORM_DESCRIPTION = "Values here will be used when no value is set on the View Assist satellite device configuration"
+DEVICE_FORM_DESCRIPTION = (
+    "Setting values here will override the master config settings for this device"
+)
+
 BASE_DEVICE_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_NAME): str,
@@ -492,7 +497,12 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
         return self.async_show_form(
             step_id="dashboard_options",
             data_schema=data_schema,
-            description_placeholders={"name": self.config_entry.title},
+            description_placeholders={
+                "name": self.config_entry.title,
+                "description": MASTER_FORM_DESCRIPTION
+                if self.config_entry.data[CONF_TYPE] == VAType.MASTER_CONFIG
+                else DEVICE_FORM_DESCRIPTION,
+            },
         )
 
     async def async_step_default_options(self, user_input=None):
@@ -514,7 +524,12 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
         return self.async_show_form(
             step_id="default_options",
             data_schema=data_schema,
-            description_placeholders={"name": self.config_entry.title},
+            description_placeholders={
+                "name": self.config_entry.title,
+                "description": MASTER_FORM_DESCRIPTION
+                if self.config_entry.data[CONF_TYPE] == VAType.MASTER_CONFIG
+                else DEVICE_FORM_DESCRIPTION,
+            },
         )
 
     async def async_step_developer_options(self, user_input=None):
