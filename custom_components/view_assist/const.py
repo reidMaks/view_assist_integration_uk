@@ -162,29 +162,8 @@ DEFAULT_VALUES = {
 # Config default values
 DEFAULT_NAME = "View Assist"
 DEFAULT_TYPE = "view_audio"
-# DEFAULT_DASHBOARD = "/view-assist"
-# DEFAULT_VIEW_HOME = "/view-assist/clock"
-# DEFAULT_VIEW_MUSIC = "/view-assist/music"
-# DEFAULT_VIEW_INTENT = "/view-assist/intent"
 DEFAULT_VIEW_INFO = "info"
-# DEFAULT_VIEW_BACKGROUND = "/view_assist/dashboard/background.jpg"
-# DEFAULT_ASSIST_PROMPT = VAAssistPrompt.BLUR_POPUP
-# DEFAULT_STATUS_ICON_SIZE = VAIconSizes.LARGE
-# DEFAULT_FONT_STYLE = "Roboto"
-# DEFAULT_STATUS_ICONS = []
-# DEFAULT_USE_24H_TIME = False
-# DEFAULT_WEATHER_ENITITY = "weather.home"
-# DEFAULT_MODE = "normal"
-# DEFAULT_VIEW_TIMEOUT = 20
-# DEFAULT_DND = "off"
-# DEFAULT_USE_ANNOUNCE = "off"
-# DEFAULT_MIC_UNMUTE = "off"
-# DEFAULT_HIDE_SIDEBAR = True
-# DEFAULT_HIDE_HEADER = True
-# DEFAULT_ROTATE_BACKGROUND = False
-# DEFAULT_ROTATE_BACKGROUND_SOURCE = "local_sequence"
-# DEFAULT_ROTATE_BACKGROUND_PATH = f"{IMAGE_PATH}/backgrounds"
-# DEFAULT_ROTATE_BACKGROUND_INTERVAL = 60
+
 
 # Service attributes
 ATTR_EVENT_NAME = "event_name"
