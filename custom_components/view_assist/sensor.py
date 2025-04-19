@@ -142,11 +142,10 @@ class ViewAssistSensor(SensorEntity):
                 continue
             if k == "state":
                 self._attr_native_value = v
-                continue
 
             # Fire event if value changes to entity listener
-            if hasattr(self.config.runtime_data, k):
-                old_val = getattr(self.config.runtime_data, k)
+            if hasattr(self.config.runtime_data.default, k):
+                old_val = getattr(self.config.runtime_data.default, k)
             elif self.config.runtime_data.extra_data.get(k) is not None:
                 old_val = self.config.runtime_data.extra_data[k]
             else:
@@ -164,8 +163,8 @@ class ViewAssistSensor(SensorEntity):
                     )
 
             # Set the value of named vartiables or add/update to extra_data dict
-            if hasattr(self.config.runtime_data, k):
-                setattr(self.config.runtime_data, k, v)
+            if hasattr(self.config.runtime_data.default, k):
+                setattr(self.config.runtime_data.default, k, v)
             else:
                 self.config.runtime_data.extra_data[k] = v
 
