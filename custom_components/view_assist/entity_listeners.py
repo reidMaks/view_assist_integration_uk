@@ -70,9 +70,9 @@ class EntityListeners:
         self.rotate_background_task: Task | None = None
 
         # Add microphone mute switch listener
-        mic_device = config_entry.runtime_data.mic_device
-        mic_type = config_entry.runtime_data.mic_type
-        mute_switch = get_mute_switch_entity_id(mic_device, mic_type)
+        mute_switch = get_mute_switch_entity_id(
+            hass, config_entry.runtime_data.mic_device
+        )
 
         # Add browser navigate service listener
         config_entry.async_on_unload(
@@ -537,7 +537,7 @@ class EntityListeners:
                 await self.async_browser_navigate(self.config_entry.runtime_data.intent)
             else:
                 word_count = len(speech_text.split())
-                message_font_size = ["14vw", "8vw", "6vw", "4vw"][
+                message_font_size = ["10vw", "8vw", "6vw", "4vw"][
                     min(word_count // 6, 3)
                 ]
                 await self.hass.services.async_call(
