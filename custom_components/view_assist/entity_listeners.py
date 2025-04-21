@@ -543,7 +543,7 @@ class EntityListeners:
                 )
             else:
                 word_count = len(speech_text.split())
-                message_font_size = ["14vw", "8vw", "6vw", "4vw"][
+                message_font_size = ["10vw", "8vw", "6vw", "4vw"][
                     min(word_count // 6, 3)
                 ]
                 await self.hass.services.async_call(

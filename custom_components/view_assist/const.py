@@ -14,7 +14,7 @@ from .typed import (
 
 DOMAIN = "view_assist"
 GITHUB_REPO = "dinki/View-Assist"
-GITHUB_BRANCH = "viewassist-integrationprep"  # "main"
+GITHUB_BRANCH = "main"
 GITHUB_TOKEN_FILE = "github.token"
 GITHUB_PATH = "View Assist dashboard and views"
 VIEWS_DIR = "views"
