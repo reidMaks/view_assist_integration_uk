@@ -238,9 +238,21 @@ def get_mimic_entity_id(hass: HomeAssistant, browser_id: str | None = None) -> s
     # If we reach here, no match for browser_id was found
     master_entry = get_master_config_entry(hass)
     if browser_id:
-        if master_entry.runtime_data.developer_settings.developer_device == browser_id:
+        if get_display_type_from_browser_id(hass, browser_id) == "native":
+            if (
+                master_entry.runtime_data.developer_settings.developer_device
+                == browser_id
+            ):
+                return (
+                    master_entry.runtime_data.developer_settings.developer_mimic_device
+                )
+            return None
+
+        device_id = get_device_id_from_name(hass, browser_id)
+        if master_entry.runtime_data.developer_settings.developer_device == device_id:
             return master_entry.runtime_data.developer_settings.developer_mimic_device
         return None
+
     return master_entry.runtime_data.developer_settings.developer_mimic_device
 
 
