@@ -43,10 +43,9 @@ from .const import (
     GITHUB_REPO,
     GITHUB_TOKEN_FILE,
     VIEWS_DIR,
-    VAConfigEntry,
-    VAEvent,
 )
 from .helpers import differ_to_json, json_to_dictdiffer
+from .typed import VAConfigEntry, VAEvent
 from .utils import dictdiff
 from .websocket import MockWSConnection
 

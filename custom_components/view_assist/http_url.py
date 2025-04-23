@@ -6,7 +6,8 @@ from pathlib import Path
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN, URL_BASE, VA_SUB_DIRS, VAConfigEntry
+from .const import DOMAIN, URL_BASE, VA_SUB_DIRS
+from .typed import VAConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
