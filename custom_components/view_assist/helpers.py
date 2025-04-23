@@ -252,7 +252,6 @@ def get_mimic_entity_id(hass: HomeAssistant, browser_id: str | None = None) -> s
         if master_entry.runtime_data.developer_settings.developer_device == device_id:
             return master_entry.runtime_data.developer_settings.developer_mimic_device
         return None
-
     return master_entry.runtime_data.developer_settings.developer_mimic_device
 
 
