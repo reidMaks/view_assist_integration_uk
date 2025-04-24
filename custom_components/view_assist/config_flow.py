@@ -37,11 +37,15 @@ from .const import (
     CONF_DISPLAY_DEVICE,
     CONF_DISPLAY_SETTINGS,
     CONF_DO_NOT_DISTURB,
+    CONF_ENABLE_MENU,
+    CONF_ENABLE_MENU_TIMEOUT,
     CONF_FONT_STYLE,
     CONF_HOME,
     CONF_INTENT,
     CONF_INTENT_DEVICE,
     CONF_MEDIAPLAYER_DEVICE,
+    CONF_MENU_ITEMS,
+    CONF_MENU_TIMEOUT,
     CONF_MIC_DEVICE,
     CONF_MIC_UNMUTE,
     CONF_MUSIC,
@@ -50,6 +54,7 @@ from .const import (
     CONF_ROTATE_BACKGROUND_LINKED_ENTITY,
     CONF_ROTATE_BACKGROUND_PATH,
     CONF_SCREEN_MODE,
+    CONF_SHOW_MENU_BUTTON,
     CONF_STATUS_ICON_SIZE,
     CONF_STATUS_ICONS,
     CONF_TIME_FORMAT,
@@ -214,6 +219,19 @@ def get_dashboard_options_schema(config_entry: VAConfigEntry | None) -> vol.Sche
                 custom_value=True,
             )
         ),
+        vol.Optional(CONF_ENABLE_MENU): bool,
+        vol.Optional(CONF_MENU_ITEMS): SelectSelector(
+            SelectSelectorConfig(
+                translation_key="menu_icons_selector",
+                options=[],
+                mode=SelectSelectorMode.LIST,
+                multiple=True,
+                custom_value=True,
+            )
+        ),
+        vol.Optional(CONF_SHOW_MENU_BUTTON): bool,
+        vol.Optional(CONF_ENABLE_MENU_TIMEOUT): bool,
+        vol.Optional(CONF_MENU_TIMEOUT): int,
         vol.Optional(CONF_TIME_FORMAT): SelectSelector(
             SelectSelectorConfig(
                 options=[e.value for e in VATimeFormat],
