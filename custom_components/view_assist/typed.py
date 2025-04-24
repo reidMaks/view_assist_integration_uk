@@ -102,6 +102,11 @@ class DisplayConfig:
     status_icons: list[str] = field(default_factory=list)
     time_format: VATimeFormat | None = None
     screen_mode: VAScreenMode | None = None
+    enable_menu: bool = False
+    menu_items: list[str] = field(default_factory=list)
+    show_menu_button: bool = False
+    enable_menu_timeout: bool = False
+    menu_timeout: int = 10
 
 
 @dataclass
