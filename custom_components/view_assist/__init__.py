@@ -64,7 +64,6 @@ from .typed import (
     VAType,
 )
 from .websocket import async_register_websockets
-from . import sensor
 
 _LOGGER = logging.getLogger(__name__)
 
