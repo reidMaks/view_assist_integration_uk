@@ -107,6 +107,10 @@ class ViewAssistSensor(SensorEntity):
             # Dashboard settings
             "status_icons": r.dashboard.display_settings.status_icons,
             "status_icons_size": r.dashboard.display_settings.status_icons_size,
+            "enable_menu": r.dashboard.display_settings.enable_menu,
+            "menu_items": r.dashboard.display_settings.menu_items,
+            "show_menu_button": r.dashboard.display_settings.show_menu_button,
+            "menu_active": self._get_menu_active_state(),
             "assist_prompt": self.get_option_key_migration_value(
                 r.dashboard.display_settings.assist_prompt
             ),
@@ -169,6 +173,17 @@ class ViewAssistSensor(SensorEntity):
                 self.config.runtime_data.extra_data[k] = v
 
         self.schedule_update_ha_state(True)
+
+    def _get_menu_active_state(self) -> bool:
+        """Get the menu active state from menu manager."""
+        menu_manager = self.hass.data[DOMAIN].get("menu_manager")
+        if not menu_manager:
+            return False
+            
+        if hasattr(menu_manager, "_menu_states") and self.entity_id in menu_manager._menu_states:
+            return menu_manager._menu_states[self.entity_id].active
+            
+        return False
 
     @property
     def icon(self):
