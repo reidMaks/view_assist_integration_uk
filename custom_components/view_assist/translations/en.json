@@ -114,6 +114,11 @@
               "status_icons_size": "Status icon size",
               "font_style": "Font style",
               "status_icons": "Launch icons",
+              "enable_menu": "Enable menu",
+              "menu_items": "Menu items",
+              "show_menu_button": "Show menu button",
+              "enable_menu_timeout": "Enable menu timeout",
+              "menu_timeout": "Menu timeout",
               "time_format": "Time format",
               "screen_mode": "Show/hide header and sidebar"
             },
@@ -122,6 +127,11 @@
               "status_icons_size": "Size of the icons in the status icon display",
               "font_style": "The default font to use for this satellite device. Font name must match perfectly and be available",
               "status_icons": "Advanced option! List of custom launch icons to set on start up. Do not change this if you do not know what you are doing",
+              "enable_menu": "Enable or disable the menu feature for this device",
+              "menu_items": "List of items to show in the menu when activated",
+              "show_menu_button": "Always show the menu toggle button in the status bar",
+              "enable_menu_timeout": "Automatically close the menu after timeout period",
+              "menu_timeout": "Time in seconds before menu automatically closes",
               "time_format": "Sets clock display time format",
               "screen_mode": "Show or hide the header and sidebar"
             }
@@ -174,12 +184,12 @@
         "flashing_bar": "Flashing bar at bottom"
       }
     },
-      "status_icons_size_selector": {
-        "options": {
-          "6vw": "Small",
-          "7vw": "Medium",
-          "8vw": "Large"
-        }
+    "status_icons_size_selector": {
+      "options": {
+        "6vw": "Small",
+        "7vw": "Medium",
+        "8vw": "Large"
+      }
     },
     "mic_type_selector": {
       "options": {
@@ -203,6 +213,9 @@
         "download": "Random image from unsplash.com",
         "link_to_entity": "Mirror another View Assist device"
       }
+    },
+    "menu_icons_selector": {
+      "options": {}
     },
     "lookup_selector": {
       "options": {
