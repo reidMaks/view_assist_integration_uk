@@ -48,6 +48,7 @@ from .helpers import (
 )
 from .http_url import HTTPManager
 from .js_modules import JSModuleRegistration
+from .menu_manager import MenuManager
 from .services import VAServices
 from .templates import setup_va_templates
 from .timers import TIMERS, VATimers
@@ -63,6 +64,7 @@ from .typed import (
     VAType,
 )
 from .websocket import async_register_websockets
+from . import sensor
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -255,6 +257,10 @@ async def load_common_functions(hass: HomeAssistant, entry: VAConfigEntry):
     timers = VATimers(hass, entry)
     hass.data[DOMAIN][TIMERS] = timers
     await timers.load()
+
+    # Setup Menu Manager
+    menu_manager = MenuManager(hass, entry)
+    hass.data[DOMAIN]["menu_manager"] = menu_manager
 
     # Load javascript modules
     jsloader = JSModuleRegistration(hass)
