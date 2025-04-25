@@ -66,6 +66,12 @@ class VABackgroundMode(StrEnum):
     DOWNLOAD_RANDOM = "download"
     LINKED = "link_to_entity"
 
+class VAMenuConfig(StrEnum):
+    """Menu configuration options enum."""
+    DISABLED = "menu_disabled"
+    ENABLED_VISIBLE = "menu_enabled_button_visible" 
+    ENABLED_HIDDEN = "menu_enabled_button_hidden"
+
 
 @dataclass
 class DeviceCoreConfig:
@@ -100,13 +106,11 @@ class DisplayConfig:
     status_icons_size: VAIconSizes | None = None
     font_style: str | None = None
     status_icons: list[str] = field(default_factory=list)
+    menu_config: VAMenuConfig = VAMenuConfig.DISABLED
+    menu_items: list[str] = field(default_factory=list)
+    menu_timeout: int = 10
     time_format: VATimeFormat | None = None
     screen_mode: VAScreenMode | None = None
-    enable_menu: bool = False
-    menu_items: list[str] = field(default_factory=list)
-    show_menu_button: bool = False
-    enable_menu_timeout: bool = False
-    menu_timeout: int = 10
 
 
 @dataclass
