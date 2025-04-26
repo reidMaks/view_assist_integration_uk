@@ -335,6 +335,8 @@ def set_runtime_data_for_config(  # noqa: C901
                             if sub_value := get_config_value(
                                 f"{attr}.{sub_attr}", is_master=True
                             ):
+                                if sub_attr == "menu_items":
+                                    sub_value = list(reversed(ensure_list(sub_value)))
                                 values[sub_attr] = sub_value
                         value = type(getattr(r.dashboard, attr))(**values)
                     setattr(r.dashboard, attr, value)
@@ -371,6 +373,8 @@ def set_runtime_data_for_config(  # noqa: C901
                         values = {}
                         for sub_attr in getattr(r.dashboard, attr).__dict__:
                             if sub_value := get_config_value(f"{attr}.{sub_attr}"):
+                                if sub_attr == "menu_items":
+                                    sub_value = list(reversed(ensure_list(sub_value)))
                                 values[sub_attr] = sub_value
                         value = type(getattr(r.dashboard, attr))(**values)
                     setattr(r.dashboard, attr, value)
