@@ -37,13 +37,12 @@ from .const import (
     CONF_DISPLAY_DEVICE,
     CONF_DISPLAY_SETTINGS,
     CONF_DO_NOT_DISTURB,
-    CONF_ENABLE_MENU,
-    CONF_ENABLE_MENU_TIMEOUT,
     CONF_FONT_STYLE,
     CONF_HOME,
     CONF_INTENT,
     CONF_INTENT_DEVICE,
     CONF_MEDIAPLAYER_DEVICE,
+    CONF_MENU_CONFIG,
     CONF_MENU_ITEMS,
     CONF_MENU_TIMEOUT,
     CONF_MIC_DEVICE,
@@ -54,7 +53,6 @@ from .const import (
     CONF_ROTATE_BACKGROUND_LINKED_ENTITY,
     CONF_ROTATE_BACKGROUND_PATH,
     CONF_SCREEN_MODE,
-    CONF_SHOW_MENU_BUTTON,
     CONF_STATUS_ICON_SIZE,
     CONF_STATUS_ICONS,
     CONF_TIME_FORMAT,
@@ -70,7 +68,14 @@ from .const import (
     VAIconSizes,
 )
 from .helpers import get_devices_for_domain, get_master_config_entry
-from .typed import VABackgroundMode, VAConfigEntry, VAScreenMode, VATimeFormat, VAType
+from .typed import (
+    VABackgroundMode,
+    VAConfigEntry,
+    VAMenuConfig,
+    VAScreenMode,
+    VATimeFormat,
+    VAType,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -219,7 +224,13 @@ def get_dashboard_options_schema(config_entry: VAConfigEntry | None) -> vol.Sche
                 custom_value=True,
             )
         ),
-        vol.Optional(CONF_ENABLE_MENU): bool,
+        vol.Optional(CONF_MENU_CONFIG): SelectSelector(
+            SelectSelectorConfig(
+                translation_key="menu_config_selector",
+                options=[e.value for e in VAMenuConfig],
+                mode=SelectSelectorMode.DROPDOWN,
+            )
+        ),
         vol.Optional(CONF_MENU_ITEMS): SelectSelector(
             SelectSelectorConfig(
                 translation_key="menu_icons_selector",
@@ -229,8 +240,6 @@ def get_dashboard_options_schema(config_entry: VAConfigEntry | None) -> vol.Sche
                 custom_value=True,
             )
         ),
-        vol.Optional(CONF_SHOW_MENU_BUTTON): bool,
-        vol.Optional(CONF_ENABLE_MENU_TIMEOUT): bool,
         vol.Optional(CONF_MENU_TIMEOUT): int,
         vol.Optional(CONF_TIME_FORMAT): SelectSelector(
             SelectSelectorConfig(
