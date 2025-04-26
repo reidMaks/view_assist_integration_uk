@@ -12,11 +12,9 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .const import (
     CONF_DISPLAY_SETTINGS,
-    CONF_ENABLE_MENU,
-    CONF_ENABLE_MENU_TIMEOUT,
+    CONF_MENU_CONFIG,
     CONF_MENU_ITEMS,
     CONF_MENU_TIMEOUT,
-    CONF_SHOW_MENU_BUTTON,
     CONF_STATUS_ICONS,
     DEFAULT_VALUES,
     DOMAIN,
@@ -30,7 +28,7 @@ from .helpers import (
     normalize_status_items,
     update_status_icons,
 )
-from .typed import VAConfigEntry, VAEvent
+from .typed import VAConfigEntry, VAEvent, VAMenuConfig
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,7 +85,6 @@ class MenuManager:
                 self._get_or_create_state(entity_id)
 
         self._initialized = True
-        _LOGGER.debug("Menu manager initialized")
 
     def _get_or_create_state(self, entity_id: str) -> MenuState:
         """Get or create a MenuState for the entity."""
@@ -119,6 +116,8 @@ class MenuManager:
         """Get configuration value with hierarchy: entity > master > default."""
         # Check entity config
         entity_config = get_config_entry_by_entity_id(self.hass, entity_id)
+
+        # Check entity config first
         if entity_config:
             # Check direct key
             if key in entity_config.options:
@@ -164,7 +163,6 @@ class MenuManager:
         self, entity_id: str, show: Optional[bool] = None, timeout: Optional[int] = None
     ) -> None:
         """Toggle menu visibility for an entity."""
-        # Ensure initialization
         await self._ensure_initialized()
 
         # Validate entity and config
@@ -173,11 +171,13 @@ class MenuManager:
             _LOGGER.error("Config entry not found for %s", entity_id)
             return
 
-        enable_menu = self._get_config_value(
-            entity_id, f"{CONF_DISPLAY_SETTINGS}.{CONF_ENABLE_MENU}", False
+        # Get menu configuration
+        menu_config = self._get_config_value(
+            entity_id, f"{CONF_DISPLAY_SETTINGS}.{CONF_MENU_CONFIG}", VAMenuConfig.DISABLED
         )
 
-        if not enable_menu:
+        # Check if menu is enabled
+        if menu_config == VAMenuConfig.DISABLED:
             _LOGGER.warning("Menu is not enabled for %s", entity_id)
             return
 
@@ -193,9 +193,8 @@ class MenuManager:
 
         self._cancel_timeout(entity_id)
 
-        show_menu_button = self._get_config_value(
-            entity_id, f"{CONF_DISPLAY_SETTINGS}.{CONF_SHOW_MENU_BUTTON}", False
-        )
+        # Check if menu button should be shown
+        show_menu_button = menu_config == VAMenuConfig.ENABLED_VISIBLE
 
         # Update system icons from current status
         current_status_icons = state.attributes.get(CONF_STATUS_ICONS, [])
@@ -219,13 +218,12 @@ class MenuManager:
             # Handle timeout
             if timeout is not None:
                 self._setup_timeout(entity_id, timeout)
-            elif self._get_config_value(
-                entity_id, f"{CONF_DISPLAY_SETTINGS}.{CONF_ENABLE_MENU_TIMEOUT}", False
-            ):
-                timeout_value = self._get_config_value(
-                    entity_id, f"{CONF_DISPLAY_SETTINGS}.{CONF_MENU_TIMEOUT}", 10
+            else:
+                menu_timeout = self._get_config_value(
+                    entity_id, f"{CONF_DISPLAY_SETTINGS}.{CONF_MENU_TIMEOUT}", 0
                 )
-                self._setup_timeout(entity_id, timeout_value)
+                if menu_timeout > 0:
+                    self._setup_timeout(entity_id, menu_timeout)
         else:
             # Hide menu
             updated_icons = system_icons.copy()
@@ -269,12 +267,16 @@ class MenuManager:
             _LOGGER.warning("No config entry found for entity %s", entity_id)
             return
 
-        # Ensure initialization
         await self._ensure_initialized()
         menu_state = self._get_or_create_state(entity_id)
-        show_menu_button = self._get_config_value(
-            entity_id, f"{CONF_DISPLAY_SETTINGS}.{CONF_SHOW_MENU_BUTTON}", False
+
+        # Get menu configuration
+        menu_config = self._get_config_value(
+            entity_id, f"{CONF_DISPLAY_SETTINGS}.{CONF_MENU_CONFIG}", VAMenuConfig.DISABLED
         )
+
+        # Check if menu button should be shown
+        show_menu_button = menu_config == VAMenuConfig.ENABLED_VISIBLE
 
         changes = {}
         if menu:
@@ -338,12 +340,16 @@ class MenuManager:
         if not config_entry:
             return
 
-        # Ensure initialization
         await self._ensure_initialized()
         menu_state = self._get_or_create_state(entity_id)
-        show_menu_button = self._get_config_value(
-            entity_id, f"{CONF_DISPLAY_SETTINGS}.{CONF_SHOW_MENU_BUTTON}", False
+
+        # Get menu configuration
+        menu_config = self._get_config_value(
+            entity_id, f"{CONF_DISPLAY_SETTINGS}.{CONF_MENU_CONFIG}", VAMenuConfig.DISABLED
         )
+
+        # Check if menu button should be shown
+        show_menu_button = menu_config == VAMenuConfig.ENABLED_VISIBLE
 
         changes = {}
         if from_menu:
@@ -491,7 +497,7 @@ class MenuManager:
                             await self.hass.services.async_call(DOMAIN, "set_state", changes)
                         except Exception as err:
                             _LOGGER.error("Error updating %s: %s",
-                                          entity_id, str(err))
+                                            entity_id, str(err))
 
             except asyncio.CancelledError:
                 break

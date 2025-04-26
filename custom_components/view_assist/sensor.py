@@ -107,9 +107,8 @@ class ViewAssistSensor(SensorEntity):
             # Dashboard settings
             "status_icons": r.dashboard.display_settings.status_icons,
             "status_icons_size": r.dashboard.display_settings.status_icons_size,
-            "enable_menu": r.dashboard.display_settings.enable_menu,
+            "menu_config": r.dashboard.display_settings.menu_config,
             "menu_items": r.dashboard.display_settings.menu_items,
-            "show_menu_button": r.dashboard.display_settings.show_menu_button,
             "menu_active": self._get_menu_active_state(),
             "assist_prompt": self.get_option_key_migration_value(
                 r.dashboard.display_settings.assist_prompt

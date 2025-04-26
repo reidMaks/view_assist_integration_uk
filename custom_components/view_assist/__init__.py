@@ -59,6 +59,7 @@ from .typed import (
     VABackgroundMode,
     VAConfigEntry,
     VAEvent,
+    VAMenuConfig,
     VAScreenMode,
     VATimeFormat,
     VAType,
