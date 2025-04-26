@@ -286,7 +286,7 @@ class MenuManager:
 
             for item in items:
                 if item not in updated_items:
-                    updated_items.append(item)
+                    updated_items.insert(0, item)
                     changed = True
 
             if changed:
@@ -394,12 +394,15 @@ class MenuManager:
         """Save options to config entry for persistence."""
         config_entry = get_config_entry_by_entity_id(self.hass, entity_id)
         if not config_entry:
-            _LOGGER.warning(
-                "Cannot save %s - config entry not found", option_key)
+            _LOGGER.warning("Cannot save %s - config entry not found", option_key)
             return
 
         try:
             new_options = dict(config_entry.options)
+            
+            if option_key == CONF_MENU_ITEMS:
+                value = list(reversed(value))
+                
             new_options[option_key] = value
             self.hass.config_entries.async_update_entry(
                 config_entry, options=new_options)
