@@ -16,6 +16,7 @@ from .const import (
     BROWSERMOD_DOMAIN,
     CONF_DISPLAY_DEVICE,
     DOMAIN,
+    HASSMIC_DOMAIN,
     IMAGE_PATH,
     RANDOM_IMAGE_URL,
     REMOTE_ASSIST_DISPLAY_DOMAIN,
@@ -290,6 +291,24 @@ def get_mute_switch_entity_id(hass: HomeAssistant, mic_entity_id: str) -> str | 
         for entity in device_entities:
             if entity.domain == "switch" and entity.entity_id.endswith(
                 ("_mute", "_mic", "_microphone")
+            ):
+                return entity.entity_id
+    return None
+
+
+def get_hassmic_pipeline_status_entity_id(
+    hass: HomeAssistant, mic_entity_id: str
+) -> str | None:
+    """Get the wakeword entity id for a hassmic device relating to the mic entity."""
+    entity_registry = er.async_get(hass)
+    if mic_entity := entity_registry.async_get(mic_entity_id):
+        if mic_entity.platform != HASSMIC_DOMAIN:
+            return None
+        device_id = mic_entity.device_id
+        device_entities = er.async_entries_for_device(entity_registry, device_id)
+        for entity in device_entities:
+            if entity.domain == "sensor" and entity.entity_id.endswith(
+                "_pipeline_state"
             ):
                 return entity.entity_id
     return None

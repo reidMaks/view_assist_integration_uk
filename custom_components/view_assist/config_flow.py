@@ -37,6 +37,7 @@ from .const import (
     CONF_DISPLAY_DEVICE,
     CONF_DISPLAY_SETTINGS,
     CONF_DO_NOT_DISTURB,
+    CONF_DUCKING_VOLUME,
     CONF_FONT_STYLE,
     CONF_HOME,
     CONF_INTENT,
@@ -270,6 +271,14 @@ DEFAULT_OPTIONS_SCHEMA = vol.Schema(
                 options=["on", "off"],
                 mode=SelectSelectorMode.DROPDOWN,
                 translation_key="lookup_selector",
+            )
+        ),
+        vol.Optional(CONF_DUCKING_VOLUME): NumberSelector(
+            NumberSelectorConfig(
+                min=0,
+                max=100,
+                step=1.0,
+                mode=NumberSelectorMode.BOX,
             )
         ),
     }

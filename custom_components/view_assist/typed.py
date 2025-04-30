@@ -126,6 +126,7 @@ class DefaultConfig:
     do_not_disturb: bool | None = None
     use_announce: bool | None = None
     mic_unmute: bool | None = None
+    ducking_volume: int | None = None
 
 
 @dataclass
