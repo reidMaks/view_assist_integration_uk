@@ -43,6 +43,7 @@ CYCLE_VIEWS = ["music", "info", "weather", "clock"]
 BROWSERMOD_DOMAIN = "browser_mod"
 REMOTE_ASSIST_DISPLAY_DOMAIN = "remote_assist_display"
 CUSTOM_CONVERSATION_DOMAIN = "custom_conversation"
+HASSMIC_DOMAIN = "hassmic"
 USE_VA_NAVIGATION_FOR_BROWSERMOD = True
 
 IMAGE_PATH = "images"
@@ -110,6 +111,7 @@ CONF_VIEW_TIMEOUT = "view_timeout"
 CONF_DO_NOT_DISTURB = "do_not_disturb"
 CONF_USE_ANNOUNCE = "use_announce"
 CONF_MIC_UNMUTE = "micunmute"
+CONF_DUCKING_VOLUME = "ducking_volume"
 
 
 CONF_DEVELOPER_DEVICE = "developer_device"
@@ -154,6 +156,7 @@ DEFAULT_VALUES = {
     CONF_DO_NOT_DISTURB: "off",
     CONF_USE_ANNOUNCE: "off",
     CONF_MIC_UNMUTE: "off",
+    CONF_DUCKING_VOLUME: 2,
     # Default developer otions
     CONF_DEVELOPER_DEVICE: "",
     CONF_DEVELOPER_MIMIC_DEVICE: "",
