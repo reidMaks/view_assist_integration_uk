@@ -32,8 +32,6 @@ from .typed import VAConfigEntry, VAEvent, VAMenuConfig
 
 _LOGGER = logging.getLogger(__name__)
 
-# Maximum number of update iterations before restarting the processor
-MAX_UPDATE_ITERATIONS = 10000
 StatusItemType = Union[str, List[str]]
 
 
@@ -480,13 +478,9 @@ class MenuManager:
         self._update_event.set()
 
     async def _update_processor(self) -> None:
-        """Process updates with a fixed iteration limit."""
-        iterations = 0
-
-        while iterations < MAX_UPDATE_ITERATIONS:
-            iterations += 1
-
-            try:
+        """Process updates as they arrive."""
+        try:
+            while True:
                 await self._update_event.wait()
                 self._update_event.clear()
 
@@ -499,20 +493,10 @@ class MenuManager:
                         try:
                             await self.hass.services.async_call(DOMAIN, "set_state", changes)
                         except Exception as err:
-                            _LOGGER.error("Error updating %s: %s",
-                                            entity_id, str(err))
+                            _LOGGER.error("Error updating %s: %s", entity_id, str(err))
 
-            except asyncio.CancelledError:
-                break
-            except Exception as err:
-                _LOGGER.error("Unexpected error: %s", str(err))
-                await asyncio.sleep(1)
-
-        # Restart if reached iteration limit
-        if iterations >= MAX_UPDATE_ITERATIONS:
-            self._update_task = self.config.async_create_background_task(
-                self.hass, self._update_processor(), name="VA Menu Manager"
-            )
+        except asyncio.CancelledError:
+            pass
 
     async def _ensure_initialized(self) -> None:
         """Ensure the menu manager is initialized."""
