@@ -3,7 +3,7 @@
 from asyncio import TimerHandle
 import json
 import logging
-from typing import Any, Union, List, Optional, Callable, cast
+from typing import Any
 
 import voluptuous as vol
 
@@ -52,8 +52,6 @@ from .timers import TIMERS, VATimers, decode_time_sentence
 from .typed import VAConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
-
-StatusItemType = Union[str, List[str]]
 
 
 NAVIGATE_SERVICE_SCHEMA = vol.Schema(
@@ -525,7 +523,7 @@ class VAServices:
         menu_manager = self.hass.data[DOMAIN]["menu_manager"]
         await menu_manager.remove_menu_item(entity_id, status_items, menu)
 
-    def _process_status_item_input(self, raw_input: Any) -> Optional[StatusItemType]:
+    def _process_status_item_input(self, raw_input: Any) -> str | list[str] | None:
         """Process and validate status item input."""
         from .helpers import normalize_status_items
         return normalize_status_items(raw_input)
