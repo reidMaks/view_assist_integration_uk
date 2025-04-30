@@ -165,6 +165,7 @@ REMOVE_STATUS_ITEM_SERVICE_SCHEMA = vol.Schema(
     }
 )
 
+
 class VAServices:
     """Class to manage services."""
 
@@ -482,7 +483,7 @@ class VAServices:
 
         show = call.data.get("show", True)
         timeout = call.data.get("timeout")
-        
+
         menu_manager = self.hass.data[DOMAIN]["menu_manager"]
         await menu_manager.toggle_menu(entity_id, show, timeout=timeout)
 
@@ -490,13 +491,14 @@ class VAServices:
         """Handle add status item service call."""
         entity_id = call.data.get(ATTR_ENTITY_ID)
         if not entity_id:
-            _LOGGER.error("No entity_id provided in add_status_item service call")
+            _LOGGER.error(
+                "No entity_id provided in add_status_item service call")
             return
 
         raw_status_item = call.data.get("status_item")
         menu = call.data.get("menu", False)
         timeout = call.data.get("timeout")
-        
+
         status_items = self._process_status_item_input(raw_status_item)
         if not status_items:
             _LOGGER.error("Invalid or empty status_item provided")
@@ -509,7 +511,8 @@ class VAServices:
         """Handle remove status item service call."""
         entity_id = call.data.get(ATTR_ENTITY_ID)
         if not entity_id:
-            _LOGGER.error("No entity_id provided in remove_status_item service call")
+            _LOGGER.error(
+                "No entity_id provided in remove_status_item service call")
             return
 
         raw_status_item = call.data.get("status_item")
@@ -526,4 +529,5 @@ class VAServices:
     def _process_status_item_input(self, raw_input: Any) -> str | list[str] | None:
         """Process and validate status item input."""
         from .helpers import normalize_status_items
+
         return normalize_status_items(raw_input)
