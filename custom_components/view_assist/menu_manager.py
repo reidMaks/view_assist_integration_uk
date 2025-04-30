@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 from homeassistant.core import Event, HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -32,7 +32,7 @@ from .typed import VAConfigEntry, VAEvent, VAMenuConfig
 
 _LOGGER = logging.getLogger(__name__)
 
-StatusItemType = Union[str, List[str]]
+StatusItemType = str | list[str]
 
 
 @dataclass
@@ -41,11 +41,11 @@ class MenuState:
 
     entity_id: str
     active: bool = False
-    configured_items: List[str] = field(default_factory=list)
-    status_icons: List[str] = field(default_factory=list)
-    system_icons: List[str] = field(default_factory=list)
-    menu_timeout: Optional[asyncio.Task] = None
-    item_timeouts: Dict[Tuple[str, str, bool], asyncio.Task] = field(
+    configured_items: list[str] = field(default_factory=list)
+    status_icons: list[str] = field(default_factory=list)
+    system_icons: list[str] = field(default_factory=list)
+    menu_timeout: asyncio.Task | None = None
+    item_timeouts: dict[tuple[str, str, bool], asyncio.Task] = field(
         default_factory=dict
     )
 
@@ -57,10 +57,10 @@ class MenuManager:
         """Initialize menu manager."""
         self.hass = hass
         self.config = config
-        self._menu_states: Dict[str, MenuState] = {}
-        self._pending_updates: Dict[str, Dict[str, Any]] = {}
+        self._menu_states: dict[str, MenuState] = {}
+        self._pending_updates: dict[str, dict[str, Any]] = {}
         self._update_event = asyncio.Event()
-        self._update_task: Optional[asyncio.Task] = None
+        self._update_task: asyncio.Task | None = None
         self._initialized = False
 
         config.async_on_unload(self.cleanup)
@@ -158,7 +158,7 @@ class MenuManager:
         return default
 
     async def toggle_menu(
-        self, entity_id: str, show: Optional[bool] = None, timeout: Optional[int] = None
+        self, entity_id: str, show: bool | None = None, timeout: int | None = None
     ) -> None:
         """Toggle menu visibility for an entity."""
         await self._ensure_initialized()
@@ -249,7 +249,7 @@ class MenuManager:
         entity_id: str,
         status_item: StatusItemType,
         menu: bool = False,
-        timeout: Optional[int] = None,
+        timeout: int | None = None,
     ) -> None:
         """Add status item(s) to the entity's status icons or menu items."""
         # Normalize input and validate
@@ -388,7 +388,7 @@ class MenuManager:
         for item in items:
             self._cancel_item_timeout(entity_id, item, from_menu)
 
-    async def _save_to_config_entry_options(self, entity_id: str, option_key: str, value: List[str]) -> None:
+    async def _save_to_config_entry_options(self, entity_id: str, option_key: str, value: list[str]) -> None:
         """Save options to config entry for persistence."""
         config_entry = get_config_entry_by_entity_id(self.hass, entity_id)
         if not config_entry:
@@ -397,14 +397,14 @@ class MenuManager:
 
         try:
             new_options = dict(config_entry.options)
-            
+
             if option_key == CONF_MENU_ITEMS:
-                value = list(reversed(value))
-                
+                value.reverse()
+
             new_options[option_key] = value
             self.hass.config_entries.async_update_entry(
                 config_entry, options=new_options)
-        except Exception as err:
+        except Exception as err:  # noqa: BLE001
             _LOGGER.error("Error saving config entry options: %s", str(err))
 
     def _setup_timeout(self, entity_id: str, timeout: int) -> None:
@@ -465,7 +465,7 @@ class MenuManager:
             menu_state.item_timeouts.pop(item_key)
 
     async def _update_entity_state(
-        self, entity_id: str, changes: Dict[str, Any]
+        self, entity_id: str, changes: dict[str, Any]
     ) -> None:
         """Queue entity state update."""
         if not changes:
@@ -492,7 +492,7 @@ class MenuManager:
                         changes["entity_id"] = entity_id
                         try:
                             await self.hass.services.async_call(DOMAIN, "set_state", changes)
-                        except Exception as err:
+                        except Exception as err: # noqa: BLE001
                             _LOGGER.error("Error updating %s: %s", entity_id, str(err))
 
         except asyncio.CancelledError:
