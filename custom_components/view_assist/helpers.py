@@ -3,7 +3,7 @@
 from functools import reduce
 import logging
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import Any
 
 import requests
 
@@ -106,7 +106,7 @@ def ensure_menu_button_at_end(status_icons: list[str]) -> None:
         status_icons.remove("menu")
         status_icons.append("menu")
 
-def normalize_status_items(raw_input: Any) -> Optional[Union[str, List[str]]]:
+def normalize_status_items(raw_input: Any) -> str | list[str] | None:
     """Normalize and validate status item input.
 
     Handles various input formats:
