@@ -68,6 +68,13 @@ class VABackgroundMode(StrEnum):
 
 
 @dataclass
+class IntegrationConfig:
+    """Class to hold integration config data."""
+
+    enable_updates: bool = True
+
+
+@dataclass
 class DeviceCoreConfig:
     """Class to hold core config data."""
 
@@ -142,6 +149,7 @@ class MasterConfigRuntimeData:
 
     def __init__(self) -> None:
         """Initialize runtime data."""
+        self.integration: IntegrationConfig = IntegrationConfig()
         self.dashboard: DashboardConfig = DashboardConfig()
         self.default: DefaultConfig = DefaultConfig()
         self.developer_settings: DeveloperConfig = DeveloperConfig()

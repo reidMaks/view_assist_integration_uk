@@ -45,6 +45,7 @@
         "title": "Configuration",
         "description": "Select which options to amend",
         "menu_options": {
+          "integration_options": "Integration Options",
           "main_config": "Core Device Configuration",
           "dashboard_options": "Dashboard Options",
           "default_options": "Default Options",
@@ -146,6 +147,15 @@
           "do_not_disturb": "Default state for do not disturb mode on HA restart",
           "use_announce": "Some media player devices, like BrowserMod, cannot use the Home Assistant announce feature while media is playing. This option allows for turning off announce messages if problems arise. Default is on.",
           "micunmute": "Helpful for Stream Assist devices"
+        }
+      },
+      "integration_options": {
+        "title": "{name} Integration Options",
+        "data": {
+          "enable_updates": "Enable updates"
+        },
+        "data_description": {
+          "enable_updates": "Enable or disable update notifications for the dashboard and views"
         }
       },
       "developer_options": {

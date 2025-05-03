@@ -14,6 +14,7 @@ from homeassistant.const import CONF_MODE, CONF_NAME, CONF_TYPE
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import SectionConfig, section
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     EntityFilterSelectorConfig,
     EntitySelector,
     EntitySelectorConfig,
@@ -38,6 +39,7 @@ from .const import (
     CONF_DISPLAY_SETTINGS,
     CONF_DO_NOT_DISTURB,
     CONF_DUCKING_VOLUME,
+    CONF_ENABLE_UPDATES,
     CONF_FONT_STYLE,
     CONF_HOME,
     CONF_INTENT,
@@ -284,6 +286,10 @@ DEFAULT_OPTIONS_SCHEMA = vol.Schema(
     }
 )
 
+INTEGRATION_OPTIONS_SCHEMA = vol.Schema(
+    {vol.Optional(CONF_ENABLE_UPDATES): BooleanSelector()}
+)
+
 
 def get_developer_options_schema(
     hass: HomeAssistant, config_entry: VAConfigEntry | None
@@ -309,7 +315,7 @@ def get_suggested_option_values(config: VAConfigEntry) -> dict[str, Any]:
     if config.data[CONF_TYPE] == VAType.MASTER_CONFIG:
         option_values = DEFAULT_VALUES.copy()
         for option in DEFAULT_VALUES:
-            if config.options.get(option):
+            if config.options.get(option) is not None:
                 option_values[option] = config.options.get(option)
         return option_values
     return config.options
@@ -442,6 +448,7 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
             return self.async_show_menu(
                 step_id="init",
                 menu_options=[
+                    "integration_options",
                     "dashboard_options",
                     "default_options",
                     "developer_options",
@@ -539,6 +546,29 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                 if self.config_entry.data[CONF_TYPE] == VAType.MASTER_CONFIG
                 else DEVICE_FORM_DESCRIPTION,
             },
+        )
+
+    async def async_step_integration_options(self, user_input=None):
+        """Handle integration options flow."""
+
+        data_schema = self.add_suggested_values_to_schema(
+            INTEGRATION_OPTIONS_SCHEMA,
+            get_suggested_option_values(self.config_entry),
+        )
+
+        if user_input is not None:
+            # This is just updating the core config so update config_entry.data
+            options = self.config_entry.options | user_input
+            for o in data_schema.schema:
+                if o not in user_input:
+                    options.pop(o, None)
+            return self.async_create_entry(data=options)
+
+        # Show the form
+        return self.async_show_form(
+            step_id="integration_options",
+            data_schema=data_schema,
+            description_placeholders={"name": self.config_entry.title},
         )
 
     async def async_step_developer_options(self, user_input=None):
