@@ -92,6 +92,13 @@ class VAUpdateEntity(UpdateEntity):
         return f"View Assist - {self.view} view"
 
     @property
+    def unique_id(self) -> str:
+        """Return a unique ID."""
+        if self.view == "dashboard":
+            return f"{DOMAIN}_{self.view}"
+        return f"{DOMAIN}_{self.view}_view"
+
+    @property
     def latest_version(self) -> str:
         """Return latest version of the entity."""
         if self.view == "dashboard":
