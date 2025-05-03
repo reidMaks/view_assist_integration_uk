@@ -43,6 +43,7 @@ from .helpers import (
     ensure_list,
     get_device_name_from_id,
     get_integration_entries,
+    get_key,
     get_master_config_entry,
     is_first_instance,
 )
@@ -294,63 +295,31 @@ async def load_common_display_functions(hass: HomeAssistant, entry: VAConfigEntr
     async_at_started(hass, setup_frontend)
 
 
-def set_runtime_data_for_config(  # noqa: C901
+def set_runtime_data_for_config(
     hass: HomeAssistant, config_entry: VAConfigEntry, is_master: bool = False
 ):
     """Set config.runtime_data attributes from matching config values."""
 
-    def get_dn(dn_attr: str, data: dict[str, Any]):
-        """Get dotted notation attribute from config entry options dict."""
-        try:
-            if "." in dn_attr:
-                dn_list = dn_attr.split(".")
-            else:
-                dn_list = [dn_attr]
-            return reduce(dict.get, dn_list, data)
-        except (TypeError, KeyError):
-            return None
-
     def get_config_value(
         attr: str, is_master: bool = False
     ) -> str | float | list | None:
-        value = get_dn(attr, dict(config_entry.options))
-        if value is None and not is_master:
-            value = get_dn(attr, dict(master_config_options))
-        if value is None:
-            value = get_dn(attr, DEFAULT_VALUES)
+        value = get_key(attr, dict(config_entry.options))
+        if not is_master and (value is None or (isinstance(value, dict) and not value)):
+            value = get_key(attr, dict(master_config_options))
+        if value is None or (isinstance(value, dict) and not value):
+            value = get_key(attr, DEFAULT_VALUES)
 
         # This is a fix for config lists being a string
         if isinstance(attr, list):
             value = ensure_list(value)
         return value
 
+    master_config_options = (
+        get_master_config_entry(hass).options if get_master_config_entry(hass) else {}
+    )
+
     if is_master:
         r = config_entry.runtime_data = MasterConfigRuntimeData()
-        # Dashboard options - handles sections
-        for attr in r.dashboard.__dict__:
-            if value := get_config_value(attr, is_master=True):
-                try:
-                    if attr in (CONF_BACKGROUND_SETTINGS, CONF_DISPLAY_SETTINGS):
-                        values = {}
-                        for sub_attr in getattr(r.dashboard, attr).__dict__:
-                            if sub_value := get_config_value(
-                                f"{attr}.{sub_attr}", is_master=True
-                            ):
-                                values[sub_attr] = sub_value
-                        value = type(getattr(r.dashboard, attr))(**values)
-                    setattr(r.dashboard, attr, value)
-                except Exception as ex:  # noqa: BLE001
-                    _LOGGER.error(
-                        "Error setting runtime data for %s - %s: %s",
-                        attr,
-                        type(getattr(r.dashboard, attr)),
-                        str(ex),
-                    )
-
-        # Default options - doesn't yet handle sections
-        for attr in r.default.__dict__:
-            if value := get_config_value(attr, is_master=True):
-                setattr(r.default, attr, value)
 
         # Integration options
         for attr in r.integration.__dict__:
@@ -365,34 +334,32 @@ def set_runtime_data_for_config(  # noqa: C901
     else:
         r = config_entry.runtime_data = DeviceRuntimeData()
         r.core = DeviceCoreConfig(**config_entry.data)
-        master_config_options = (
-            get_master_config_entry(hass).options
-            if get_master_config_entry(hass)
-            else {}
-        )
-        # Dashboard options - handles sections
-        for attr in r.dashboard.__dict__:
-            if value := get_config_value(attr):
-                try:
-                    if isinstance(value, dict):
-                        values = {}
-                        for sub_attr in getattr(r.dashboard, attr).__dict__:
-                            if sub_value := get_config_value(f"{attr}.{sub_attr}"):
-                                values[sub_attr] = sub_value
-                        value = type(getattr(r.dashboard, attr))(**values)
-                    setattr(r.dashboard, attr, value)
-                except Exception as ex:  # noqa: BLE001
-                    _LOGGER.error(
-                        "Error setting runtime data for %s - %s: %s",
-                        attr,
-                        type(getattr(r.dashboard, attr)),
-                        str(ex),
-                    )
 
-        # Default options - doesn't yet handle sections
-        for attr in r.default.__dict__:
-            if value := get_config_value(attr):
-                setattr(r.default, attr, value)
+    # Dashboard options - handles sections - master and non master
+    for attr in r.dashboard.__dict__:
+        if value := get_config_value(attr, is_master=is_master):
+            try:
+                if attr in (CONF_BACKGROUND_SETTINGS, CONF_DISPLAY_SETTINGS):
+                    values = {}
+                    for sub_attr in getattr(r.dashboard, attr).__dict__:
+                        if sub_value := get_config_value(
+                            f"{attr}.{sub_attr}", is_master=is_master
+                        ):
+                            values[sub_attr] = sub_value
+                    value = type(getattr(r.dashboard, attr))(**values)
+                setattr(r.dashboard, attr, value)
+            except Exception as ex:  # noqa: BLE001
+                _LOGGER.error(
+                    "Error setting runtime data for %s - %s: %s",
+                    attr,
+                    type(getattr(r.dashboard, attr)),
+                    str(ex),
+                )
+
+    # Default options - doesn't yet handle sections
+    for attr in r.default.__dict__:
+        if value := get_config_value(attr, is_master=is_master):
+            setattr(r.default, attr, value)
 
 
 async def _async_update_listener(hass: HomeAssistant, config_entry: VAConfigEntry):

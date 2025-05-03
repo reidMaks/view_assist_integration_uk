@@ -385,12 +385,13 @@ def get_key(
 ) -> dict[str, dict | str | int] | str | int:
     """Try to get a deep value from a dict based on a dot-notation."""
 
-    dn_list = dot_notation_path.split(".")
-
     try:
+        if "." in dot_notation_path:
+            dn_list = dot_notation_path.split(".")
+        else:
+            dn_list = [dot_notation_path]
         return reduce(dict.get, dn_list, data)
-    except (TypeError, KeyError) as ex:
-        _LOGGER.error("TYPE ERROR: %s - %s", dn_list, ex)
+    except (TypeError, KeyError):
         return None
 
 
