@@ -1,8 +1,6 @@
 """View Assist custom integration."""
 
-from functools import reduce
 import logging
-from typing import Any
 
 from homeassistant import config_entries
 from homeassistant.const import CONF_TYPE, Platform
