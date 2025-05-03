@@ -1,6 +1,7 @@
 """Manage views - download, apply, backup, restore."""
 
 from dataclasses import dataclass
+from datetime import timedelta
 import logging
 import operator
 from os import PathLike
@@ -29,7 +30,11 @@ from homeassistant.const import (
 from homeassistant.core import Event, HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.util.yaml import load_yaml_dict, save_yaml
+from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.start import async_at_started
+from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
+from homeassistant.util.yaml import load_yaml_dict, parse_yaml, save_yaml
 
 from .const import (
     COMMUNITY_VIEWS_DIR,
@@ -42,9 +47,11 @@ from .const import (
     GITHUB_PATH,
     GITHUB_REPO,
     GITHUB_TOKEN_FILE,
+    VA_VIEW_DOWNLOAD_PROGRESS,
+    VERSION_CHECK_INTERVAL,
     VIEWS_DIR,
 )
-from .helpers import differ_to_json, json_to_dictdiffer
+from .helpers import differ_to_json, get_key, json_to_dictdiffer
 from .typed import VAConfigEntry, VAEvent
 from .utils import dictdiff
 from .websocket import MockWSConnection
@@ -90,13 +97,22 @@ class GitHubAPI:
         self.api_base = f"{GITHUB_REPO_API}/{self.repo}/contents/"
 
     def _get_token(self):
+        # Use HACs token if available
+        if hacs := self.hass.data.get("hacs", {}):
+            try:
+                return hacs.configuration.token
+            except AttributeError:
+                _LOGGER.debug("HACS is installed but token not available")
+        # Otherwise use the token file in the config directory if exists
         token_file = self.hass.config.path(f"{DOMAIN}/{GITHUB_TOKEN_FILE}")
         if Path(token_file).exists():
             with Path(token_file).open("r", encoding="utf-8") as f:
                 return f.read()
         return None
 
-    async def _rest_request(self, url: str) -> str | dict | list | None:
+    async def _rest_request(
+        self, url: str, data_as_text: bool = False
+    ) -> str | dict | list | None:
         """Return rest request data."""
         session = async_get_clientsession(self.hass)
 
@@ -113,7 +129,10 @@ class GitHubAPI:
                 try:
                     return await resp.json()
                 except ContentTypeError:
+                    if data_as_text:
+                        return await resp.text()
                     return await resp.read()
+
             elif resp.status == 403:
                 # Rate limit
                 raise GithubAPIException(
@@ -148,9 +167,13 @@ class GitHubAPI:
             _LOGGER.error(ex)
         return None
 
-    async def download_file(self, download_url: str) -> bytes | None:
+    async def download_file(
+        self, download_url: str, data_as_text: bool = False
+    ) -> bytes | None:
         """Download file."""
-        if file_data := await self._rest_request(download_url):
+        if file_data := await self._rest_request(
+            download_url, data_as_text=data_as_text
+        ):
             return file_data
         _LOGGER.debug("Failed to download file")
         return None
@@ -203,6 +226,25 @@ class DownloadManager:
         else:
             return False
 
+    async def get_dashboard_version(self) -> str | None:
+        """Get dashboard version from repo."""
+        dashboard_url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{GITHUB_PATH}/{DASHBOARD_DIR}/{DASHBOARD_DIR}.yaml"
+        dashboard_data = await self.github.download_file(
+            dashboard_url, data_as_text=True
+        )
+        if dashboard_data:
+            try:
+                # Parse yaml string to json
+                dashboard_data = parse_yaml(dashboard_data)
+                if variables := get_key(
+                    "button_card_templates.variable_template.variables",
+                    dashboard_data,
+                ):
+                    return variables.get("dashboardversion", "0.0.0")
+            except KeyError:
+                _LOGGER.debug("Dashboard version not found")
+        return "0.0.0"
+
     async def download_dashboard(self):
         """Download dashboard file."""
         # Ensure download to path exists
@@ -213,6 +255,22 @@ class DownloadManager:
         if await self.github.get_dir_listing(dir_url):
             # Download view files
             await self._download_dir(dir_url, base)
+
+    async def get_view_version(self, view: str) -> str | None:
+        """Get dashboard version from repo."""
+        view_url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{GITHUB_PATH}/{VIEWS_DIR}/{view}/{view}.yaml"
+        view_data = await self.github.download_file(view_url, data_as_text=True)
+        # Parse yaml string to json
+        view_data = parse_yaml(view_data)
+        if view_data:
+            try:
+                if variables := view_data.get("variables"):
+                    return variables.get(
+                        f"{view}version", variables.get(f"{view}cardversion", "0.0.0")
+                    )
+            except KeyError:
+                _LOGGER.debug("Dashboard version not found")
+        return "0.0.0"
 
     async def download_view(
         self,
@@ -242,6 +300,45 @@ class DownloadManager:
         return False
 
 
+class DashboardManagerStorage:
+    """Class to manager timer store."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialise."""
+        self.hass = hass
+        self.data: dict[str, Any] = {}
+        self.store = Store(hass, 1, f"{DOMAIN}.dashboard")
+
+    async def _save(self):
+        """Save store."""
+        self.data["last_updated"] = dt_util.now().isoformat()
+        await self.store.async_save(self.data)
+
+    async def load(self, force: bool = False):
+        """Load dashboard data from store."""
+        if self.data and not force:
+            return self.data
+        try:
+            if data := await self.store.async_load():
+                self.data = data
+            else:
+                self.data = {}
+        except Exception as ex:  # noqa: BLE001
+            _LOGGER.error("Error loading dashboard store. Error is %s", ex)
+            self.data = {}
+        return self.data
+
+    async def update_dashboard(self, data: dict[str, Any]):
+        """Update store."""
+        self.data["dashboard"] = data
+        await self._save()
+
+    async def update_views(self, data: dict[str, Any]):
+        """Update store."""
+        self.data["views"] = data
+        await self._save()
+
+
 class DashboardManager:
     """Class to manage VA dashboard and views."""
 
@@ -250,12 +347,24 @@ class DashboardManager:
         self.hass = hass
         self.config = config
         self.download_manager = DownloadManager(hass)
+        self.store = DashboardManagerStorage(hass)
         self.build_mode: bool = False
 
         # Experimental - listen for dashboard change and write out changes
         config.async_on_unload(
             hass.bus.async_listen(EVENT_LOVELACE_UPDATED, self._dashboard_changed)
         )
+
+        # Experimental - schedule update of dashboard view versions
+        if self.config.runtime_data.integration.enable_updates:
+            async_at_started(hass, self._update_dashboard_view_versions)
+            config.async_on_unload(
+                async_track_time_interval(
+                    hass,
+                    self._update_dashboard_view_versions,
+                    timedelta(minutes=VERSION_CHECK_INTERVAL),
+                )
+            )
 
     async def _save_to_yaml_file(
         self,
@@ -337,6 +446,9 @@ class DashboardManager:
         if self.build_mode:
             return
 
+        _LOGGER.debug("Dashboard version - %s", await self.get_dashboard_version())
+        _LOGGER.debug("Installed views - %s", await self.get_installed_views())
+
         if event.data["url_path"] == self.dashboard_key:
             try:
                 lovelace: LovelaceData = self.hass.data["lovelace"]
@@ -400,6 +512,11 @@ class DashboardManager:
         # download dashboard - no backup
         if download_from_repo:
             await self.download_manager.download_dashboard()
+            async_dispatcher_send(
+                self.hass,
+                VA_VIEW_DOWNLOAD_PROGRESS,
+                {"view": "dashboard", "progress": 33},
+            )
 
         # Apply new dashboard to HA
         base = self.hass.config.path(DOMAIN)
@@ -427,7 +544,31 @@ class DashboardManager:
                 # Apply
                 self.build_mode = True
                 await dashboard_store.async_save(updated_dashboard_config)
+                async_dispatcher_send(
+                    self.hass,
+                    VA_VIEW_DOWNLOAD_PROGRESS,
+                    {"view": "dashboard", "progress": 66},
+                )
                 await self._apply_user_dashboard_changes()
+                async_dispatcher_send(
+                    self.hass,
+                    VA_VIEW_DOWNLOAD_PROGRESS,
+                    {"view": "dashboard", "progress": 90},
+                )
+
+                # Update installed version info
+                if self.config.runtime_data.integration.enable_updates:
+                    dashboard_info = {
+                        "installed": await self.get_dashboard_version(),
+                        "latest": await self.download_manager.get_dashboard_version(),
+                    }
+                    await self.store.update_dashboard(dashboard_info)
+
+                async_dispatcher_send(
+                    self.hass,
+                    VA_VIEW_DOWNLOAD_PROGRESS,
+                    {"view": "dashboard", "progress": 100},
+                )
                 self.build_mode = False
 
     async def _compare_dashboard_to_master(
@@ -480,6 +621,92 @@ class DashboardManager:
                 updated_dashboard = dictdiff.patch(user_changes, dashboard_config)
                 await dashboard_store.async_save(updated_dashboard)
 
+    async def get_dashboard_version(self) -> str | None:
+        """Get the version of the dashboard."""
+        # Get lovelace (frontend) config data
+        lovelace: LovelaceData = self.hass.data["lovelace"]
+
+        # Get access to dashboard store
+        dashboard_store: dashboard.LovelaceStorage = lovelace.dashboards.get(
+            self.dashboard_key
+        )
+
+        # Load dashboard config data
+        if dashboard_store:
+            if dashboard_config := await dashboard_store.async_load(False):
+                try:
+                    if variables := get_key(
+                        "button_card_templates.variable_template.variables",
+                        dashboard_config,
+                    ):
+                        return variables.get("dashboardversion", "0.0.0")
+                except KeyError:
+                    _LOGGER.debug("Dashboard version not found")
+        return "0.0.0"
+
+    def get_view_version(self, view_name: str, view_dict: dict[str, Any]) -> str | None:
+        """Get the version of a view from view dict."""
+        try:
+            if cards := view_dict.get("cards"):
+                if variables := cards[0].get("variables"):
+                    # View variable can be in multiple formats
+                    if version := variables.get(f"{view_name}cardversion"):
+                        return version
+                    if version := variables.get(f"{view_name}version"):
+                        return version
+        except KeyError:
+            _LOGGER.debug("View version not found")
+        return "0.0.0"
+
+    async def get_installed_views(self) -> list[str]:
+        """Return list of views and version in dashboard."""
+        output = {}
+        lovelace: LovelaceData = self.hass.data["lovelace"]
+        dashboard_store: dashboard.LovelaceStorage = lovelace.dashboards.get(
+            self.dashboard_key
+        )
+        # Load dashboard config data
+        if dashboard_store:
+            dashboard_config = await dashboard_store.async_load(False)
+            for view in dashboard_config["views"]:
+                view_name = view.get("path")
+                if view_name not in output:
+                    output[view_name] = self.get_view_version(view_name, view)
+        return output
+
+    async def _update_dashboard_view_versions(
+        self, now: Event | None = None, force: bool = False
+    ):
+        """Update the version of the views in the dashboard."""
+        # check if last updated within last hour
+        data = await self.store.load()
+        if not force and data and "last_updated" in data:
+            last_updated = dt_util.parse_datetime(data["last_updated"])
+            if last_updated and dt_util.utcnow() - last_updated - timedelta(
+                seconds=30
+            ) < timedelta(minutes=VERSION_CHECK_INTERVAL):
+                return
+
+        _LOGGER.debug("Updating dashboard view versions")
+        # Dashboard
+        installed_dashboard = await self.get_dashboard_version()
+        if installed_dashboard:
+            latest_dashboard = await self.download_manager.get_dashboard_version()
+            await self.store.update_dashboard(
+                {"installed": installed_dashboard, "latest": latest_dashboard}
+            )
+
+        # Views
+        view_info: dict[str, Any] = {}
+        installed_views = await self.get_installed_views()
+        for view in installed_views:
+            latest_version = await self.download_manager.get_view_version(view)
+            view_info[view] = {
+                "installed": installed_views[view],
+                "latest": latest_version,
+            }
+        await self.store.update_views(view_info)
+
     async def view_exists(self, view: str) -> int:
         """Return index of view if view exists."""
         lovelace: LovelaceData = self.hass.data["lovelace"]
@@ -522,6 +749,9 @@ class DashboardManager:
             )
             if not result:
                 raise DashboardManagerException(f"Failed to download {name} view")
+            async_dispatcher_send(
+                self.hass, VA_VIEW_DOWNLOAD_PROGRESS, {"view": name, "progress": 33}
+            )
 
         # Install view from file.
         try:
@@ -543,6 +773,9 @@ class DashboardManager:
                 _LOGGER.debug("Loading view %s from %s", name, file)
                 new_view_config = await self.hass.async_add_executor_job(
                     load_yaml_dict, file
+                )
+                async_dispatcher_send(
+                    self.hass, VA_VIEW_DOWNLOAD_PROGRESS, {"view": name, "progress": 66}
                 )
             else:
                 raise DashboardManagerException(
@@ -594,6 +827,28 @@ class DashboardManager:
                 await dashboard_store.async_save(dashboard_config)
                 self.hass.bus.async_fire(EVENT_PANELS_UPDATED)
                 self.build_mode = False
+
+                # Update installed version info
+                if self.config.runtime_data.integration.enable_updates:
+                    views_info = self.store.data["views"]
+                    if name in views_info:
+                        views_info[name]["installed"] = self.get_view_version(
+                            name, new_view
+                        )
+                    else:
+                        views_info[name] = {
+                            "installed": self.get_view_version(name, new_view),
+                            "latest": await self.download_manager.get_view_version(
+                                name
+                            ),
+                        }
+                    await self.store.update_views(views_info)
+
+                async_dispatcher_send(
+                    self.hass,
+                    VA_VIEW_DOWNLOAD_PROGRESS,
+                    {"view": name, "progress": 100},
+                )
             return True
         return False
 

@@ -284,6 +284,13 @@ async def load_common_display_functions(hass: HomeAssistant, entry: VAConfigEntr
         hass.data[DOMAIN][DASHBOARD_MANAGER] = dm
         await dm.setup_dashboard()
 
+        # Request platform setup
+        if entry.runtime_data.integration.enable_updates:
+            _LOGGER.debug("Update notifications are enabled")
+            await hass.config_entries.async_forward_entry_setups(
+                entry, [Platform.UPDATE]
+            )
+
     async_at_started(hass, setup_frontend)
 
 
@@ -307,9 +314,9 @@ def set_runtime_data_for_config(  # noqa: C901
         attr: str, is_master: bool = False
     ) -> str | float | list | None:
         value = get_dn(attr, dict(config_entry.options))
-        if not value and not is_master:
+        if value is None and not is_master:
             value = get_dn(attr, dict(master_config_options))
-        if not value:
+        if value is None:
             value = get_dn(attr, DEFAULT_VALUES)
 
         # This is a fix for config lists being a string
@@ -344,6 +351,12 @@ def set_runtime_data_for_config(  # noqa: C901
         for attr in r.default.__dict__:
             if value := get_config_value(attr, is_master=True):
                 setattr(r.default, attr, value)
+
+        # Integration options
+        for attr in r.integration.__dict__:
+            value = get_config_value(attr, is_master=True)
+            if value is not None:
+                setattr(r.integration, attr, value)
 
         # Developer options
         for attr in r.developer_settings.__dict__:
@@ -402,6 +415,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: VAConfigEntry):
         _LOGGER.debug("Removing javascript modules cards")
         jsloader = JSModuleRegistration(hass)
         await jsloader.async_unregister()
+        await hass.config_entries.async_unload_platforms(entry, [Platform.UPDATE])
         return True
 
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

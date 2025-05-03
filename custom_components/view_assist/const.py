@@ -20,7 +20,6 @@ GITHUB_PATH = "View Assist dashboard and views"
 VIEWS_DIR = "views"
 COMMUNITY_VIEWS_DIR = "community_contributions"
 DASHBOARD_DIR = "dashboard"
-
 DASHBOARD_NAME = "View Assist"
 DEFAULT_VIEW = "clock"
 DEFAULT_VIEWS = [
@@ -58,6 +57,9 @@ JSMODULES = [
         "version": "1.0.10",
     },
 ]
+VERSION_CHECK_INTERVAL = (
+    120  # mins between checks for updated versions of dashboard and views
+)
 
 
 class VAMode(StrEnum):
@@ -113,7 +115,7 @@ CONF_USE_ANNOUNCE = "use_announce"
 CONF_MIC_UNMUTE = "micunmute"
 CONF_DUCKING_VOLUME = "ducking_volume"
 
-
+CONF_ENABLE_UPDATES = "enable_updates"
 CONF_DEVELOPER_DEVICE = "developer_device"
 CONF_DEVELOPER_MIMIC_DEVICE = "developer_mimic_device"
 
@@ -157,6 +159,8 @@ DEFAULT_VALUES = {
     CONF_USE_ANNOUNCE: "off",
     CONF_MIC_UNMUTE: "off",
     CONF_DUCKING_VOLUME: 2,
+    # Default integration options
+    CONF_ENABLE_UPDATES: True,
     # Default developer otions
     CONF_DEVELOPER_DEVICE: "",
     CONF_DEVELOPER_MIMIC_DEVICE: "",
@@ -187,6 +191,7 @@ ATTR_MAX_REPEATS = "max_repeats"
 
 VA_ATTRIBUTE_UPDATE_EVENT = "va_attr_update_event_{}"
 VA_BACKGROUND_UPDATE_EVENT = "va_background_update_{}"
+VA_VIEW_DOWNLOAD_PROGRESS = "va_view_download_progress"
 CC_CONVERSATION_ENDED_EVENT = f"{CUSTOM_CONVERSATION_DOMAIN}_conversation_ended"
 
 
