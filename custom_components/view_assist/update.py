@@ -164,7 +164,8 @@ class VAUpdateEntity(UpdateEntity):
     @callback
     def _update_download_progress(self, data: dict) -> None:
         """Update the download progress."""
-        if data["view"] != self.view:
-            return
-        self._attr_in_progress = data["progress"]
-        self.async_write_ha_state()
+        if data["view"] == self.view:
+            self._attr_in_progress = data["progress"]
+            self.async_write_ha_state()
+        elif data["view"] == "all":
+            self.schedule_update_ha_state(force_refresh=True)
