@@ -227,6 +227,10 @@ class VAServices:
             schema=DASHVIEW_SERVICE_SCHEMA,
         )
 
+        self.hass.services.async_register(
+            DOMAIN, "update_versions", self.async_handle_update_versions
+        )
+
     # -----------------------------------------------------------------------
     # Get Target Satellite
     # Used to determine which VA satellite is being used based on its microphone device
@@ -421,5 +425,13 @@ class VAServices:
         dm: DashboardManager = self.hass.data[DOMAIN][DASHBOARD_MANAGER]
         try:
             await dm.save_view(view_name)
+        except (DownloadManagerException, DashboardManagerException) as ex:
+            raise HomeAssistantError(ex) from ex
+
+    async def async_handle_update_versions(self, call: ServiceCall):
+        """Handle update of the view versions."""
+        dm: DashboardManager = self.hass.data[DOMAIN][DASHBOARD_MANAGER]
+        try:
+            await dm.update_dashboard_view_versions(force=True)
         except (DownloadManagerException, DashboardManagerException) as ex:
             raise HomeAssistantError(ex) from ex

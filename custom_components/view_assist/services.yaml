@@ -249,3 +249,6 @@ save_view:
       required: true
       selector:
         text:
+update_versions:
+  name: "Update version info"
+  description: "Get the latest version info of the dashboard and views from the github repo"

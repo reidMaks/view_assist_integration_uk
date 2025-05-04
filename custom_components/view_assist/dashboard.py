@@ -357,11 +357,11 @@ class DashboardManager:
 
         # Experimental - schedule update of dashboard view versions
         if self.config.runtime_data.integration.enable_updates:
-            async_at_started(hass, self._update_dashboard_view_versions)
+            async_at_started(hass, self.update_dashboard_view_versions)
             config.async_on_unload(
                 async_track_time_interval(
                     hass,
-                    self._update_dashboard_view_versions,
+                    self.update_dashboard_view_versions,
                     timedelta(minutes=VERSION_CHECK_INTERVAL),
                 )
             )
@@ -674,7 +674,7 @@ class DashboardManager:
                     output[view_name] = self.get_view_version(view_name, view)
         return output
 
-    async def _update_dashboard_view_versions(
+    async def update_dashboard_view_versions(
         self, now: Event | None = None, force: bool = False
     ):
         """Update the version of the views in the dashboard."""
@@ -706,6 +706,14 @@ class DashboardManager:
                 "latest": latest_version,
             }
         await self.store.update_views(view_info)
+
+        if force:
+            # Fire refresh event
+            async_dispatcher_send(
+                self.hass,
+                VA_VIEW_DOWNLOAD_PROGRESS,
+                {"view": "all"},
+            )
 
     async def view_exists(self, view: str) -> int:
         """Return index of view if view exists."""
