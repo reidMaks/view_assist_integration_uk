@@ -81,13 +81,15 @@
           "dashboard": "Dashboard",
           "home": "Home screen",
           "music": "Music view",
-          "intent": "Intent view"
+          "intent": "Intent view",
+          "list_view": "List view"
         },
         "data_description": {
           "dashboard": "The base dashboard for View Assist (do not include trailing slash)",
           "home": "The screen to return to after timeout",
           "music": "The view to return to when in music mode",
-          "intent": "The view to display for default HA actions for displaying those entities"
+          "intent": "The view to display for default HA actions for displaying those entities",
+          "list_view": "The view to display when updating a list"
         },
         "sections": {
           "background_settings": {
