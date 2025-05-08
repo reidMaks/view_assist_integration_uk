@@ -18,6 +18,7 @@ from .const import (
     CONF_STATUS_ICONS,
     DEFAULT_VALUES,
     DOMAIN,
+    VAMode,
 )
 from .helpers import (
     arrange_status_icons,
@@ -169,6 +170,32 @@ class MenuManager:
 
         return default
 
+    def _refresh_system_icons(self, entity_id: str, menu_state: MenuState) -> list[str]:
+        """Refresh system icons from current entity state."""
+        state = self.hass.states.get(entity_id)
+        if not state:
+            return menu_state.system_icons
+
+        modes = [VAMode.HOLD, VAMode.CYCLE]
+
+        # Get current status_icons excluding menu items and mode icons
+        current_status_icons = state.attributes.get(CONF_STATUS_ICONS, [])
+        system_icons = [
+            icon
+            for icon in current_status_icons
+            if icon not in menu_state.configured_items 
+            and icon != "menu"
+            and icon not in modes
+        ]
+
+        # Add current mode if it exists
+        current_mode = state.attributes.get("mode")
+        if current_mode in modes and current_mode not in system_icons:
+            system_icons.append(current_mode)
+
+        menu_state.system_icons = system_icons
+        return system_icons
+
     async def toggle_menu(
         self, entity_id: str, show: bool | None = None, timeout: int | None = None
     ) -> None:
@@ -208,14 +235,8 @@ class MenuManager:
         # Check if menu button should be shown
         show_menu_button = menu_config == VAMenuConfig.ENABLED_VISIBLE
 
-        # Update system icons from current status
-        current_status_icons = state.attributes.get(CONF_STATUS_ICONS, [])
-        system_icons = [
-            icon
-            for icon in current_status_icons
-            if icon not in menu_state.configured_items and icon != "menu"
-        ]
-        menu_state.system_icons = system_icons
+        # Always refresh system icons to ensure we have latest state
+        system_icons = self._refresh_system_icons(entity_id, menu_state)
 
         # Apply the menu state change
         changes = {}
@@ -301,7 +322,7 @@ class MenuManager:
 
             for item in items:
                 if item not in updated_items:
-                    updated_items.insert(0, item)
+                    updated_items.append(item)
                     changed = True
 
             if changed:
@@ -533,7 +554,7 @@ class MenuManager:
                             )
                         except Exception as err:  # noqa: BLE001
                             _LOGGER.error("Error updating %s: %s",
-                                          entity_id, str(err))
+                                            entity_id, str(err))
 
         except asyncio.CancelledError:
             pass
