@@ -10,7 +10,7 @@ from homeassistant.components.media_player import DOMAIN as MEDIAPLAYER_DOMAIN
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.weather import DOMAIN as WEATHER_DOMAIN
 from homeassistant.config_entries import ConfigFlow, OptionsFlow
-from homeassistant.const import CONF_MODE, CONF_NAME, CONF_TYPE
+from homeassistant.const import CONF_MODE, CONF_NAME, CONF_TYPE, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import SectionConfig, section
 from homeassistant.helpers.selector import (
@@ -44,6 +44,7 @@ from .const import (
     CONF_HOME,
     CONF_INTENT,
     CONF_INTENT_DEVICE,
+    CONF_LIST,
     CONF_MEDIAPLAYER_DEVICE,
     CONF_MIC_DEVICE,
     CONF_MIC_UNMUTE,
@@ -178,6 +179,7 @@ def get_dashboard_options_schema(config_entry: VAConfigEntry | None) -> vol.Sche
         vol.Optional(CONF_HOME): str,
         vol.Optional(CONF_MUSIC): str,
         vol.Optional(CONF_INTENT): str,
+        vol.Optional(CONF_LIST): str,
     }
     BACKGROUND_SETTINGS = {
         vol.Optional(CONF_BACKGROUND_MODE): SelectSelector(
@@ -304,7 +306,7 @@ def get_developer_options_schema(
                 )
             ),
             vol.Optional(CONF_DEVELOPER_MIMIC_DEVICE): EntitySelector(
-                EntitySelectorConfig(integration=DOMAIN)
+                EntitySelectorConfig(integration=DOMAIN, domain=Platform.SENSOR)
             ),
         }
     )

@@ -92,6 +92,7 @@ CONF_INTENT_DEVICE = "intent_device"
 CONF_DASHBOARD = "dashboard"
 CONF_HOME = "home"
 CONF_INTENT = "intent"
+CONF_LIST = "list_view"
 CONF_MUSIC = "music"
 CONF_BACKGROUND_SETTINGS = "background_settings"
 CONF_BACKGROUND_MODE = "background_mode"
@@ -136,6 +137,7 @@ DEFAULT_VALUES = {
     CONF_HOME: "/view-assist/clock",
     CONF_MUSIC: "/view-assist/music",
     CONF_INTENT: "/view-assist/intent",
+    CONF_LIST: "/view-assist/list",
     CONF_BACKGROUND_SETTINGS: {
         CONF_BACKGROUND_MODE: VABackgroundMode.DEFAULT_BACKGROUND,
         CONF_BACKGROUND: "/view_assist/dashboard/background.jpg",
