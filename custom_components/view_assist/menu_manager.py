@@ -259,7 +259,7 @@ class MenuManager:
                     VAEvent("menu_update", {"menu_active": show}),
                 )
 
-    async def add_menu_item(
+    async def add_status_item(
         self,
         entity_id: str,
         status_item: StatusItemType,
@@ -343,7 +343,7 @@ class MenuManager:
             for item in items:
                 await self._setup_item_timeout(entity_id, item, timeout, menu)
 
-    async def remove_menu_item(
+    async def remove_status_item(
         self, entity_id: str, status_item: StatusItemType, from_menu: bool = False
     ) -> None:
         """Remove status item(s) from the entity's status icons or menu items."""
@@ -474,7 +474,7 @@ class MenuManager:
         async def _item_timeout_task() -> None:
             try:
                 await asyncio.sleep(timeout)
-                await self.remove_menu_item(entity_id, menu_item, is_menu_item)
+                await self.remove_status_item(entity_id, menu_item, is_menu_item)
             except asyncio.CancelledError:
                 pass
 
