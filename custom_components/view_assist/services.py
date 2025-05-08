@@ -505,7 +505,7 @@ class VAServices:
             return
 
         menu_manager = self.hass.data[DOMAIN]["menu_manager"]
-        await menu_manager.add_menu_item(entity_id, status_items, menu, timeout)
+        await menu_manager.add_status_item(entity_id, status_items, menu, timeout)
 
     async def async_handle_remove_status_item(self, call: ServiceCall):
         """Handle remove status item service call."""
@@ -524,7 +524,7 @@ class VAServices:
             return
 
         menu_manager = self.hass.data[DOMAIN]["menu_manager"]
-        await menu_manager.remove_menu_item(entity_id, status_items, menu)
+        await menu_manager.remove_status_item(entity_id, status_items, menu)
 
     def _process_status_item_input(self, raw_input: Any) -> str | list[str] | None:
         """Process and validate status item input."""
