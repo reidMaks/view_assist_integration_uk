@@ -450,9 +450,6 @@ class MenuManager:
         try:
             new_options = dict(config_entry.options)
 
-            if option_key == CONF_MENU_ITEMS:
-                value.reverse()
-
             new_options[option_key] = value
             self.hass.config_entries.async_update_entry(
                 config_entry, options=new_options
