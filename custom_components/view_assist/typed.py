@@ -74,6 +74,13 @@ class VAMenuConfig(StrEnum):
 
 
 @dataclass
+class IntegrationConfig:
+    """Class to hold integration config data."""
+
+    enable_updates: bool = True
+
+
+@dataclass
 class DeviceCoreConfig:
     """Class to hold core config data."""
 
@@ -121,6 +128,7 @@ class DashboardConfig:
     home: str | None = None
     music: str | None = None
     intent: str | None = None
+    list_view: str | None = None
     background_settings: BackgroundConfig = field(default_factory=BackgroundConfig)
     display_settings: DisplayConfig = field(default_factory=DisplayConfig)
 
@@ -135,6 +143,7 @@ class DefaultConfig:
     do_not_disturb: bool | None = None
     use_announce: bool | None = None
     mic_unmute: bool | None = None
+    ducking_volume: int | None = None
 
 
 @dataclass
@@ -150,6 +159,7 @@ class MasterConfigRuntimeData:
 
     def __init__(self) -> None:
         """Initialize runtime data."""
+        self.integration: IntegrationConfig = IntegrationConfig()
         self.dashboard: DashboardConfig = DashboardConfig()
         self.default: DefaultConfig = DefaultConfig()
         self.developer_settings: DeveloperConfig = DeveloperConfig()

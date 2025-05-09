@@ -21,7 +21,6 @@ GITHUB_PATH = "View Assist dashboard and views"
 VIEWS_DIR = "views"
 COMMUNITY_VIEWS_DIR = "community_contributions"
 DASHBOARD_DIR = "dashboard"
-
 DASHBOARD_NAME = "View Assist"
 DEFAULT_VIEW = "clock"
 DEFAULT_VIEWS = [
@@ -44,6 +43,7 @@ CYCLE_VIEWS = ["music", "info", "weather", "clock"]
 BROWSERMOD_DOMAIN = "browser_mod"
 REMOTE_ASSIST_DISPLAY_DOMAIN = "remote_assist_display"
 CUSTOM_CONVERSATION_DOMAIN = "custom_conversation"
+HASSMIC_DOMAIN = "hassmic"
 USE_VA_NAVIGATION_FOR_BROWSERMOD = True
 
 IMAGE_PATH = "images"
@@ -58,6 +58,9 @@ JSMODULES = [
         "version": "1.0.10",
     },
 ]
+VERSION_CHECK_INTERVAL = (
+    120  # mins between checks for updated versions of dashboard and views
+)
 
 
 class VAMode(StrEnum):
@@ -90,6 +93,7 @@ CONF_INTENT_DEVICE = "intent_device"
 CONF_DASHBOARD = "dashboard"
 CONF_HOME = "home"
 CONF_INTENT = "intent"
+CONF_LIST = "list_view"
 CONF_MUSIC = "music"
 CONF_BACKGROUND_SETTINGS = "background_settings"
 CONF_BACKGROUND_MODE = "background_mode"
@@ -114,8 +118,9 @@ CONF_VIEW_TIMEOUT = "view_timeout"
 CONF_DO_NOT_DISTURB = "do_not_disturb"
 CONF_USE_ANNOUNCE = "use_announce"
 CONF_MIC_UNMUTE = "micunmute"
+CONF_DUCKING_VOLUME = "ducking_volume"
 
-
+CONF_ENABLE_UPDATES = "enable_updates"
 CONF_DEVELOPER_DEVICE = "developer_device"
 CONF_DEVELOPER_MIMIC_DEVICE = "developer_mimic_device"
 
@@ -136,6 +141,7 @@ DEFAULT_VALUES = {
     CONF_HOME: "/view-assist/clock",
     CONF_MUSIC: "/view-assist/music",
     CONF_INTENT: "/view-assist/intent",
+    CONF_LIST: "/view-assist/list",
     CONF_BACKGROUND_SETTINGS: {
         CONF_BACKGROUND_MODE: VABackgroundMode.DEFAULT_BACKGROUND,
         CONF_BACKGROUND: "/view_assist/dashboard/background.jpg",
@@ -161,6 +167,9 @@ DEFAULT_VALUES = {
     CONF_DO_NOT_DISTURB: "off",
     CONF_USE_ANNOUNCE: "off",
     CONF_MIC_UNMUTE: "off",
+    CONF_DUCKING_VOLUME: 2,
+    # Default integration options
+    CONF_ENABLE_UPDATES: True,
     # Default developer otions
     CONF_DEVELOPER_DEVICE: "",
     CONF_DEVELOPER_MIMIC_DEVICE: "",
@@ -191,6 +200,7 @@ ATTR_MAX_REPEATS = "max_repeats"
 
 VA_ATTRIBUTE_UPDATE_EVENT = "va_attr_update_event_{}"
 VA_BACKGROUND_UPDATE_EVENT = "va_background_update_{}"
+VA_VIEW_DOWNLOAD_PROGRESS = "va_view_download_progress"
 CC_CONVERSATION_ENDED_EVENT = f"{CUSTOM_CONVERSATION_DOMAIN}_conversation_ended"
 
 

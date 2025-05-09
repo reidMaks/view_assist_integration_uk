@@ -272,6 +272,7 @@ class VAServices:
             "remove_status_item",
             self.async_handle_remove_status_item,
             schema=REMOVE_STATUS_ITEM_SERVICE_SCHEMA,
+            DOMAIN, "update_versions", self.async_handle_update_versions
         )
 
     # -----------------------------------------------------------------------
@@ -531,3 +532,12 @@ class VAServices:
         from .helpers import normalize_status_items
 
         return normalize_status_items(raw_input)
+
+    async def async_handle_update_versions(self, call: ServiceCall):
+        """Handle update of the view versions."""
+        dm: DashboardManager = self.hass.data[DOMAIN][DASHBOARD_MANAGER]
+        try:
+            await dm.update_dashboard_view_versions(force=True)
+        except (DownloadManagerException, DashboardManagerException) as ex:
+            raise HomeAssistantError(ex) from ex
+
