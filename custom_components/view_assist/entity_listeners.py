@@ -6,8 +6,6 @@ from datetime import datetime as dt
 import logging
 import random
 
-from homeassistant.components.assist_satellite.entity import AssistSatelliteState
-from homeassistant.components.media_player import MediaPlayerState
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_MODE
 from homeassistant.core import (
@@ -32,7 +30,6 @@ from .const import (
     CYCLE_VIEWS,
     DEFAULT_VIEW_INFO,
     DOMAIN,
-    HASSMIC_DOMAIN,
     REMOTE_ASSIST_DISPLAY_DOMAIN,
     USE_VA_NAVIGATION_FOR_BROWSERMOD,
     VA_ATTRIBUTE_UPDATE_EVENT,
@@ -41,13 +38,12 @@ from .const import (
 )
 from .helpers import (
     async_get_download_image,
+    async_get_filesystem_images,
     ensure_menu_button_at_end,
-    get_config_entry_by_entity_id,
     get_device_name_from_id,
     get_display_type_from_browser_id,
     get_entity_attribute,
     get_entity_id_from_conversation_device_id,
-    get_hassmic_pipeline_status_entity_id,
     get_key,
     get_mute_switch_entity_id,
     get_revert_settings_for_mode,
@@ -72,7 +68,10 @@ class EntityListeners:
         self.cycle_view_task: Task | None = None
         self.rotate_background_task: Task | None = None
 
-        self.music_player_volume: float | None = None
+        # Add microphone mute switch listener
+        mute_switch = get_mute_switch_entity_id(
+            hass, config_entry.runtime_data.core.mic_device
+        )
 
         # Add browser navigate service listener
         config_entry.async_on_unload(
@@ -91,37 +90,7 @@ class EntityListeners:
             )
         )
 
-        # Add mic device/wake word entity listening listner for volume ducking
-        if config_entry.runtime_data.default.ducking_volume is not None:
-            mic_integration = get_config_entry_by_entity_id(
-                self.hass, self.config_entry.runtime_data.core.mic_device
-            ).domain
-            if mic_integration == HASSMIC_DOMAIN:
-                entity_id = get_hassmic_pipeline_status_entity_id(
-                    hass, self.config_entry.runtime_data.core.mic_device
-                )
-            else:
-                entity_id = self.config_entry.runtime_data.core.mic_device
-
-            if entity_id:
-                _LOGGER.debug("Listening for mic device %s", entity_id)
-                config_entry.async_on_unload(
-                    async_track_state_change_event(
-                        hass,
-                        entity_id,
-                        self._async_on_mic_state_change,
-                    )
-                )
-            else:
-                _LOGGER.warning(
-                    "Unable to find entity for pipeline status for %s",
-                    self.config_entry.runtime_data.core.mic_device,
-                )
-
-        # Add microphone mute switch listener
-        mute_switch = get_mute_switch_entity_id(
-            hass, config_entry.runtime_data.core.mic_device
-        )
+        # Add mic mute switch listener
         if mute_switch:
             config_entry.async_on_unload(
                 async_track_state_change_event(
@@ -448,96 +417,6 @@ class EntityListeners:
     # Actions for monitoring changes to external entities
     # ---------------------------------------------------------------------------------------
 
-    async def _async_on_mic_state_change(
-        self, event: Event[EventStateChangedData]
-    ) -> None:
-        """Handle mic state change event for volume ducking."""
-
-        # If not change to mic state, exit function
-        if (
-            not event.data.get("old_state")
-            or event.data["old_state"].state == event.data["new_state"].state
-        ):
-            return
-
-        music_player_entity_id = self.config_entry.runtime_data.core.musicplayer_device
-        mic_integration = get_config_entry_by_entity_id(
-            self.hass, self.config_entry.runtime_data.core.mic_device
-        ).domain
-        music_player_integration = get_config_entry_by_entity_id(
-            self.hass, music_player_entity_id
-        ).domain
-
-        _LOGGER.debug(
-            "Mic state change: %s: %s->%s",
-            mic_integration,
-            event.data["old_state"].state,
-            event.data["new_state"].state,
-        )
-
-        if mic_integration == "esphome" and music_player_integration == "esphome":
-            # HA VPE already supports volume ducking
-            return
-
-        if (
-            self.hass.states.get(music_player_entity_id).state
-            != MediaPlayerState.PLAYING
-        ):
-            return
-
-        old_state = event.data["old_state"].state
-        new_state = event.data["new_state"].state
-        ducking_volume = self.config_entry.runtime_data.default.ducking_volume / 100
-
-        if (mic_integration == HASSMIC_DOMAIN and old_state == "wake_word-start") or (
-            mic_integration != HASSMIC_DOMAIN
-            and new_state == AssistSatelliteState.LISTENING
-        ):
-            if music_player_volume := self.hass.states.get(
-                music_player_entity_id
-            ).attributes.get("volume_level"):
-                self.music_player_volume = music_player_volume
-
-                if self.hass.states.get(music_player_entity_id):
-                    if music_player_volume > ducking_volume:
-                        _LOGGER.debug("Ducking music player volume: %s", ducking_volume)
-                        await self.hass.services.async_call(
-                            "media_player",
-                            "volume_set",
-                            {
-                                "entity_id": music_player_entity_id,
-                                "volume_level": ducking_volume,
-                            },
-                        )
-        elif (
-            (mic_integration == HASSMIC_DOMAIN and new_state == "wake_word-start")
-            or (
-                mic_integration != HASSMIC_DOMAIN
-                and new_state == AssistSatelliteState.IDLE
-            )
-        ) and self.music_player_volume is not None:
-            if self.hass.states.get(music_player_entity_id):
-                await asyncio.sleep(2)
-                _LOGGER.debug(
-                    "Restoring music player volume: %s", self.music_player_volume
-                )
-                # Restore gradually to avoid sudden volume change
-                for i in range(1, 11):
-                    volume = min(self.music_player_volume, ducking_volume + (i * 0.1))
-                    await self.hass.services.async_call(
-                        "media_player",
-                        "volume_set",
-                        {
-                            "entity_id": music_player_entity_id,
-                            "volume_level": volume,
-                        },
-                        blocking=True,
-                    )
-                    if volume == self.music_player_volume:
-                        break
-                    await asyncio.sleep(0.25)
-                self.music_player_volume = None
-
     @callback
     def _async_on_mic_change(self, event: Event[EventStateChangedData]) -> None:
         mic_mute_new_state = event.data["new_state"].state
@@ -669,16 +548,6 @@ class EntityListeners:
                 for entity in filtered_list
             ]
 
-            todo_entities = (
-                [
-                    item["id"]
-                    for item in changed_entities
-                    if item.get("id", "").startswith("todo")
-                ]
-                if changed_entities
-                else []
-            )
-
             # Check to make sure filtered_entities is not empty before proceeding
             if filtered_entities:
                 await self.hass.services.async_call(
@@ -692,21 +561,6 @@ class EntityListeners:
                 await self.async_browser_navigate(
                     self.config_entry.runtime_data.dashboard.intent
                 )
-            # If there are no filtered entities but there is a todo entity, show the list view
-            elif todo_entities:
-                await self.hass.services.async_call(
-                    DOMAIN,
-                    "set_state",
-                    service_data={
-                        "entity_id": entity_id,
-                        # If there are somehow multiple affected lists, just use the first one
-                        "list": todo_entities[0],
-                    },
-                )
-                await self.async_browser_navigate(
-                    self.config_entry.runtime_data.dashboard.list_view
-                )
-
             else:
                 word_count = len(speech_text.split())
                 message_font_size = ["10vw", "8vw", "6vw", "4vw"][
