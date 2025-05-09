@@ -3,7 +3,7 @@
 from asyncio import TimerHandle
 import json
 import logging
-from typing import Any, Union, List, Optional, Callable, cast
+from typing import Any
 
 import voluptuous as vol
 
@@ -52,8 +52,6 @@ from .timers import TIMERS, VATimers, decode_time_sentence
 from .typed import VAConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
-
-StatusItemType = Union[str, List[str]]
 
 
 NAVIGATE_SERVICE_SCHEMA = vol.Schema(
@@ -166,6 +164,7 @@ REMOVE_STATUS_ITEM_SERVICE_SCHEMA = vol.Schema(
         vol.Optional("menu", default=False): cv.boolean,
     }
 )
+
 
 class VAServices:
     """Class to manage services."""
@@ -484,7 +483,7 @@ class VAServices:
 
         show = call.data.get("show", True)
         timeout = call.data.get("timeout")
-        
+
         menu_manager = self.hass.data[DOMAIN]["menu_manager"]
         await menu_manager.toggle_menu(entity_id, show, timeout=timeout)
 
@@ -492,26 +491,28 @@ class VAServices:
         """Handle add status item service call."""
         entity_id = call.data.get(ATTR_ENTITY_ID)
         if not entity_id:
-            _LOGGER.error("No entity_id provided in add_status_item service call")
+            _LOGGER.error(
+                "No entity_id provided in add_status_item service call")
             return
 
         raw_status_item = call.data.get("status_item")
         menu = call.data.get("menu", False)
         timeout = call.data.get("timeout")
-        
+
         status_items = self._process_status_item_input(raw_status_item)
         if not status_items:
             _LOGGER.error("Invalid or empty status_item provided")
             return
 
         menu_manager = self.hass.data[DOMAIN]["menu_manager"]
-        await menu_manager.add_menu_item(entity_id, status_items, menu, timeout)
+        await menu_manager.add_status_item(entity_id, status_items, menu, timeout)
 
     async def async_handle_remove_status_item(self, call: ServiceCall):
         """Handle remove status item service call."""
         entity_id = call.data.get(ATTR_ENTITY_ID)
         if not entity_id:
-            _LOGGER.error("No entity_id provided in remove_status_item service call")
+            _LOGGER.error(
+                "No entity_id provided in remove_status_item service call")
             return
 
         raw_status_item = call.data.get("status_item")
@@ -523,9 +524,10 @@ class VAServices:
             return
 
         menu_manager = self.hass.data[DOMAIN]["menu_manager"]
-        await menu_manager.remove_menu_item(entity_id, status_items, menu)
+        await menu_manager.remove_status_item(entity_id, status_items, menu)
 
-    def _process_status_item_input(self, raw_input: Any) -> Optional[StatusItemType]:
+    def _process_status_item_input(self, raw_input: Any) -> str | list[str] | None:
         """Process and validate status item input."""
         from .helpers import normalize_status_items
+
         return normalize_status_items(raw_input)
