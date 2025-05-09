@@ -272,6 +272,9 @@ class VAServices:
             "remove_status_item",
             self.async_handle_remove_status_item,
             schema=REMOVE_STATUS_ITEM_SERVICE_SCHEMA,
+        )
+
+        self.hass.services.async_register(
             DOMAIN, "update_versions", self.async_handle_update_versions
         )
 
@@ -540,4 +543,3 @@ class VAServices:
             await dm.update_dashboard_view_versions(force=True)
         except (DownloadManagerException, DashboardManagerException) as ex:
             raise HomeAssistantError(ex) from ex
-
