@@ -8,6 +8,7 @@ from .typed import (
     VAAssistPrompt,
     VABackgroundMode,
     VAIconSizes,
+    VAMenuConfig,
     VAScreenMode,
     VATimeFormat,
 )
@@ -106,6 +107,9 @@ CONF_ASSIST_PROMPT = "assist_prompt"
 CONF_STATUS_ICON_SIZE = "status_icons_size"
 CONF_FONT_STYLE = "font_style"
 CONF_STATUS_ICONS = "status_icons"
+CONF_MENU_CONFIG = "menu_config"
+CONF_MENU_ITEMS = "menu_items"
+CONF_MENU_TIMEOUT = "menu_timeout"
 CONF_TIME_FORMAT = "time_format"
 CONF_SCREEN_MODE = "screen_mode"
 
@@ -150,6 +154,9 @@ DEFAULT_VALUES = {
         CONF_STATUS_ICON_SIZE: VAIconSizes.LARGE,
         CONF_FONT_STYLE: "Roboto",
         CONF_STATUS_ICONS: [],
+        CONF_MENU_CONFIG: VAMenuConfig.DISABLED,
+        CONF_MENU_ITEMS: ["home", "weather"],
+        CONF_MENU_TIMEOUT: 10,
         CONF_TIME_FORMAT: VATimeFormat.HOUR_12,
         CONF_SCREEN_MODE: VAScreenMode.HIDE_HEADER_SIDEBAR,
     },

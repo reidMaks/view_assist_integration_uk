@@ -1,7 +1,9 @@
 """Integration services."""
 
 from asyncio import TimerHandle
+import json
 import logging
+from typing import Any
 
 import voluptuous as vol
 
@@ -139,6 +141,30 @@ LOAD_DASHVIEW_SERVICE_SCHEMA = DASHVIEW_SERVICE_SCHEMA.extend(
     }
 )
 
+TOGGLE_MENU_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_id,
+        vol.Optional("show", default=True): cv.boolean,
+        vol.Optional("timeout"): vol.Any(int, None),
+    }
+)
+
+ADD_STATUS_ITEM_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_id,
+        vol.Required("status_item"): vol.Any(str, [str]),
+        vol.Optional("menu", default=False): cv.boolean,
+        vol.Optional("timeout"): vol.Any(int, None),
+    }
+)
+REMOVE_STATUS_ITEM_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_id,
+        vol.Required("status_item"): vol.Any(str, [str]),
+        vol.Optional("menu", default=False): cv.boolean,
+    }
+)
+
 
 class VAServices:
     """Class to manage services."""
@@ -225,6 +251,27 @@ class VAServices:
             "save_view",
             self.async_handle_save_view,
             schema=DASHVIEW_SERVICE_SCHEMA,
+        )
+
+        self.hass.services.async_register(
+            DOMAIN,
+            "toggle_menu",
+            self.async_handle_toggle_menu,
+            schema=TOGGLE_MENU_SERVICE_SCHEMA,
+        )
+
+        self.hass.services.async_register(
+            DOMAIN,
+            "add_status_item",
+            self.async_handle_add_status_item,
+            schema=ADD_STATUS_ITEM_SERVICE_SCHEMA,
+        )
+
+        self.hass.services.async_register(
+            DOMAIN,
+            "remove_status_item",
+            self.async_handle_remove_status_item,
+            schema=REMOVE_STATUS_ITEM_SERVICE_SCHEMA,
         )
 
         self.hass.services.async_register(
@@ -427,6 +474,67 @@ class VAServices:
             await dm.save_view(view_name)
         except (DownloadManagerException, DashboardManagerException) as ex:
             raise HomeAssistantError(ex) from ex
+
+    # ----------------------------------------------------------------
+    # MENU
+    # ----------------------------------------------------------------
+    async def async_handle_toggle_menu(self, call: ServiceCall):
+        """Handle toggle menu service call."""
+        entity_id = call.data.get(ATTR_ENTITY_ID)
+        if not entity_id:
+            _LOGGER.error("No entity_id provided in toggle_menu service call")
+            return
+
+        show = call.data.get("show", True)
+        timeout = call.data.get("timeout")
+
+        menu_manager = self.hass.data[DOMAIN]["menu_manager"]
+        await menu_manager.toggle_menu(entity_id, show, timeout=timeout)
+
+    async def async_handle_add_status_item(self, call: ServiceCall):
+        """Handle add status item service call."""
+        entity_id = call.data.get(ATTR_ENTITY_ID)
+        if not entity_id:
+            _LOGGER.error(
+                "No entity_id provided in add_status_item service call")
+            return
+
+        raw_status_item = call.data.get("status_item")
+        menu = call.data.get("menu", False)
+        timeout = call.data.get("timeout")
+
+        status_items = self._process_status_item_input(raw_status_item)
+        if not status_items:
+            _LOGGER.error("Invalid or empty status_item provided")
+            return
+
+        menu_manager = self.hass.data[DOMAIN]["menu_manager"]
+        await menu_manager.add_status_item(entity_id, status_items, menu, timeout)
+
+    async def async_handle_remove_status_item(self, call: ServiceCall):
+        """Handle remove status item service call."""
+        entity_id = call.data.get(ATTR_ENTITY_ID)
+        if not entity_id:
+            _LOGGER.error(
+                "No entity_id provided in remove_status_item service call")
+            return
+
+        raw_status_item = call.data.get("status_item")
+        menu = call.data.get("menu", False)
+
+        status_items = self._process_status_item_input(raw_status_item)
+        if not status_items:
+            _LOGGER.error("Invalid or empty status_item provided")
+            return
+
+        menu_manager = self.hass.data[DOMAIN]["menu_manager"]
+        await menu_manager.remove_status_item(entity_id, status_items, menu)
+
+    def _process_status_item_input(self, raw_input: Any) -> str | list[str] | None:
+        """Process and validate status item input."""
+        from .helpers import normalize_status_items
+
+        return normalize_status_items(raw_input)
 
     async def async_handle_update_versions(self, call: ServiceCall):
         """Handle update of the view versions."""

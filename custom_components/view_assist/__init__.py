@@ -47,6 +47,7 @@ from .helpers import (
 )
 from .http_url import HTTPManager
 from .js_modules import JSModuleRegistration
+from .menu_manager import MenuManager
 from .services import VAServices
 from .templates import setup_va_templates
 from .timers import TIMERS, VATimers
@@ -57,6 +58,7 @@ from .typed import (
     VABackgroundMode,
     VAConfigEntry,
     VAEvent,
+    VAMenuConfig,
     VAScreenMode,
     VATimeFormat,
     VAType,
@@ -255,6 +257,10 @@ async def load_common_functions(hass: HomeAssistant, entry: VAConfigEntry):
     hass.data[DOMAIN][TIMERS] = timers
     await timers.load()
 
+    # Setup Menu Manager
+    menu_manager = MenuManager(hass, entry)
+    hass.data[DOMAIN]["menu_manager"] = menu_manager
+
     # Load javascript modules
     jsloader = JSModuleRegistration(hass)
     await jsloader.async_register()
@@ -318,6 +324,26 @@ def set_runtime_data_for_config(
 
     if is_master:
         r = config_entry.runtime_data = MasterConfigRuntimeData()
+        # Dashboard options - handles sections
+        for attr in r.dashboard.__dict__:
+            if value := get_config_value(attr, is_master=True):
+                try:
+                    if attr in (CONF_BACKGROUND_SETTINGS, CONF_DISPLAY_SETTINGS):
+                        values = {}
+                        for sub_attr in getattr(r.dashboard, attr).__dict__:
+                            if sub_value := get_config_value(
+                                f"{attr}.{sub_attr}", is_master=True
+                            ):
+                                values[sub_attr] = sub_value
+                        value = type(getattr(r.dashboard, attr))(**values)
+                    setattr(r.dashboard, attr, value)
+                except Exception as ex:  # noqa: BLE001
+                    _LOGGER.error(
+                        "Error setting runtime data for %s - %s: %s",
+                        attr,
+                        type(getattr(r.dashboard, attr)),
+                        str(ex),
+                    )
 
         # Integration options
         for attr in r.integration.__dict__:
@@ -332,6 +358,29 @@ def set_runtime_data_for_config(
     else:
         r = config_entry.runtime_data = DeviceRuntimeData()
         r.core = DeviceCoreConfig(**config_entry.data)
+        master_config_options = (
+            get_master_config_entry(hass).options
+            if get_master_config_entry(hass)
+            else {}
+        )
+        # Dashboard options - handles sections
+        for attr in r.dashboard.__dict__:
+            if value := get_config_value(attr):
+                try:
+                    if isinstance(value, dict):
+                        values = {}
+                        for sub_attr in getattr(r.dashboard, attr).__dict__:
+                            if sub_value := get_config_value(f"{attr}.{sub_attr}"):
+                                values[sub_attr] = sub_value
+                        value = type(getattr(r.dashboard, attr))(**values)
+                    setattr(r.dashboard, attr, value)
+                except Exception as ex:  # noqa: BLE001
+                    _LOGGER.error(
+                        "Error setting runtime data for %s - %s: %s",
+                        attr,
+                        type(getattr(r.dashboard, attr)),
+                        str(ex),
+                    )
 
     # Dashboard options - handles sections - master and non master
     for attr in r.dashboard.__dict__:

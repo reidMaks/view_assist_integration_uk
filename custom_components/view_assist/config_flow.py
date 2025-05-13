@@ -46,6 +46,9 @@ from .const import (
     CONF_INTENT_DEVICE,
     CONF_LIST,
     CONF_MEDIAPLAYER_DEVICE,
+    CONF_MENU_CONFIG,
+    CONF_MENU_ITEMS,
+    CONF_MENU_TIMEOUT,
     CONF_MIC_DEVICE,
     CONF_MIC_UNMUTE,
     CONF_MUSIC,
@@ -69,7 +72,14 @@ from .const import (
     VAIconSizes,
 )
 from .helpers import get_devices_for_domain, get_master_config_entry
-from .typed import VABackgroundMode, VAConfigEntry, VAScreenMode, VATimeFormat, VAType
+from .typed import (
+    VABackgroundMode,
+    VAConfigEntry,
+    VAMenuConfig,
+    VAScreenMode,
+    VATimeFormat,
+    VAType,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -219,6 +229,23 @@ def get_dashboard_options_schema(config_entry: VAConfigEntry | None) -> vol.Sche
                 custom_value=True,
             )
         ),
+        vol.Optional(CONF_MENU_CONFIG): SelectSelector(
+            SelectSelectorConfig(
+                translation_key="menu_config_selector",
+                options=[e.value for e in VAMenuConfig],
+                mode=SelectSelectorMode.DROPDOWN,
+            )
+        ),
+        vol.Optional(CONF_MENU_ITEMS): SelectSelector(
+            SelectSelectorConfig(
+                translation_key="menu_icons_selector",
+                options=[],
+                mode=SelectSelectorMode.LIST,
+                multiple=True,
+                custom_value=True,
+            )
+        ),
+        vol.Optional(CONF_MENU_TIMEOUT): int,
         vol.Optional(CONF_TIME_FORMAT): SelectSelector(
             SelectSelectorConfig(
                 options=[e.value for e in VATimeFormat],
