@@ -77,10 +77,10 @@ class BaseAssetManager:
         """Save asset."""
         raise NotImplementedError
 
-    def _update_install_progress(self, view: str, progress: int):
+    def _update_install_progress(self, name: str, progress: int):
         """Update progress of view download."""
         async_dispatcher_send(
             self.hass,
             VA_ASSET_UPDATE_PROGRESS,
-            {"view": view, "progress": progress},
+            {"name": name, "progress": progress},
         )
