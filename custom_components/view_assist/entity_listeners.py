@@ -41,7 +41,7 @@ from .const import (
 )
 from .helpers import (
     async_get_download_image,
-    async_get_filesystem_images,
+    ensure_menu_button_at_end,
     get_config_entry_by_entity_id,
     get_device_name_from_id,
     get_display_type_from_browser_id,
@@ -252,6 +252,21 @@ class EntityListeners:
         # If new navigate before revert timer has expired, cancel revert timer.
         if not is_revert_action:
             self._cancel_display_revert_task()
+
+        # Store current path in entity attributes to help menu filtering
+        entity_id = get_sensor_entity_from_instance(
+            self.hass, self.config_entry.entry_id
+        )
+        
+        # Update current path attribute
+        await self.hass.services.async_call(
+            DOMAIN,
+            "set_state",
+            {
+                "entity_id": entity_id,
+                "current_path": path,
+            },
+        )
 
         # Do navigation and set revert if needed
         browser_id = get_device_name_from_id(
@@ -543,6 +558,8 @@ class EntityListeners:
         elif mic_mute_new_state == "off" and "mic" in status_icons:
             status_icons.remove("mic")
 
+        ensure_menu_button_at_end(status_icons)
+
         d.status_icons = status_icons
         self.update_entity()
 
@@ -570,6 +587,8 @@ class EntityListeners:
             status_icons.append("mediaplayer")
         elif not mp_mute_new_state and "mediaplayer" in status_icons:
             status_icons.remove("mediaplayer")
+
+        ensure_menu_button_at_end(status_icons)
 
         d.status_icons = status_icons
         self.update_entity()
@@ -748,6 +767,8 @@ class EntityListeners:
         elif not dnd_new_state and "dnd" in status_icons:
             status_icons.remove("dnd")
 
+        ensure_menu_button_at_end(status_icons)
+
         d.status_icons = status_icons
         self.update_entity()
 
@@ -759,7 +780,13 @@ class EntityListeners:
         d = r.dashboard.display_settings
 
         _LOGGER.debug("MODE STATE: %s", new_mode)
-        status_icons = d.status_icons.copy()
+
+        # Get current status icons directly from entity state
+        entity_id = get_sensor_entity_from_instance(self.hass, self.config_entry.entry_id)
+        if entity := self.hass.states.get(entity_id):
+            status_icons = list(entity.attributes.get("status_icons", []))
+        else:
+            status_icons = d.status_icons.copy()
 
         modes = [VAMode.HOLD, VAMode.CYCLE]
 
@@ -772,7 +799,21 @@ class EntityListeners:
         if new_mode in modes and new_mode not in status_icons:
             status_icons.append(new_mode)
 
+        ensure_menu_button_at_end(status_icons)
+
+        # Store the updated status icons in the display settings
         d.status_icons = status_icons
+
+        # Update entity state
+        await self.hass.services.async_call(
+            DOMAIN,
+            "set_state",
+            service_data={
+                "entity_id": entity_id,
+                "status_icons": status_icons
+            },
+        )
+
         self.update_entity()
 
         if new_mode != VAMode.CYCLE:
