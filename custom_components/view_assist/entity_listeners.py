@@ -41,6 +41,7 @@ from .const import (
 )
 from .helpers import (
     async_get_download_image,
+    async_get_filesystem_images,
     ensure_menu_button_at_end,
     get_config_entry_by_entity_id,
     get_device_name_from_id,
@@ -257,7 +258,7 @@ class EntityListeners:
         entity_id = get_sensor_entity_from_instance(
             self.hass, self.config_entry.entry_id
         )
-        
+
         # Update current path attribute
         await self.hass.services.async_call(
             DOMAIN,
@@ -782,7 +783,9 @@ class EntityListeners:
         _LOGGER.debug("MODE STATE: %s", new_mode)
 
         # Get current status icons directly from entity state
-        entity_id = get_sensor_entity_from_instance(self.hass, self.config_entry.entry_id)
+        entity_id = get_sensor_entity_from_instance(
+            self.hass, self.config_entry.entry_id
+        )
         if entity := self.hass.states.get(entity_id):
             status_icons = list(entity.attributes.get("status_icons", []))
         else:
@@ -808,10 +811,7 @@ class EntityListeners:
         await self.hass.services.async_call(
             DOMAIN,
             "set_state",
-            service_data={
-                "entity_id": entity_id,
-                "status_icons": status_icons
-            },
+            service_data={"entity_id": entity_id, "status_icons": status_icons},
         )
 
         self.update_entity()
