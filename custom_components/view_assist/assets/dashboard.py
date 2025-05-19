@@ -89,6 +89,12 @@ class DashboardManager(BaseAssetManager):
 
         return status
 
+    async def async_get_last_commit(self) -> str | None:
+        """Get if the repo has a new update."""
+        return await self.download_manager.get_last_commit_id(
+            f"{DASHBOARD_VIEWS_GITHUB_PATH}/{DASHBOARD_DIR}"
+        )
+
     async def async_get_installed_version(self, name: str) -> str | None:
         """Get installed version of asset."""
         lovelace: LovelaceData = self.hass.data["lovelace"]
@@ -109,12 +115,16 @@ class DashboardManager(BaseAssetManager):
         dashboard_data = parse_yaml(dashboard_data)
         return self._read_dashboard_version(dashboard_data)
 
-    async def async_get_version_info(self) -> dict[str, Any]:
+    async def async_get_version_info(
+        self, update_from_repo: bool = True
+    ) -> dict[str, Any]:
         """Get dashboard version from repo."""
         return {
             "dashboard": {
                 "installed": await self.async_get_installed_version(DASHBOARD_DIR),
-                "latest": await self.async_get_latest_version(DASHBOARD_DIR),
+                "latest": await self.async_get_latest_version(DASHBOARD_DIR)
+                if update_from_repo
+                else self.data.get("dashboard", {}).get("latest"),
             }
         }
 

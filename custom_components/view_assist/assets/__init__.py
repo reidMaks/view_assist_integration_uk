@@ -85,11 +85,15 @@ class AssetsManagerStorage:
         await self.lock.acquire()
         self.data["last_updated"] = dt_util.now().isoformat()
         # Order dict for reading
-        self.data = {
-            "last_updated": self.data.pop("last_updated"),
-            **dict(sorted(self.data.items(), key=lambda x: x[0].lower())),
+        data = self.data.copy()
+        last_updated = data.pop("last_updated")
+        last_commit = data.pop("last_commit")
+        data = {
+            "last_updated": last_updated,
+            "last_commit": last_commit,
+            **dict(sorted(data.items(), key=lambda x: x[0].lower())),
         }
-        await self.store.async_save(self.data)
+        await self.store.async_save(data)
         self.lock.release()
 
     async def load(self, force: bool = False):
@@ -113,6 +117,12 @@ class AssetsManagerStorage:
             self.data[asset_class][id] = data
         else:
             self.data[asset_class] = data
+        await self._save()
+
+    async def update_last_commit(self, asset_class: str, last_commit: str):
+        """Update last commit date."""
+        self.data.setdefault("last_commit", {})
+        self.data["last_commit"][asset_class] = last_commit
         await self._save()
 
 
@@ -245,7 +255,27 @@ class AssetsManager:
             managers = {k: v for k, v in self.managers.items() if k == asset_class}
 
         for asset_class, manager in managers.items():  # noqa: PLR1704
-            if version_info := await manager.async_get_version_info():
+            # Reduces download by only getting version from repo if the last commit date is greater than
+            # we have stored
+            update_from_repo = True
+            if self.data.get("last_commit"):
+                if repo_last_commit := await manager.async_get_last_commit():
+                    stored_last_commit = self.data.get("last_commit").get(asset_class)
+                    if repo_last_commit == stored_last_commit:
+                        _LOGGER.debug(
+                            "No new updates in repo for %s",
+                            asset_class,
+                        )
+                        update_from_repo = False
+
+            if update_from_repo:
+                repo_last_commit = await manager.async_get_last_commit()
+                _LOGGER.debug("New updates in repo for %s", asset_class)
+                self.data.setdefault("last_commit", {})
+                self.data["last_commit"][asset_class] = repo_last_commit
+                await self.store.update_last_commit(asset_class, repo_last_commit)
+
+            if version_info := await manager.async_get_version_info(update_from_repo):
                 for name, versions in version_info.items():
                     self.data[asset_class][name] = versions
                     # Fire update entity update event

@@ -50,6 +50,10 @@ class BaseAssetManager:
             return self.data[id]["installed"]
         return None
 
+    async def async_get_last_commit(self) -> str | None:
+        """Get if the repo has a new update."""
+        raise NotImplementedError
+
     async def async_get_latest_version(self, name: str) -> dict[str, Any]:
         """Get latest version of asset from repo."""
         raise NotImplementedError

@@ -83,6 +83,12 @@ class BlueprintManager(BaseAssetManager):
             return bp_versions
         return None
 
+    async def async_get_last_commit(self) -> str | None:
+        """Get if the repo has a new update."""
+        return await self.download_manager.get_last_commit_id(
+            f"{BLUEPRINT_GITHUB_PATH}"
+        )
+
     async def async_get_latest_version(self, name: str) -> str:
         """Get the latest version of a blueprint."""
         if bp := await self._get_blueprint_from_repo(name):
@@ -103,14 +109,20 @@ class BlueprintManager(BaseAssetManager):
                 return self._read_blueprint_version(blueprint.metadata)
         return None
 
-    async def async_get_version_info(self) -> dict[str, str]:
+    async def async_get_version_info(
+        self, update_from_repo: bool = True
+    ) -> dict[str, str]:
         """Get the latest versions of blueprints."""
         # Get the latest versions of blueprints
         bp_versions = {}
         if blueprints := await self._get_blueprint_list():
             for name in blueprints:
                 installed_version = await self.async_get_installed_version(name)
-                latest_version = await self.async_get_latest_version(name)
+                latest_version = (
+                    await self.async_get_latest_version(name)
+                    if update_from_repo
+                    else self.data.get(name, {}).get("latest")
+                )
                 bp_versions[name] = {
                     "installed": installed_version,
                     "latest": latest_version,

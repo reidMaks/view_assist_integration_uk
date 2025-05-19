@@ -7,6 +7,7 @@ from typing import Any
 from homeassistant.components.lovelace import LovelaceData, dashboard
 from homeassistant.const import EVENT_PANELS_UPDATED
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.util import dt as dt_util
 from homeassistant.util.yaml import load_yaml_dict, parse_yaml, save_yaml
 
 from ..const import (  # noqa: TID252
@@ -63,6 +64,12 @@ class ViewManager(BaseAssetManager):
             return vw_versions
         return None
 
+    async def async_get_last_commit(self) -> str | None:
+        """Get if the repo has a new update."""
+        return await self.download_manager.get_last_commit_id(
+            f"{DASHBOARD_VIEWS_GITHUB_PATH}/{VIEWS_DIR}"
+        )
+
     async def async_get_installed_version(self, name: str) -> str | None:
         """Get installed version of asset."""
         if view_config := await self._async_get_view_config(name):
@@ -82,14 +89,20 @@ class ViewManager(BaseAssetManager):
                 _LOGGER.error("Failed to parse view %s", name)
         return None
 
-    async def async_get_version_info(self) -> dict[str, Any]:
+    async def async_get_version_info(
+        self, update_from_repo: bool = True
+    ) -> dict[str, Any]:
         """Update versions from repo."""
         # Get the latest versions of blueprints
         vw_versions = {}
         if blueprints := await self._async_get_view_list():
             for name in blueprints:
                 installed_version = await self.async_get_installed_version(name)
-                latest_version = await self.async_get_latest_version(name)
+                latest_version = (
+                    await self.async_get_latest_version(name)
+                    if update_from_repo
+                    else self.data.get(name, {}).get("latest")
+                )
                 vw_versions[name] = {
                     "installed": installed_version,
                     "latest": latest_version,

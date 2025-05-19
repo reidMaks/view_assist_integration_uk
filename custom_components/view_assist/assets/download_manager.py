@@ -10,6 +10,7 @@ from aiohttp import ContentTypeError
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.util import dt as dt_util
 
 from ..const import DOMAIN, GITHUB_BRANCH, GITHUB_REPO  # noqa: TID252
 
@@ -246,5 +247,16 @@ class DownloadManager:
         except GithubAPIException as ex:
             raise AssetManagerException(
                 f"Error downloading {file_path} from the github repository.  Error is {ex}"
+            ) from ex
+        return None
+
+    async def get_last_commit_id(self, path: str) -> str | None:
+        """Get the last commit date for a file."""
+        try:
+            if commit_data := await self.github.async_get_last_commit(path):
+                return commit_data["sha"][:7]
+        except GithubAPIException as ex:
+            raise AssetManagerException(
+                f"Error getting last commit for {path}.  Error is {ex}"
             ) from ex
         return None
