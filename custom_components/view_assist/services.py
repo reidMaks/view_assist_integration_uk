@@ -458,10 +458,3 @@ class VAServices:
 
         return normalize_status_items(raw_input)
 
-    async def async_handle_update_versions(self, call: ServiceCall):
-        """Handle update of the view versions."""
-        dm: DashboardManager = self.hass.data[DOMAIN][DASHBOARD_MANAGER]
-        try:
-            await dm.update_dashboard_view_versions(force=True)
-        except (DownloadManagerException, DashboardManagerException) as ex:
-            raise HomeAssistantError(ex) from ex
