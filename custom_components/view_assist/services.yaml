@@ -208,47 +208,59 @@ broadcast_event:
       required: true
       selector:
         text:
-load_view:
-  name: "Load View"
-  description: "Install a view from the View Assist views directory or repository"
+load_asset:
+  name: "Load asset"
+  description: "Install an asset from the View Assist directory or repository"
   fields:
+    asset_class:
+      name: "Asset class"
+      description: "The type of asset to load"
+      required: true
+      selector:
+        select:
+          options:
+            - "dashboard"
+            - "views"
+            - "blueprints"
     name:
-      name: "View name"
-      description: "The name of the view"
+      name: "Name"
+      description: "The name of the asset"
       required: true
       selector:
         text:
     download_from_repo:
       name: "Download from respository"
       description: "Download from the github repository, overwriting any existing copy"
-      required: false
+      required: true
       default: false
       selector:
         boolean:
-    community_view:
-      name: "Community view"
-      description: "If this should be downloaded from the community views folder"
-      required: false
+    backup_current_asset:
+      name: "Backup existing"
+      description: "Backup existing before updating"
+      required: true
       default: false
       selector:
         boolean:
-    backup_current_view:
-      name: "Backup current view"
-      description: "Backup yaml of view if it exists before updating"
-      required: false
-      default: false
-      selector:
-        boolean:
-save_view:
-  name: "Save View"
-  description: "Save a view to the View Assist views directory"
+save_asset:
+  name: "Save asset"
+  description: "Save asset to the View Assist directory"
   fields:
+    asset_class:
+      name: "Asset class"
+      description: "The type of asset to load"
+      required: true
+      selector:
+        select:
+          options:
+            - "views"
+            - "blueprints"
     name:
-      name: "View name"
-      description: "The name of the view"
+      name: "Name"
+      description: "The name of the asset"
       required: true
       selector:
         text:
 update_versions:
   name: "Update version info"
-  description: "Get the latest version info of the dashboard and views from the github repo"
+  description: "Get the latest version info of the dashboard, views and blueprints from the github repo"

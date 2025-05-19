@@ -154,10 +154,10 @@
       "integration_options": {
         "title": "{name} Integration Options",
         "data": {
-          "enable_updates": "Enable updates"
+          "enable_updates": "Enable update notifications"
         },
         "data_description": {
-          "enable_updates": "Enable or disable update notifications for the dashboard and views"
+          "enable_updates": "Enable or disable update notifications for the dashboard, views and blueprints"
         }
       },
       "developer_options": {

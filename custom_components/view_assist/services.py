@@ -12,7 +12,6 @@ from homeassistant.core import (
     ServiceResponse,
     SupportsResponse,
 )
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import (
     config_validation as cv,
     entity_registry as er,
@@ -22,8 +21,6 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .alarm_repeater import ALARMS, VAAlarmRepeater
 from .const import (
-    ATTR_BACKUP_CURRENT_VIEW,
-    ATTR_COMMUNITY_VIEW,
     ATTR_DEVICE,
     ATTR_EVENT_DATA,
     ATTR_EVENT_NAME,
@@ -32,18 +29,11 @@ from .const import (
     ATTR_MAX_REPEATS,
     ATTR_MEDIA_FILE,
     ATTR_PATH,
-    ATTR_REDOWNLOAD_FROM_REPO,
     ATTR_REMOVE_ALL,
     ATTR_RESUME_MEDIA,
     ATTR_TIMER_ID,
     ATTR_TYPE,
     DOMAIN,
-)
-from .dashboard import (
-    DASHBOARD_MANAGER,
-    DashboardManager,
-    DashboardManagerException,
-    DownloadManagerException,
 )
 from .helpers import get_mimic_entity_id
 from .timers import TIMERS, VATimers, decode_time_sentence
@@ -125,20 +115,6 @@ BROADCAST_EVENT_SERVICE_SCHEMA = vol.Schema(
     }
 )
 
-DASHVIEW_SERVICE_SCHEMA = vol.Schema(
-    {
-        vol.Required(ATTR_NAME): str,
-    }
-)
-LOAD_DASHVIEW_SERVICE_SCHEMA = DASHVIEW_SERVICE_SCHEMA.extend(
-    {
-        vol.Required(ATTR_NAME): str,
-        vol.Required(ATTR_REDOWNLOAD_FROM_REPO, default=False): bool,
-        vol.Optional(ATTR_COMMUNITY_VIEW, default=False): bool,
-        vol.Required(ATTR_BACKUP_CURRENT_VIEW, default=False): bool,
-    }
-)
-
 
 class VAServices:
     """Class to manage services."""
@@ -211,24 +187,6 @@ class VAServices:
             "broadcast_event",
             self.async_handle_broadcast_event,
             schema=BROADCAST_EVENT_SERVICE_SCHEMA,
-        )
-
-        self.hass.services.async_register(
-            DOMAIN,
-            "load_view",
-            self.async_handle_load_view,
-            schema=LOAD_DASHVIEW_SERVICE_SCHEMA,
-        )
-
-        self.hass.services.async_register(
-            DOMAIN,
-            "save_view",
-            self.async_handle_save_view,
-            schema=DASHVIEW_SERVICE_SCHEMA,
-        )
-
-        self.hass.services.async_register(
-            DOMAIN, "update_versions", self.async_handle_update_versions
         )
 
     # -----------------------------------------------------------------------
@@ -391,47 +349,3 @@ class VAServices:
             include_expired=include_expired,
         )
         return {"result": result}
-
-    # ----------------------------------------------------------------
-    # VIEWS
-    # ----------------------------------------------------------------
-    async def async_handle_load_view(self, call: ServiceCall):
-        """Handle load of a view from view_assist dir."""
-
-        view_name = call.data.get(ATTR_NAME)
-        download = call.data.get(ATTR_REDOWNLOAD_FROM_REPO, False)
-        community_view = call.data.get(ATTR_COMMUNITY_VIEW, False)
-        backup = call.data.get(ATTR_BACKUP_CURRENT_VIEW, False)
-
-        dm: DashboardManager = self.hass.data[DOMAIN][DASHBOARD_MANAGER]
-        try:
-            if view_name == "dashboard":
-                await dm.update_dashboard(download_from_repo=download)
-            else:
-                await dm.add_update_view(
-                    name=view_name,
-                    download_from_repo=download,
-                    community_view=community_view,
-                    backup_current_view=backup,
-                )
-        except (DownloadManagerException, DashboardManagerException) as ex:
-            raise HomeAssistantError(ex) from ex
-
-    async def async_handle_save_view(self, call: ServiceCall):
-        """Handle saving view to view_assit dir."""
-
-        view_name = call.data.get(ATTR_NAME)
-
-        dm: DashboardManager = self.hass.data[DOMAIN][DASHBOARD_MANAGER]
-        try:
-            await dm.save_view(view_name)
-        except (DownloadManagerException, DashboardManagerException) as ex:
-            raise HomeAssistantError(ex) from ex
-
-    async def async_handle_update_versions(self, call: ServiceCall):
-        """Handle update of the view versions."""
-        dm: DashboardManager = self.hass.data[DOMAIN][DASHBOARD_MANAGER]
-        try:
-            await dm.update_dashboard_view_versions(force=True)
-        except (DownloadManagerException, DashboardManagerException) as ex:
-            raise HomeAssistantError(ex) from ex

@@ -2,24 +2,34 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any
 
+from awesomeversion import AwesomeVersion
+
+from config.custom_components.view_assist.assets import (
+    ASSETS_MANAGER,
+    VA_ADD_UPDATE_ENTITY_EVENT,
+    AssetClass,
+    AssetsManager,
+)
 from homeassistant.components.update import UpdateEntity, UpdateEntityFeature
 from homeassistant.core import HomeAssistant, HomeAssistantError, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .assets.base import AssetManagerException
 from .const import (
+    BLUEPRINT_GITHUB_PATH,
+    DASHBOARD_DIR,
+    DASHBOARD_VIEWS_GITHUB_PATH,
     DOMAIN,
     GITHUB_BRANCH,
-    GITHUB_PATH,
     GITHUB_REPO,
-    VA_VIEW_DOWNLOAD_PROGRESS,
+    VA_ASSET_UPDATE_PROGRESS,
     VIEWS_DIR,
 )
-from .dashboard import DASHBOARD_MANAGER, DashboardManager
 from .typed import VAConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,39 +39,54 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: VAConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up update platform."""
-    update_sensors = []
-    dm = hass.data[DOMAIN][DASHBOARD_MANAGER]
-    data = await dm.store.load()
+    am: AssetsManager = hass.data[DOMAIN][ASSETS_MANAGER]
 
-    # Wait upto 5s for view data to be created on first run
-    for _ in range(5):
-        if data.get("views") is not None:
-            break
-        data = await dm.store.load()
-        await asyncio.sleep(1)
+    async def async_add_remove_update_entity(data: dict[str, Any]) -> None:
+        """Add or remove update entity."""
+        asset_class: AssetClass = data.get("asset_class")
+        name: str = data.get("name")
+        remove: bool = data.get("remove")
 
-    if data.get("views"):
-        update_sensors = [
-            VAUpdateEntity(
-                dm=dm,
-                view=view,
-            )
-            for view in data["views"]
-        ]
-    else:
-        _LOGGER.error("Unable to load view version information")
+        unique_id = f"{DOMAIN}_{asset_class}_{name}"
+        if remove:
+            entity_reg = er.async_get(hass)
+            if entity_id := entity_reg.async_get_entity_id("update", DOMAIN, unique_id):
+                entity_reg.async_remove(entity_id)
+            return
 
-    if data.get("dashboard"):
-        update_sensors.append(
-            VAUpdateEntity(
-                dm=dm,
-                view="dashboard",
-            )
+        # Add new update entity
+        async_add_entities(
+            [
+                VAUpdateEntity(
+                    am=am,
+                    asset_class=asset_class,
+                    name=name,
+                )
+            ]
         )
-    else:
-        _LOGGER.error("Unable to load dashboard version information")
 
-    async_add_entities(update_sensors)
+    entry.async_on_unload(
+        async_dispatcher_connect(
+            hass, VA_ADD_UPDATE_ENTITY_EVENT, async_add_remove_update_entity
+        )
+    )
+
+    # Set update entities on restart
+    for asset_class in AssetClass:
+        if not am.data or am.data.get(asset_class) is None:
+            continue
+
+        for name in am.data[asset_class]:
+            installed = am.store.data[asset_class][name].get("installed", "0.0.0")
+            latest = am.store.data[asset_class][name].get("latest", "0.0.0")
+
+            await async_add_remove_update_entity(
+                {
+                    "asset_class": asset_class,
+                    "name": name,
+                    "remove": AwesomeVersion(installed) >= latest,
+                }
+            )
 
 
 class VAUpdateEntity(UpdateEntity):
@@ -73,56 +98,62 @@ class VAUpdateEntity(UpdateEntity):
         | UpdateEntityFeature.RELEASE_NOTES
     )
 
-    def __init__(self, dm: DashboardManager, view: str) -> None:
+    def __init__(self, am: AssetsManager, asset_class: AssetClass, name: str) -> None:
         """Initialize."""
-        self.dm = dm
-        self.view = view
+        self.am = am
+        self._asset_class = asset_class
+        self._name = name
 
         self._attr_supported_features = (
             (self._attr_supported_features | UpdateEntityFeature.BACKUP)
-            if view != "dashboard"
+            if self._asset_class != AssetClass.DASHBOARD
             else self._attr_supported_features
         )
 
     @property
     def name(self) -> str | None:
         """Return the name."""
-        if self.view == "dashboard":
-            return f"View Assist - {self.view}"
-        return f"View Assist - {self.view} view"
+        if self._asset_class == AssetClass.DASHBOARD:
+            return f"View Assist - {self._name.replace('_', ' ').title()}"
+        return f"View Assist - {self._name.replace('_', ' ').title()} {self._asset_class.removesuffix('s')}"
 
     @property
     def unique_id(self) -> str:
         """Return a unique ID."""
-        if self.view == "dashboard":
-            return f"{DOMAIN}_{self.view}"
-        return f"{DOMAIN}_{self.view}_view"
+        return f"{DOMAIN}_{self._asset_class}_{self._name}"
 
     @property
     def latest_version(self) -> str:
         """Return latest version of the entity."""
-        if self.view == "dashboard":
-            return self.dm.store.data["dashboard"]["latest"]
-        return self.dm.store.data["views"][self.view]["latest"]
+        return self.am.store.data[self._asset_class][self._name]["latest"]
 
     @property
     def release_url(self) -> str:
         """Return the URL of the release page."""
-        return f"https://github.com/{GITHUB_REPO}/tree/{GITHUB_BRANCH}/{GITHUB_PATH}/{VIEWS_DIR}/{self.view}"
+        base = f"https://github.com/{GITHUB_REPO}/tree/{GITHUB_BRANCH}"
+        if self._asset_class == AssetClass.DASHBOARD:
+            return f"{base}/{DASHBOARD_VIEWS_GITHUB_PATH}/{DASHBOARD_DIR}/dashboard"
+        if self._asset_class == AssetClass.VIEW:
+            return f"{base}/{DASHBOARD_VIEWS_GITHUB_PATH}/{VIEWS_DIR}/{self._name}"
+        if self._asset_class == AssetClass.BLUEPRINT:
+            return f"{base}/{BLUEPRINT_GITHUB_PATH}/{self._name}"
+        return base
 
     @property
     def installed_version(self) -> str:
         """Return downloaded version of the entity."""
-        if self.view == "dashboard":
-            return self.dm.store.data["dashboard"]["installed"]
-        return self.dm.store.data["views"][self.view]["installed"]
+        return self.am.store.data[self._asset_class][self._name]["installed"]
 
     @property
     def release_summary(self) -> str | None:
         """Return the release summary."""
-        if self.view == "dashboard":
+        if self._asset_class == AssetClass.DASHBOARD:
             return "<ha-alert alert-type='info'>Updating the dashboard will attempt to keep any changes you have made to it</ha-alert>"
-        return "<ha-alert alert-type='warning'>Updating this view will overwrite any changes you have made to it</ha-alert>"
+        if self._asset_class == AssetClass.VIEW:
+            return "<ha-alert alert-type='warning'>Updating this view will overwrite any changes you have made to it</ha-alert>"
+        if self._asset_class == AssetClass.BLUEPRINT:
+            return "<ha-alert alert-type='warning'>Updating this blueprint will overwrite any changes you have made to it</ha-alert>"
+        return None
 
     @property
     def entity_picture(self) -> str | None:
@@ -134,15 +165,13 @@ class VAUpdateEntity(UpdateEntity):
     ) -> None:
         """Install an update."""
         try:
-            if self.view == "dashboard":
-                # Install dashboard
-                await self.dm.update_dashboard(download_from_repo=True)
-            else:
-                # Install view
-                await self.dm.add_update_view(
-                    self.view, download_from_repo=True, backup_current_view=backup
-                )
-        except Exception as exception:
+            await self.am.async_install_or_update(
+                self._asset_class,
+                self._name,
+                download=True,
+                backup_existing=backup,
+            )
+        except AssetManagerException as exception:
             raise HomeAssistantError(exception) from exception
 
     async def async_release_notes(self) -> str | None:
@@ -156,7 +185,7 @@ class VAUpdateEntity(UpdateEntity):
         self.async_on_remove(
             async_dispatcher_connect(
                 self.hass,
-                VA_VIEW_DOWNLOAD_PROGRESS,
+                VA_ASSET_UPDATE_PROGRESS,
                 self._update_download_progress,
             )
         )
@@ -164,8 +193,5 @@ class VAUpdateEntity(UpdateEntity):
     @callback
     def _update_download_progress(self, data: dict) -> None:
         """Update the download progress."""
-        if data["view"] == self.view:
-            self._attr_in_progress = data["progress"]
-            self.async_write_ha_state()
-        elif data["view"] == "all":
-            self.schedule_update_ha_state(force_refresh=True)
+        self._attr_in_progress = data["progress"]
+        self.async_write_ha_state()
