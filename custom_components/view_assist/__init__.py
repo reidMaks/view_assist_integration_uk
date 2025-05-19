@@ -10,6 +10,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.start import async_at_started
 
 from .alarm_repeater import ALARMS, VAAlarmRepeater
+from .assets import ASSETS_MANAGER, AssetsManager
 from .const import (
     CONF_ASSIST_PROMPT,
     CONF_BACKGROUND,
@@ -35,7 +36,6 @@ from .const import (
     DOMAIN,
     OPTION_KEY_MIGRATIONS,
 )
-from .dashboard import DASHBOARD_MANAGER, DashboardManager
 from .entity_listeners import EntityListeners
 from .helpers import (
     ensure_list,
@@ -192,7 +192,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
     # Add runtime data to config entry to have place to store data and
     # make accessible throughout integration
     set_runtime_data_for_config(hass, entry, is_master_entry)
-    _LOGGER.debug("Runtime Data: %s", entry.runtime_data.__dict__)
 
     # Add config change listener
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
@@ -269,6 +268,16 @@ async def load_common_functions(hass: HomeAssistant, entry: VAConfigEntry):
 
     setup_va_templates(hass)
 
+    # Load asset manager
+    am = AssetsManager(hass, entry)
+    hass.data[DOMAIN][ASSETS_MANAGER] = am
+    await am.async_setup()
+
+    # Request update platform setup
+    if entry.runtime_data.integration.enable_updates:
+        _LOGGER.debug("Update notifications are enabled")
+        await hass.config_entries.async_forward_entry_setups(entry, [Platform.UPDATE])
+
 
 async def load_common_display_functions(hass: HomeAssistant, entry: VAConfigEntry):
     """Things to run only one when multiple instances exist."""
@@ -284,17 +293,6 @@ async def load_common_display_functions(hass: HomeAssistant, entry: VAConfigEntr
 
         http = HTTPManager(hass, entry)
         await http.create_url_paths()
-
-        dm = DashboardManager(hass, entry)
-        hass.data[DOMAIN][DASHBOARD_MANAGER] = dm
-        await dm.setup_dashboard()
-
-        # Request platform setup
-        if entry.runtime_data.integration.enable_updates:
-            _LOGGER.debug("Update notifications are enabled")
-            await hass.config_entries.async_forward_entry_setups(
-                entry, [Platform.UPDATE]
-            )
 
     async_at_started(hass, setup_frontend)
 
