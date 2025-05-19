@@ -41,29 +41,34 @@ async def async_setup_entry(
     """Set up update platform."""
     am: AssetsManager = hass.data[DOMAIN][ASSETS_MANAGER]
 
-    async def async_add_remove_update_entity(data: dict[str, Any]) -> None:
+    async def async_add_remove_update_entity(
+        data: dict[str, Any], startup: bool = False
+    ) -> None:
         """Add or remove update entity."""
         asset_class: AssetClass = data.get("asset_class")
         name: str = data.get("name")
         remove: bool = data.get("remove")
 
         unique_id = f"{DOMAIN}_{asset_class}_{name}"
+        entity_reg = er.async_get(hass)
+
         if remove:
-            entity_reg = er.async_get(hass)
             if entity_id := entity_reg.async_get_entity_id("update", DOMAIN, unique_id):
                 entity_reg.async_remove(entity_id)
             return
 
         # Add new update entity
-        async_add_entities(
-            [
-                VAUpdateEntity(
-                    am=am,
-                    asset_class=asset_class,
-                    name=name,
-                )
-            ]
-        )
+        entity_id = entity_reg.async_get_entity_id("update", DOMAIN, unique_id)
+        if not entity_id or startup:
+            async_add_entities(
+                [
+                    VAUpdateEntity(
+                        am=am,
+                        asset_class=asset_class,
+                        name=name,
+                    )
+                ]
+            )
 
     entry.async_on_unload(
         async_dispatcher_connect(
@@ -85,7 +90,8 @@ async def async_setup_entry(
                     "asset_class": asset_class,
                     "name": name,
                     "remove": AwesomeVersion(installed) >= latest,
-                }
+                },
+                startup=True,
             )
 
 
@@ -193,5 +199,7 @@ class VAUpdateEntity(UpdateEntity):
     @callback
     def _update_download_progress(self, data: dict) -> None:
         """Update the download progress."""
+        if data["name"] != self._name:
+            return
         self._attr_in_progress = data["progress"]
         self.async_write_ha_state()
