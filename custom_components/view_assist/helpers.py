@@ -101,11 +101,13 @@ def ensure_list(value: str | list[str]):
         return value if value else []
     return []
 
+
 def ensure_menu_button_at_end(status_icons: list[str]) -> None:
     """Ensure menu button is always the rightmost (last) status icon."""
     if "menu" in status_icons:
         status_icons.remove("menu")
         status_icons.append("menu")
+
 
 def normalize_status_items(raw_input: Any) -> str | list[str] | None:
     """Normalize and validate status item input.
@@ -197,8 +199,7 @@ def update_status_icons(
             icon for icon in result if icon not in menu_items and icon != "menu"
         ]
         menu_icon_list = [icon for icon in result if icon in menu_items]
-        result = arrange_status_icons(
-            menu_icon_list, system_icons, show_menu_button)
+        result = arrange_status_icons(menu_icon_list, system_icons, show_menu_button)
     elif show_menu_button:
         ensure_menu_button_at_end(result)
 
