@@ -570,12 +570,6 @@ def get_filesystem_images(hass: HomeAssistant, fs_path: str) -> list[Path]:
     return image_list
 
 
-def make_url_from_file_path(hass: HomeAssistant, path: Path) -> str:
-    """Make a url from the file path."""
-    url = path.as_uri()
-    return url.replace("file://", "").replace(hass.config.config_dir, "")
-
-
 def differ_to_json(diffs: list) -> dict:
     """Convert dictdiffer output to json for saving to file."""
     output = {}

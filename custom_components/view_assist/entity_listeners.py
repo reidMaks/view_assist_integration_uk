@@ -53,7 +53,6 @@ from .helpers import (
     get_mute_switch_entity_id,
     get_revert_settings_for_mode,
     get_sensor_entity_from_instance,
-    make_url_from_file_path,
 )
 from .typed import VABackgroundMode, VAConfigEntry, VADisplayType, VAEvent
 
@@ -399,7 +398,12 @@ class EntityListeners:
                 else:
                     return
 
-                image_url = make_url_from_file_path(self.hass, image)
+                image_url = (
+                    image.as_uri()
+                    .replace("file://", "")
+                    .replace(self.hass.config.config_dir, "")
+                )
+
                 # Add parameter to override cache
                 image_url = f"{image_url}?v={dt.now().strftime('%Y%m%d%H%M%S')}"
 
