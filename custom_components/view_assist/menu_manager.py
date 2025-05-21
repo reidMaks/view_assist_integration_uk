@@ -183,7 +183,7 @@ class MenuManager:
         system_icons = [
             icon
             for icon in current_status_icons
-            if icon not in menu_state.configured_items 
+            if icon not in menu_state.configured_items
             and icon != "menu"
             and icon not in modes
         ]
@@ -443,8 +443,7 @@ class MenuManager:
         """Save options to config entry for persistence."""
         config_entry = get_config_entry_by_entity_id(self.hass, entity_id)
         if not config_entry:
-            _LOGGER.warning(
-                "Cannot save %s - config entry not found", option_key)
+            _LOGGER.warning("Cannot save %s - config entry not found", option_key)
             return
 
         try:
@@ -550,8 +549,7 @@ class MenuManager:
                                 DOMAIN, "set_state", changes
                             )
                         except Exception as err:  # noqa: BLE001
-                            _LOGGER.error("Error updating %s: %s",
-                                            entity_id, str(err))
+                            _LOGGER.error("Error updating %s: %s", entity_id, str(err))
 
         except asyncio.CancelledError:
             pass
@@ -566,8 +564,7 @@ class MenuManager:
             for entry_id in [
                 e.entry_id for e in self.hass.config_entries.async_entries(DOMAIN)
             ]:
-                entity_id = get_sensor_entity_from_instance(
-                    self.hass, entry_id)
+                entity_id = get_sensor_entity_from_instance(self.hass, entry_id)
                 if entity_id:
                     self._get_or_create_state(entity_id)
 

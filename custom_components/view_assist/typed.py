@@ -66,10 +66,12 @@ class VABackgroundMode(StrEnum):
     DOWNLOAD_RANDOM = "download"
     LINKED = "link_to_entity"
 
+
 class VAMenuConfig(StrEnum):
     """Menu configuration options enum."""
+
     DISABLED = "menu_disabled"
-    ENABLED_VISIBLE = "menu_enabled_button_visible" 
+    ENABLED_VISIBLE = "menu_enabled_button_visible"
     ENABLED_HIDDEN = "menu_enabled_button_hidden"
 
 

@@ -17,27 +17,14 @@ DOMAIN = "view_assist"
 GITHUB_REPO = "dinki/View-Assist"
 GITHUB_BRANCH = "main"
 GITHUB_TOKEN_FILE = "github.token"
-GITHUB_PATH = "View Assist dashboard and views"
+DASHBOARD_VIEWS_GITHUB_PATH = "View Assist dashboard and views"
+BLUEPRINT_GITHUB_PATH = "View_Assist_custom_sentences"
 VIEWS_DIR = "views"
 COMMUNITY_VIEWS_DIR = "community_contributions"
 DASHBOARD_DIR = "dashboard"
 DASHBOARD_NAME = "View Assist"
+
 DEFAULT_VIEW = "clock"
-DEFAULT_VIEWS = [
-    "alarm",
-    "camera",
-    "clock",
-    "info",
-    "infopic",
-    "intent",
-    "list",
-    "locate",
-    "music",
-    "sports",
-    "thermostat",
-    "weather",
-    "webpage",
-]
 CYCLE_VIEWS = ["music", "info", "weather", "clock"]
 
 BROWSERMOD_DOMAIN = "browser_mod"
@@ -186,9 +173,6 @@ ATTR_EVENT_NAME = "event_name"
 ATTR_EVENT_DATA = "event_data"
 ATTR_PATH = "path"
 ATTR_DEVICE = "device"
-ATTR_REDOWNLOAD_FROM_REPO = "download_from_repo"
-ATTR_COMMUNITY_VIEW = "community_view"
-ATTR_BACKUP_CURRENT_VIEW = "backup_current_view"
 ATTR_EXTRA = "extra"
 ATTR_TYPE = "type"
 ATTR_TIMER_ID = "timer_id"
@@ -197,10 +181,14 @@ ATTR_INCLUDE_EXPIRED = "include_expired"
 ATTR_MEDIA_FILE = "media_file"
 ATTR_RESUME_MEDIA = "resume_media"
 ATTR_MAX_REPEATS = "max_repeats"
+ATTR_ASSET_CLASS = "asset_class"
+ATTR_BACKUP_CURRENT_ASSET = "backup_current_asset"
+ATTR_DOWNLOAD_FROM_REPO = "download_from_repo"
 
 VA_ATTRIBUTE_UPDATE_EVENT = "va_attr_update_event_{}"
 VA_BACKGROUND_UPDATE_EVENT = "va_background_update_{}"
-VA_VIEW_DOWNLOAD_PROGRESS = "va_view_download_progress"
+VA_ASSET_UPDATE_PROGRESS = "va_asset_update_progress"
+VA_ADD_UPDATE_ENTITY_EVENT = "va_add_update_entity_event"
 CC_CONVERSATION_ENDED_EVENT = f"{CUSTOM_CONVERSATION_DOMAIN}_conversation_ended"
 
 
