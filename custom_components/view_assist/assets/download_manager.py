@@ -10,7 +10,6 @@ from aiohttp import ContentTypeError
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.util import dt as dt_util
 
 from ..const import DOMAIN, GITHUB_BRANCH, GITHUB_REPO  # noqa: TID252
 
