@@ -87,7 +87,10 @@ class AssetsManagerStorage:
         # Order dict for reading
         data = self.data.copy()
         last_updated = data.pop("last_updated")
-        last_commit = data.pop("last_commit")
+        if data.get("last_commit"):
+            last_commit = data.pop("last_commit")
+        else:
+            last_commit = {}
         data = {
             "last_updated": last_updated,
             "last_commit": last_commit,
