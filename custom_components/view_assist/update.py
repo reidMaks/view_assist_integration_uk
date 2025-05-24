@@ -7,18 +7,18 @@ from typing import Any
 
 from awesomeversion import AwesomeVersion
 
-from config.custom_components.view_assist.assets import (
-    ASSETS_MANAGER,
-    VA_ADD_UPDATE_ENTITY_EVENT,
-    AssetClass,
-    AssetsManager,
-)
 from homeassistant.components.update import UpdateEntity, UpdateEntityFeature
 from homeassistant.core import HomeAssistant, HomeAssistantError, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .assets import (
+    ASSETS_MANAGER,
+    VA_ADD_UPDATE_ENTITY_EVENT,
+    AssetClass,
+    AssetsManager,
+)
 from .assets.base import AssetManagerException
 from .const import (
     BLUEPRINT_GITHUB_PATH,
