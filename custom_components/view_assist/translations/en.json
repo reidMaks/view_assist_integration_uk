@@ -147,7 +147,8 @@
           "view_timeout": "View Timeout",
           "do_not_disturb": "Enable do not disturb at startup",
           "use_announce": "Disable announce on this device",
-          "micunmute": "Unmute microphone on HA start/restart"
+          "micunmute": "Unmute microphone on HA start/restart",
+          "ducking_volume": "Lower media playback volume to this level when Assist is active"
         },
         "data_description": {
           "mode": "The default mode for this satellite device",
