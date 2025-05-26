@@ -44,4 +44,4 @@ Questions, problems, concerns?  Reach out to us on Discord or use the 'Issues' a
 
 # Help
 
-Need help?  Hop on our Discord channel and we'll give you a boost!
+Need help?  Check our [View Assist Wiki](https://dinki.github.io/View-Assist/) for the most up-to-date documentation.  You can also hop on our [View Assist Discord Server](https://discord.gg/3WXXfGAf8T) and we'll give you a boost!
