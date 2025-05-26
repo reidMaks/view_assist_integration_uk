@@ -7,6 +7,7 @@ import logging
 import math
 import time
 from typing import Any
+import voluptuous as vol
 
 import mutagen
 import requests
@@ -18,17 +19,42 @@ from homeassistant.components.media_player import (
     MediaType,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity
+from homeassistant.const import ATTR_ENTITY_ID, STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse
+from homeassistant.helpers import entity, selector
 from homeassistant.helpers.entity_component import DATA_INSTANCES, EntityComponent
 from homeassistant.helpers.network import get_url
 
-from .const import BROWSERMOD_DOMAIN
+from .const import (
+    ATTR_MAX_REPEATS,
+    ATTR_MEDIA_FILE,
+    ATTR_RESUME_MEDIA,
+    BROWSERMOD_DOMAIN,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 ALARMS = "alarms"
+
+ALARM_SOUND_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): selector.EntitySelector(
+            selector.EntitySelectorConfig(integration=DOMAIN)
+        ),
+        vol.Required(ATTR_MEDIA_FILE): str,
+        vol.Optional(ATTR_RESUME_MEDIA, default=True): bool,
+        vol.Optional(ATTR_MAX_REPEATS, default=0): int,
+    }
+)
+
+STOP_ALARM_SOUND_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(ATTR_ENTITY_ID): selector.EntitySelector(
+            selector.EntitySelectorConfig(integration=DOMAIN)
+        ),
+    }
+)
 
 
 @dataclass
@@ -54,6 +80,36 @@ class VAAlarmRepeater:
         self.alarm_tasks: dict[str, asyncio.Task] = {}
 
         self.announcement_in_progress: bool = False
+
+        self.hass.services.async_register(
+            DOMAIN,
+            "sound_alarm",
+            self._async_handle_alarm_sound,
+            schema=ALARM_SOUND_SERVICE_SCHEMA,
+        )
+
+        self.hass.services.async_register(
+            DOMAIN,
+            "cancel_sound_alarm",
+            self._async_handle_stop_alarm_sound,
+            schema=STOP_ALARM_SOUND_SERVICE_SCHEMA,
+        )
+
+    async def _async_handle_alarm_sound(self, call: ServiceCall) -> ServiceResponse:
+        """Handle alarm sound."""
+        entity_id = call.data.get(ATTR_ENTITY_ID)
+        media_file = call.data.get(ATTR_MEDIA_FILE)
+        resume_media = call.data.get(ATTR_RESUME_MEDIA)
+        max_repeats = call.data.get(ATTR_MAX_REPEATS)
+
+        return await self.alarm_sound(
+            entity_id, media_file, "music", resume_media, max_repeats
+        )
+
+    async def _async_handle_stop_alarm_sound(self, call: ServiceCall):
+        """Handle stop alarm sound."""
+        entity_id = call.data.get(ATTR_ENTITY_ID)
+        await self.cancel_alarm_sound(entity_id)
 
     def _get_entity_from_entity_id(self, entity_id: str):
         """Get entity object from entity_id."""

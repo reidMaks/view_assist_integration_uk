@@ -18,14 +18,67 @@ import voluptuous as vol
 import wordtodigits
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, valid_entity_id
+from homeassistant.const import ATTR_DEVICE_ID, ATTR_ENTITY_ID, ATTR_NAME, ATTR_TIME
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+    valid_entity_id,
+)
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.storage import Store
 from homeassistant.util import ulid as ulid_util
 
-from .const import DOMAIN
-from .helpers import get_entity_id_from_conversation_device_id
+from .const import (
+    ATTR_EXTRA,
+    ATTR_INCLUDE_EXPIRED,
+    ATTR_REMOVE_ALL,
+    ATTR_TIMER_ID,
+    ATTR_TYPE,
+    DOMAIN,
+)
+from .helpers import get_entity_id_from_conversation_device_id, get_mimic_entity_id
 
 _LOGGER = logging.getLogger(__name__)
+
+SET_TIMER_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Exclusive(ATTR_ENTITY_ID, "target"): cv.entity_id,
+        vol.Exclusive(ATTR_DEVICE_ID, "target"): vol.Any(cv.string, None),
+        vol.Required(ATTR_TYPE): str,
+        vol.Optional(ATTR_NAME): str,
+        vol.Required(ATTR_TIME): str,
+        vol.Optional(ATTR_EXTRA): vol.Schema({}, extra=vol.ALLOW_EXTRA),
+    }
+)
+
+
+CANCEL_TIMER_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Exclusive(ATTR_TIMER_ID, "target"): str,
+        vol.Exclusive(ATTR_ENTITY_ID, "target"): cv.entity_id,
+        vol.Exclusive(ATTR_DEVICE_ID, "target"): vol.Any(cv.string, None),
+        vol.Exclusive(ATTR_REMOVE_ALL, "target"): bool,
+    }
+)
+
+SNOOZE_TIMER_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_TIMER_ID): str,
+        vol.Required(ATTR_TIME): str,
+    }
+)
+
+GET_TIMERS_SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Exclusive(ATTR_TIMER_ID, "target"): str,
+        vol.Exclusive(ATTR_ENTITY_ID, "target"): cv.entity_id,
+        vol.Exclusive(ATTR_DEVICE_ID, "target"): vol.Any(cv.string, None),
+        vol.Optional(ATTR_NAME): str,
+        vol.Optional(ATTR_INCLUDE_EXPIRED, default=False): bool,
+    }
+)
 
 # Event name prefixes
 VA_EVENT_PREFIX = "va_timer_{}"
@@ -621,6 +674,125 @@ class VATimers:
 
         self.store = VATimerStore(hass)
         self.timer_tasks: dict[str, asyncio.Task] = {}
+
+        # Init services
+        self.hass.services.async_register(
+            DOMAIN,
+            "set_timer",
+            self._async_handle_set_timer,
+            schema=SET_TIMER_SERVICE_SCHEMA,
+            supports_response=SupportsResponse.OPTIONAL,
+        )
+
+        self.hass.services.async_register(
+            DOMAIN,
+            "snooze_timer",
+            self._async_handle_snooze_timer,
+            schema=SNOOZE_TIMER_SERVICE_SCHEMA,
+            supports_response=SupportsResponse.OPTIONAL,
+        )
+
+        self.hass.services.async_register(
+            DOMAIN,
+            "cancel_timer",
+            self._async_handle_cancel_timer,
+            schema=CANCEL_TIMER_SERVICE_SCHEMA,
+            supports_response=SupportsResponse.OPTIONAL,
+        )
+
+        self.hass.services.async_register(
+            DOMAIN,
+            "get_timers",
+            self._async_handle_get_timers,
+            schema=GET_TIMERS_SERVICE_SCHEMA,
+            supports_response=SupportsResponse.ONLY,
+        )
+
+    async def _async_handle_set_timer(self, call: ServiceCall) -> ServiceResponse:
+        """Handle a set timer service call."""
+        entity_id = call.data.get(ATTR_ENTITY_ID)
+        device_id = call.data.get(ATTR_DEVICE_ID)
+        timer_type = call.data.get(ATTR_TYPE)
+        name = call.data.get(ATTR_NAME)
+        timer_time = call.data.get(ATTR_TIME)
+        extra_data = call.data.get(ATTR_EXTRA)
+
+        sentence, timer_info = decode_time_sentence(timer_time)
+        _LOGGER.debug("Time decode: %s -> %s", sentence, timer_info)
+        if entity_id is None and device_id is None:
+            mimic_device = get_mimic_entity_id(self.hass)
+            if mimic_device:
+                entity_id = mimic_device
+                _LOGGER.warning(
+                    "Using the set mimic entity %s to set timer as no entity or device id provided to the set timer service",
+                    mimic_device,
+                )
+            else:
+                raise vol.InInvalid("entity_id or device_id is required")
+
+        extra_info = {"sentence": sentence}
+        if extra_data:
+            extra_info.update(extra_data)
+
+        if timer_info:
+            timer_id, timer, response = await self.add_timer(
+                timer_class=timer_type,
+                device_or_entity_id=entity_id if entity_id else device_id,
+                timer_info=timer_info,
+                name=name,
+                extra_info=extra_info,
+            )
+
+            return {"timer_id": timer_id, "timer": timer, "response": response}
+        return {"error": "unable to decode time or interval information"}
+
+    async def _async_handle_snooze_timer(self, call: ServiceCall) -> ServiceResponse:
+        """Handle a set timer service call."""
+        timer_id = call.data.get(ATTR_TIMER_ID)
+        timer_time = call.data.get(ATTR_TIME)
+
+        _, timer_info = decode_time_sentence(timer_time)
+
+        if timer_info:
+            timer_id, timer, response = await self.snooze_timer(
+                timer_id,
+                timer_info,
+            )
+
+            return {"timer_id": timer_id, "timer": timer, "response": response}
+        return {"error": "unable to decode time or interval information"}
+
+    async def _async_handle_cancel_timer(self, call: ServiceCall) -> ServiceResponse:
+        """Handle a cancel timer service call."""
+        timer_id = call.data.get(ATTR_TIMER_ID)
+        entity_id = call.data.get(ATTR_ENTITY_ID)
+        device_id = call.data.get(ATTR_DEVICE_ID)
+        cancel_all = call.data.get(ATTR_REMOVE_ALL, False)
+
+        if any([timer_id, entity_id, device_id, cancel_all]):
+            result = await self.cancel_timer(
+                timer_id=timer_id,
+                device_or_entity_id=entity_id if entity_id else device_id,
+                cancel_all=cancel_all,
+            )
+            return {"result": result}
+        return {"error": "no attribute supplied"}
+
+    async def _async_handle_get_timers(self, call: ServiceCall) -> ServiceResponse:
+        """Handle a cancel timer service call."""
+        entity_id = call.data.get(ATTR_ENTITY_ID)
+        device_id = call.data.get(ATTR_DEVICE_ID)
+        timer_id = call.data.get(ATTR_TIMER_ID)
+        name = call.data.get(ATTR_NAME)
+        include_expired = call.data.get(ATTR_INCLUDE_EXPIRED, False)
+
+        result = self.get_timers(
+            timer_id=timer_id,
+            device_or_entity_id=entity_id if entity_id else device_id,
+            name=name,
+            include_expired=include_expired,
+        )
+        return {"result": result}
 
     async def load(self):
         """Load data store."""

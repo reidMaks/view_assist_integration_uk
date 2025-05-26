@@ -10,14 +10,17 @@ from homeassistant.components.media_player import DOMAIN as MEDIAPLAYER_DOMAIN
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.weather import DOMAIN as WEATHER_DOMAIN
 from homeassistant.config_entries import ConfigFlow, OptionsFlow
-from homeassistant.const import CONF_MODE, CONF_NAME, CONF_TYPE
+from homeassistant.const import CONF_MODE, CONF_NAME, CONF_TYPE, Platform
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.data_entry_flow import SectionConfig, section
 from homeassistant.helpers.selector import (
-    DeviceSelector,
-    DeviceSelectorConfig,
+    BooleanSelector,
     EntityFilterSelectorConfig,
     EntitySelector,
     EntitySelectorConfig,
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -27,119 +30,100 @@ from .const import (
     BROWSERMOD_DOMAIN,
     CONF_ASSIST_PROMPT,
     CONF_BACKGROUND,
+    CONF_BACKGROUND_MODE,
+    CONF_BACKGROUND_SETTINGS,
     CONF_DASHBOARD,
-    CONF_DEV_MIMIC,
+    CONF_DEVELOPER_DEVICE,
+    CONF_DEVELOPER_MIMIC_DEVICE,
     CONF_DISPLAY_DEVICE,
+    CONF_DISPLAY_SETTINGS,
     CONF_DO_NOT_DISTURB,
+    CONF_DUCKING_VOLUME,
+    CONF_ENABLE_UPDATES,
     CONF_FONT_STYLE,
-    CONF_HIDE_HEADER,
-    CONF_HIDE_SIDEBAR,
     CONF_HOME,
     CONF_INTENT,
     CONF_INTENT_DEVICE,
+    CONF_LIST,
     CONF_MEDIAPLAYER_DEVICE,
+    CONF_MENU_CONFIG,
+    CONF_MENU_ITEMS,
+    CONF_MENU_TIMEOUT,
     CONF_MIC_DEVICE,
     CONF_MIC_UNMUTE,
     CONF_MUSIC,
     CONF_MUSICPLAYER_DEVICE,
-    CONF_ROTATE_BACKGROUND,
     CONF_ROTATE_BACKGROUND_INTERVAL,
     CONF_ROTATE_BACKGROUND_LINKED_ENTITY,
     CONF_ROTATE_BACKGROUND_PATH,
-    CONF_ROTATE_BACKGROUND_SOURCE,
+    CONF_SCREEN_MODE,
     CONF_STATUS_ICON_SIZE,
     CONF_STATUS_ICONS,
-    CONF_USE_24H_TIME,
+    CONF_TIME_FORMAT,
     CONF_USE_ANNOUNCE,
     CONF_VIEW_TIMEOUT,
     CONF_WEATHER_ENTITY,
-    DEFAULT_ASSIST_PROMPT,
-    DEFAULT_DASHBOARD,
-    DEFAULT_DND,
-    DEFAULT_FONT_STYLE,
-    DEFAULT_HIDE_HEADER,
-    DEFAULT_HIDE_SIDEBAR,
-    DEFAULT_MIC_UNMUTE,
-    DEFAULT_MODE,
     DEFAULT_NAME,
-    DEFAULT_ROTATE_BACKGROUND,
-    DEFAULT_ROTATE_BACKGROUND_INTERVAL,
-    DEFAULT_ROTATE_BACKGROUND_PATH,
-    DEFAULT_ROTATE_BACKGROUND_SOURCE,
-    DEFAULT_STATUS_ICON_SIZE,
-    DEFAULT_STATUS_ICONS,
     DEFAULT_TYPE,
-    DEFAULT_USE_24H_TIME,
-    DEFAULT_USE_ANNOUNCE,
-    DEFAULT_VIEW_BACKGROUND,
-    DEFAULT_VIEW_HOME,
-    DEFAULT_VIEW_INTENT,
-    DEFAULT_VIEW_MUSIC,
-    DEFAULT_VIEW_TIMEOUT,
-    DEFAULT_WEATHER_ENITITY,
+    DEFAULT_VALUES,
     DOMAIN,
     REMOTE_ASSIST_DISPLAY_DOMAIN,
     VAAssistPrompt,
-    VAConfigEntry,
     VAIconSizes,
-    VAType,
 )
-from .helpers import (
-    get_devices_for_domain,
-    get_master_config_entry,
-    get_sensor_entity_from_instance,
+from .helpers import get_devices_for_domain, get_master_config_entry
+from .typed import (
+    VABackgroundMode,
+    VAConfigEntry,
+    VAMenuConfig,
+    VAScreenMode,
+    VATimeFormat,
+    VAType,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-BASE_SCHEMA = {
-    vol.Required(CONF_NAME): str,
-    vol.Required(CONF_MIC_DEVICE): EntitySelector(
-        EntitySelectorConfig(
-            filter=[
-                EntityFilterSelectorConfig(
-                    integration="esphome", domain=ASSIST_SAT_DOMAIN
-                ),
-                EntityFilterSelectorConfig(
-                    integration="hassmic", domain=[SENSOR_DOMAIN, ASSIST_SAT_DOMAIN]
-                ),
-                EntityFilterSelectorConfig(
-                    integration="stream_assist",
-                    domain=[SENSOR_DOMAIN, ASSIST_SAT_DOMAIN],
-                ),
-                EntityFilterSelectorConfig(
-                    integration="wyoming", domain=ASSIST_SAT_DOMAIN
-                ),
-            ]
-        )
-    ),
-    vol.Required(CONF_MEDIAPLAYER_DEVICE): EntitySelector(
-        EntitySelectorConfig(domain=MEDIAPLAYER_DOMAIN)
-    ),
-    vol.Required(CONF_MUSICPLAYER_DEVICE): EntitySelector(
-        EntitySelectorConfig(domain=MEDIAPLAYER_DOMAIN)
-    ),
-    vol.Optional(CONF_INTENT_DEVICE, default=vol.UNDEFINED): EntitySelector(
-        EntitySelectorConfig(domain=SENSOR_DOMAIN)
-    ),
-}
+MASTER_FORM_DESCRIPTION = "Values here will be used when no value is set on the View Assist satellite device configuration"
+DEVICE_FORM_DESCRIPTION = (
+    "Setting values here will override the master config settings for this device"
+)
 
-DISPLAY_SCHEMA = {
-    vol.Required(CONF_DISPLAY_DEVICE): DeviceSelector(
-        DeviceSelectorConfig(
-            filter=[
-                EntityFilterSelectorConfig(integration=BROWSERMOD_DOMAIN),
-                EntityFilterSelectorConfig(
-                    integration=REMOTE_ASSIST_DISPLAY_DOMAIN,
-                ),
-            ],
-        )
-    ),
-    vol.Required(CONF_DEV_MIMIC, default=False): bool,
-}
+BASE_DEVICE_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_NAME): str,
+        vol.Required(CONF_MIC_DEVICE): EntitySelector(
+            EntitySelectorConfig(
+                filter=[
+                    EntityFilterSelectorConfig(
+                        integration="esphome", domain=ASSIST_SAT_DOMAIN
+                    ),
+                    EntityFilterSelectorConfig(
+                        integration="hassmic", domain=[SENSOR_DOMAIN, ASSIST_SAT_DOMAIN]
+                    ),
+                    EntityFilterSelectorConfig(
+                        integration="stream_assist",
+                        domain=[SENSOR_DOMAIN, ASSIST_SAT_DOMAIN],
+                    ),
+                    EntityFilterSelectorConfig(
+                        integration="wyoming", domain=ASSIST_SAT_DOMAIN
+                    ),
+                ]
+            )
+        ),
+        vol.Required(CONF_MEDIAPLAYER_DEVICE): EntitySelector(
+            EntitySelectorConfig(domain=MEDIAPLAYER_DOMAIN)
+        ),
+        vol.Required(CONF_MUSICPLAYER_DEVICE): EntitySelector(
+            EntitySelectorConfig(domain=MEDIAPLAYER_DOMAIN)
+        ),
+        vol.Optional(CONF_INTENT_DEVICE, default=vol.UNDEFINED): EntitySelector(
+            EntitySelectorConfig(domain=SENSOR_DOMAIN)
+        ),
+    }
+)
 
 
-def get_display_schema(
+def get_display_devices(
     hass: HomeAssistant, config: VAConfigEntry | None = None
 ) -> dict[str, Any]:
     """Get display device options."""
@@ -157,17 +141,14 @@ def get_display_schema(
 
     # Add current setting if not already in list
     if config is not None:
-        if config.runtime_data.display_device not in display_devices:
-            display_devices[config.runtime_data.display_device] = (
-                config.runtime_data.display_device
-            )
-
-    # Set a dummy device for initial setup
-    if not display_devices:
-        display_devices = {"dummy": "dummy"}
+        attrs = [CONF_DISPLAY_DEVICE, CONF_DEVELOPER_DEVICE]
+        for attr in attrs:
+            if d := config.data.get(attr):
+                if d not in display_devices:
+                    display_devices[d] = d
 
     # Make into options dict
-    options = [
+    return [
         {
             "value": key,
             "label": value,
@@ -175,40 +156,205 @@ def get_display_schema(
         for key, value in display_devices.items()
     ]
 
-    return (
-        {
-            vol.Required(CONF_DISPLAY_DEVICE): SelectSelector(
-                SelectSelectorConfig(
-                    options=options,
-                    mode=SelectSelectorMode.DROPDOWN,
+
+def get_dashboard_options_schema(config_entry: VAConfigEntry | None) -> vol.Schema:
+    """Return schema for dashboard options."""
+    is_master = (
+        config_entry is not None
+        and config_entry.data[CONF_TYPE] == VAType.MASTER_CONFIG
+    )
+
+    # Modify any option lists
+    if is_master:
+        background_source_options = [
+            e.value for e in VABackgroundMode if e != VABackgroundMode.LINKED
+        ]
+        background_extra = {}
+    else:
+        background_source_options = [e.value for e in VABackgroundMode]
+        background_extra = {
+            vol.Optional(CONF_ROTATE_BACKGROUND_LINKED_ENTITY): (
+                EntitySelector(
+                    EntitySelectorConfig(
+                        integration=DOMAIN,
+                        domain=SENSOR_DOMAIN,
+                        exclude_entities=[],
+                    )
                 )
-            ),
-            vol.Required(CONF_DEV_MIMIC, default=False): bool,
+            )
         }
-        if config is None
-        else {
-            vol.Required(
-                CONF_DISPLAY_DEVICE,
-                default=config.data.get(CONF_DISPLAY_DEVICE, vol.UNDEFINED),
-            ): SelectSelector(
+
+    BASE = {
+        vol.Optional(CONF_DASHBOARD): str,
+        vol.Optional(CONF_HOME): str,
+        vol.Optional(CONF_MUSIC): str,
+        vol.Optional(CONF_INTENT): str,
+        vol.Optional(CONF_LIST): str,
+    }
+    BACKGROUND_SETTINGS = {
+        vol.Optional(CONF_BACKGROUND_MODE): SelectSelector(
+            SelectSelectorConfig(
+                translation_key="rotate_backgound_source_selector",
+                options=background_source_options,
+                mode=SelectSelectorMode.DROPDOWN,
+            )
+        ),
+        vol.Optional(CONF_BACKGROUND): str,
+        vol.Optional(CONF_ROTATE_BACKGROUND_PATH): str,
+        vol.Optional(CONF_ROTATE_BACKGROUND_INTERVAL): int,
+    }
+
+    DISPLAY_SETTINGS = {
+        vol.Optional(CONF_ASSIST_PROMPT): SelectSelector(
+            SelectSelectorConfig(
+                translation_key="assist_prompt_selector",
+                options=[e.value for e in VAAssistPrompt],
+                mode=SelectSelectorMode.DROPDOWN,
+            )
+        ),
+        vol.Optional(CONF_STATUS_ICON_SIZE): SelectSelector(
+            SelectSelectorConfig(
+                translation_key="status_icons_size_selector",
+                options=[e.value for e in VAIconSizes],
+                mode=SelectSelectorMode.DROPDOWN,
+            )
+        ),
+        vol.Optional(CONF_FONT_STYLE): str,
+        vol.Optional(CONF_STATUS_ICONS): SelectSelector(
+            SelectSelectorConfig(
+                translation_key="status_icons_selector",
+                options=[],
+                mode=SelectSelectorMode.LIST,
+                multiple=True,
+                custom_value=True,
+            )
+        ),
+        vol.Optional(CONF_MENU_CONFIG): SelectSelector(
+            SelectSelectorConfig(
+                translation_key="menu_config_selector",
+                options=[e.value for e in VAMenuConfig],
+                mode=SelectSelectorMode.DROPDOWN,
+            )
+        ),
+        vol.Optional(CONF_MENU_ITEMS): SelectSelector(
+            SelectSelectorConfig(
+                translation_key="menu_icons_selector",
+                options=[],
+                mode=SelectSelectorMode.LIST,
+                multiple=True,
+                custom_value=True,
+            )
+        ),
+        vol.Optional(CONF_MENU_TIMEOUT): int,
+        vol.Optional(CONF_TIME_FORMAT): SelectSelector(
+            SelectSelectorConfig(
+                options=[e.value for e in VATimeFormat],
+                mode=SelectSelectorMode.DROPDOWN,
+                translation_key="lookup_selector",
+            )
+        ),
+        vol.Optional(CONF_SCREEN_MODE): SelectSelector(
+            SelectSelectorConfig(
+                options=[e.value for e in VAScreenMode],
+                mode=SelectSelectorMode.DROPDOWN,
+                translation_key="lookup_selector",
+            )
+        ),
+    }
+
+    BACKGROUND_SETTINGS.update(background_extra)
+
+    schema = BASE
+    schema[vol.Required(CONF_BACKGROUND_SETTINGS)] = section(
+        vol.Schema(BACKGROUND_SETTINGS), options=SectionConfig(collapsed=True)
+    )
+    schema[vol.Required(CONF_DISPLAY_SETTINGS)] = section(
+        vol.Schema(DISPLAY_SETTINGS), options=SectionConfig(collapsed=True)
+    )
+    return vol.Schema(schema)
+
+
+DEFAULT_OPTIONS_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_WEATHER_ENTITY): EntitySelector(
+            EntitySelectorConfig(domain=WEATHER_DOMAIN)
+        ),
+        vol.Optional(CONF_MODE): str,
+        vol.Optional(CONF_VIEW_TIMEOUT): NumberSelector(
+            NumberSelectorConfig(min=5, max=999, mode=NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_DO_NOT_DISTURB): SelectSelector(
+            SelectSelectorConfig(
+                options=["on", "off"],
+                mode=SelectSelectorMode.DROPDOWN,
+                translation_key="lookup_selector",
+            )
+        ),
+        vol.Optional(CONF_USE_ANNOUNCE): SelectSelector(
+            SelectSelectorConfig(
+                options=["on", "off"],
+                mode=SelectSelectorMode.DROPDOWN,
+                translation_key="lookup_selector",
+            )
+        ),
+        vol.Optional(CONF_MIC_UNMUTE): SelectSelector(
+            SelectSelectorConfig(
+                options=["on", "off"],
+                mode=SelectSelectorMode.DROPDOWN,
+                translation_key="lookup_selector",
+            )
+        ),
+        vol.Optional(CONF_DUCKING_VOLUME): NumberSelector(
+            NumberSelectorConfig(
+                min=0,
+                max=100,
+                step=1.0,
+                mode=NumberSelectorMode.BOX,
+            )
+        ),
+    }
+)
+
+INTEGRATION_OPTIONS_SCHEMA = vol.Schema(
+    {vol.Optional(CONF_ENABLE_UPDATES): BooleanSelector()}
+)
+
+
+def get_developer_options_schema(
+    hass: HomeAssistant, config_entry: VAConfigEntry | None
+) -> vol.Schema:
+    """Return schema for dashboard options."""
+    return vol.Schema(
+        {
+            vol.Optional(CONF_DEVELOPER_DEVICE): SelectSelector(
                 SelectSelectorConfig(
-                    options=options,
+                    options=get_display_devices(hass, config_entry),
                     mode=SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Required(
-                CONF_DEV_MIMIC,
-                default=config.data.get(CONF_DEV_MIMIC, False),
-            ): bool,
+            vol.Optional(CONF_DEVELOPER_MIMIC_DEVICE): EntitySelector(
+                EntitySelectorConfig(integration=DOMAIN, domain=Platform.SENSOR)
+            ),
         }
     )
+
+
+def get_suggested_option_values(config: VAConfigEntry) -> dict[str, Any]:
+    """Get suggested values for the config entry."""
+    if config.data[CONF_TYPE] == VAType.MASTER_CONFIG:
+        option_values = DEFAULT_VALUES.copy()
+        for option in DEFAULT_VALUES:
+            if config.options.get(option) is not None:
+                option_values[option] = config.options.get(option)
+        return option_values
+    return config.options
 
 
 class ViewAssistConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for View Assist."""
 
     VERSION = 1
-    MINOR_VERSION = 3
+    MINOR_VERSION = 5
 
     @staticmethod
     @callback
@@ -278,9 +424,18 @@ class ViewAssistConfigFlow(ConfigFlow, domain=DOMAIN):
 
         # Define the schema based on the selected type
         if self.type == VAType.VIEW_AUDIO:
-            data_schema = vol.Schema({**BASE_SCHEMA, **get_display_schema(self.hass)})
+            data_schema = BASE_DEVICE_SCHEMA.extend(
+                {
+                    vol.Required(CONF_DISPLAY_DEVICE): SelectSelector(
+                        SelectSelectorConfig(
+                            options=get_display_devices(self.hass),
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    )
+                }
+            )
         else:  # audio_only
-            data_schema = vol.Schema(BASE_SCHEMA)
+            data_schema = BASE_DEVICE_SCHEMA
 
         # Show the form for the selected type
         return self.async_show_form(step_id="options", data_schema=data_schema)
@@ -319,20 +474,17 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                 menu_options=["main_config", "dashboard_options", "default_options"],
             )
         if self.va_type == VAType.MASTER_CONFIG:
-            return await self.async_step_master_config()
+            return self.async_show_menu(
+                step_id="init",
+                menu_options=[
+                    "integration_options",
+                    "dashboard_options",
+                    "default_options",
+                    "developer_options",
+                ],
+            )
 
         return await self.async_step_main_config()
-
-    async def async_step_master_config(self, user_input=None):
-        """Handle master config flow."""
-        if user_input is not None:
-            # This is just updating the core config so update config_entry.data
-            options = self.config_entry.options | user_input
-            return self.async_create_entry(data=options)
-
-        data_schema = vol.Schema({})
-        # Show the form for the selected type
-        return self.async_show_form(step_id="master_config", data_schema=data_schema)
 
     async def async_step_main_config(self, user_input=None):
         """Handle main config flow."""
@@ -344,263 +496,129 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
                 self.config_entry, data=user_input
             )
             return self.async_create_entry(data=None)
-        # Define the schema based on the selected type
-        BASE_OPTIONS = {
-            vol.Required(CONF_NAME, default=self.config_entry.data[CONF_NAME]): str,
-            vol.Required(
-                CONF_MIC_DEVICE, default=self.config_entry.data[CONF_MIC_DEVICE]
-            ): EntitySelector(
-                EntitySelectorConfig(
-                    filter=[
-                        EntityFilterSelectorConfig(
-                            integration="esphome", domain=ASSIST_SAT_DOMAIN
-                        ),
-                        EntityFilterSelectorConfig(
-                            integration="hassmic",
-                            domain=[SENSOR_DOMAIN, ASSIST_SAT_DOMAIN],
-                        ),
-                        EntityFilterSelectorConfig(
-                            integration="stream_assist",
-                            domain=[SENSOR_DOMAIN, ASSIST_SAT_DOMAIN],
-                        ),
-                        EntityFilterSelectorConfig(
-                            integration="wyoming", domain=ASSIST_SAT_DOMAIN
-                        ),
-                    ]
-                )
-            ),
-            vol.Required(
-                CONF_MEDIAPLAYER_DEVICE,
-                default=self.config_entry.data[CONF_MEDIAPLAYER_DEVICE],
-            ): EntitySelector(EntitySelectorConfig(domain=MEDIAPLAYER_DOMAIN)),
-            vol.Required(
-                CONF_MUSICPLAYER_DEVICE,
-                default=self.config_entry.data[CONF_MUSICPLAYER_DEVICE],
-            ): EntitySelector(EntitySelectorConfig(domain=MEDIAPLAYER_DOMAIN)),
-            vol.Optional(
-                CONF_INTENT_DEVICE,
-                description={
-                    "suggested_value": self.config_entry.data.get(CONF_INTENT_DEVICE)
-                },
-            ): EntitySelector(EntitySelectorConfig(domain=SENSOR_DOMAIN)),
-        }
 
         if self.va_type == VAType.VIEW_AUDIO:
-            data_schema = vol.Schema(
-                {**BASE_OPTIONS, **get_display_schema(self.hass, self.config_entry)}
+            data_schema = BASE_DEVICE_SCHEMA.extend(
+                {
+                    vol.Required(CONF_DISPLAY_DEVICE): SelectSelector(
+                        SelectSelectorConfig(
+                            options=get_display_devices(self.hass, self.config_entry),
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    )
+                }
+            )
+            data_schema = self.add_suggested_values_to_schema(
+                data_schema, self.config_entry.data
             )
         else:  # audio_only
-            data_schema = vol.Schema(BASE_OPTIONS)
-
-        # Show the form for the selected type
-        return self.async_show_form(step_id="main_config", data_schema=data_schema)
-
-    async def async_step_dashboard_options(self, user_input=None):
-        """Handle dashboard options flow."""
-        if user_input is not None:
-            # This is just updating the core config so update config_entry.data
-            options = self.config_entry.options | user_input
-            return self.async_create_entry(data=options)
-
-        data_schema = vol.Schema(
-            {
-                vol.Optional(
-                    CONF_DASHBOARD,
-                    default=self.config_entry.options.get(
-                        CONF_DASHBOARD, DEFAULT_DASHBOARD
-                    ),
-                ): str,
-                vol.Optional(
-                    CONF_HOME,
-                    default=self.config_entry.options.get(CONF_HOME, DEFAULT_VIEW_HOME),
-                ): str,
-                vol.Optional(
-                    CONF_MUSIC,
-                    default=self.config_entry.options.get(
-                        CONF_MUSIC, DEFAULT_VIEW_MUSIC
-                    ),
-                ): str,
-                vol.Optional(
-                    CONF_INTENT,
-                    default=self.config_entry.options.get(
-                        CONF_INTENT, DEFAULT_VIEW_INTENT
-                    ),
-                ): str,
-                vol.Optional(
-                    CONF_BACKGROUND,
-                    default=self.config_entry.options.get(
-                        CONF_BACKGROUND, DEFAULT_VIEW_BACKGROUND
-                    ),
-                ): str,
-                vol.Optional(
-                    CONF_ROTATE_BACKGROUND,
-                    default=self.config_entry.options.get(
-                        CONF_ROTATE_BACKGROUND, DEFAULT_ROTATE_BACKGROUND
-                    ),
-                ): bool,
-                vol.Optional(
-                    CONF_ROTATE_BACKGROUND_SOURCE,
-                    default=self.config_entry.options.get(
-                        CONF_ROTATE_BACKGROUND_SOURCE,
-                        DEFAULT_ROTATE_BACKGROUND_SOURCE,
-                    ),
-                ): SelectSelector(
-                    SelectSelectorConfig(
-                        translation_key="rotate_backgound_source_selector",
-                        options=[
-                            "local_sequence",
-                            "local_random",
-                            "download",
-                            "link_to_entity",
-                        ],
-                        mode=SelectSelectorMode.LIST,
-                    )
-                ),
-                vol.Optional(
-                    CONF_ROTATE_BACKGROUND_PATH,
-                    default=self.config_entry.options.get(
-                        CONF_ROTATE_BACKGROUND_PATH,
-                        DEFAULT_ROTATE_BACKGROUND_PATH,
-                    ),
-                ): str,
-                vol.Optional(
-                    CONF_ROTATE_BACKGROUND_LINKED_ENTITY,
-                    default=self.config_entry.options.get(
-                        CONF_ROTATE_BACKGROUND_LINKED_ENTITY, vol.UNDEFINED
-                    ),
-                ): EntitySelector(
-                    EntitySelectorConfig(
-                        integration=DOMAIN,
-                        domain=SENSOR_DOMAIN,
-                        exclude_entities=[
-                            get_sensor_entity_from_instance(
-                                self.hass, self.config_entry.entry_id
-                            )
-                        ],
-                    )
-                ),
-                vol.Optional(
-                    CONF_ROTATE_BACKGROUND_INTERVAL,
-                    default=self.config_entry.options.get(
-                        CONF_ROTATE_BACKGROUND_INTERVAL,
-                        DEFAULT_ROTATE_BACKGROUND_INTERVAL,
-                    ),
-                ): int,
-                vol.Optional(
-                    CONF_ASSIST_PROMPT,
-                    default=self.config_entry.options.get(
-                        CONF_ASSIST_PROMPT, DEFAULT_ASSIST_PROMPT
-                    ),
-                ): SelectSelector(
-                    SelectSelectorConfig(
-                        translation_key="assist_prompt_selector",
-                        options=[e.value for e in VAAssistPrompt],
-                        mode=SelectSelectorMode.DROPDOWN,
-                    )
-                ),
-                vol.Optional(
-                    CONF_STATUS_ICON_SIZE,
-                    default=self.config_entry.options.get(
-                        CONF_STATUS_ICON_SIZE, DEFAULT_STATUS_ICON_SIZE
-                    ),
-                ): SelectSelector(
-                    SelectSelectorConfig(
-                        translation_key="status_icons_size_selector",
-                        options=[e.value for e in VAIconSizes],
-                        mode=SelectSelectorMode.DROPDOWN,
-                    )
-                ),
-                vol.Optional(
-                    CONF_FONT_STYLE,
-                    default=self.config_entry.options.get(
-                        CONF_FONT_STYLE, DEFAULT_FONT_STYLE
-                    ),
-                ): str,
-                vol.Optional(
-                    CONF_STATUS_ICONS,
-                    default=self.config_entry.options.get(
-                        CONF_STATUS_ICONS, DEFAULT_STATUS_ICONS
-                    ),
-                ): SelectSelector(
-                    SelectSelectorConfig(
-                        translation_key="status_icons_selector",
-                        options=[],
-                        mode=SelectSelectorMode.LIST,
-                        multiple=True,
-                        custom_value=True,
-                    )
-                ),
-                vol.Optional(
-                    CONF_USE_24H_TIME,
-                    default=self.config_entry.options.get(
-                        CONF_USE_24H_TIME, DEFAULT_USE_24H_TIME
-                    ),
-                ): bool,
-                vol.Optional(
-                    CONF_HIDE_SIDEBAR,
-                    default=self.config_entry.options.get(
-                        CONF_HIDE_SIDEBAR, DEFAULT_HIDE_SIDEBAR
-                    ),
-                ): bool,
-                vol.Optional(
-                    CONF_HIDE_HEADER,
-                    default=self.config_entry.options.get(
-                        CONF_HIDE_HEADER, DEFAULT_HIDE_HEADER
-                    ),
-                ): bool,
-            }
-        )
+            data_schema = self.add_suggested_values_to_schema(
+                BASE_DEVICE_SCHEMA, self.config_entry.data
+            )
 
         # Show the form for the selected type
         return self.async_show_form(
-            step_id="dashboard_options", data_schema=data_schema
+            step_id="main_config",
+            data_schema=data_schema,
+            description_placeholders={"name": self.config_entry.title},
+        )
+
+    async def async_step_dashboard_options(self, user_input=None):
+        """Handle dashboard options flow."""
+        data_schema = self.add_suggested_values_to_schema(
+            get_dashboard_options_schema(self.config_entry),
+            get_suggested_option_values(self.config_entry),
+        )
+
+        if user_input is not None:
+            # This is just updating the core config so update config_entry.data
+            options = self.config_entry.options | user_input
+            for o in data_schema.schema:
+                if o not in user_input:
+                    options.pop(o, None)
+            return self.async_create_entry(data=options)
+
+        # Show the form
+        return self.async_show_form(
+            step_id="dashboard_options",
+            data_schema=data_schema,
+            description_placeholders={
+                "name": self.config_entry.title,
+                "description": MASTER_FORM_DESCRIPTION
+                if self.config_entry.data[CONF_TYPE] == VAType.MASTER_CONFIG
+                else DEVICE_FORM_DESCRIPTION,
+            },
         )
 
     async def async_step_default_options(self, user_input=None):
         """Handle default options flow."""
+
+        data_schema = self.add_suggested_values_to_schema(
+            DEFAULT_OPTIONS_SCHEMA, get_suggested_option_values(self.config_entry)
+        )
+
         if user_input is not None:
             # This is just updating the core config so update config_entry.data
             options = self.config_entry.options | user_input
+            for o in data_schema.schema:
+                if o not in user_input:
+                    options.pop(o, None)
             return self.async_create_entry(data=options)
 
-        data_schema = vol.Schema(
-            {
-                vol.Optional(
-                    CONF_WEATHER_ENTITY,
-                    default=self.config_entry.options.get(
-                        CONF_WEATHER_ENTITY, DEFAULT_WEATHER_ENITITY
-                    ),
-                ): EntitySelector(EntitySelectorConfig(domain=WEATHER_DOMAIN)),
-                vol.Optional(
-                    CONF_MODE,
-                    default=self.config_entry.options.get(CONF_MODE, DEFAULT_MODE),
-                ): str,
-                vol.Optional(
-                    CONF_VIEW_TIMEOUT,
-                    default=self.config_entry.options.get(
-                        CONF_VIEW_TIMEOUT, DEFAULT_VIEW_TIMEOUT
-                    ),
-                ): int,
-                vol.Optional(
-                    CONF_DO_NOT_DISTURB,
-                    default=self.config_entry.options.get(
-                        CONF_DO_NOT_DISTURB, DEFAULT_DND
-                    ),
-                ): bool,
-                vol.Optional(
-                    CONF_USE_ANNOUNCE,
-                    default=self.config_entry.options.get(
-                        CONF_USE_ANNOUNCE, DEFAULT_USE_ANNOUNCE
-                    ),
-                ): bool,
-                vol.Optional(
-                    CONF_MIC_UNMUTE,
-                    default=self.config_entry.options.get(
-                        CONF_MIC_UNMUTE, DEFAULT_MIC_UNMUTE
-                    ),
-                ): bool,
-            }
+        # Show the form
+        return self.async_show_form(
+            step_id="default_options",
+            data_schema=data_schema,
+            description_placeholders={
+                "name": self.config_entry.title,
+                "description": MASTER_FORM_DESCRIPTION
+                if self.config_entry.data[CONF_TYPE] == VAType.MASTER_CONFIG
+                else DEVICE_FORM_DESCRIPTION,
+            },
         )
 
-        # Show the form for the selected type
-        return self.async_show_form(step_id="default_options", data_schema=data_schema)
+    async def async_step_integration_options(self, user_input=None):
+        """Handle integration options flow."""
+
+        data_schema = self.add_suggested_values_to_schema(
+            INTEGRATION_OPTIONS_SCHEMA,
+            get_suggested_option_values(self.config_entry),
+        )
+
+        if user_input is not None:
+            # This is just updating the core config so update config_entry.data
+            options = self.config_entry.options | user_input
+            for o in data_schema.schema:
+                if o not in user_input:
+                    options.pop(o, None)
+            return self.async_create_entry(data=options)
+
+        # Show the form
+        return self.async_show_form(
+            step_id="integration_options",
+            data_schema=data_schema,
+            description_placeholders={"name": self.config_entry.title},
+        )
+
+    async def async_step_developer_options(self, user_input=None):
+        """Handle default options flow."""
+
+        data_schema = self.add_suggested_values_to_schema(
+            get_developer_options_schema(self.hass, self.config_entry),
+            get_suggested_option_values(self.config_entry),
+        )
+
+        if user_input is not None:
+            # This is just updating the core config so update config_entry.data
+            options = self.config_entry.options | user_input
+            for o in data_schema.schema:
+                if o not in user_input:
+                    options.pop(o, None)
+            return self.async_create_entry(data=options)
+
+        # Show the form
+        return self.async_show_form(
+            step_id="developer_options",
+            data_schema=data_schema,
+            description_placeholders={"name": self.config_entry.title},
+        )

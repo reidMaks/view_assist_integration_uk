@@ -1,7 +1,6 @@
 """View Assist Javascript module registration."""
 
 import logging
-import os
 from pathlib import Path
 
 from homeassistant.components.http import StaticPathConfig
@@ -144,7 +143,7 @@ class JSModuleRegistration:
         path = self.hass.config.path(f"custom_components/{DOMAIN}/js_modules")
 
         gzip_files = [
-            filename for filename in os.listdir(path) if filename.endswith(".gz")
+            file.name for file in Path(path).iterdir() if file.name.endswith(".gz")
         ]
 
         for file in gzip_files:

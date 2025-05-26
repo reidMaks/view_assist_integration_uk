@@ -14,18 +14,16 @@ from homeassistant.util import slugify
 
 from .const import (
     BROWSERMOD_DOMAIN,
-    CONF_DEV_MIMIC,
     CONF_DISPLAY_DEVICE,
     DOMAIN,
+    HASSMIC_DOMAIN,
     IMAGE_PATH,
     RANDOM_IMAGE_URL,
     REMOTE_ASSIST_DISPLAY_DOMAIN,
     VAMODE_REVERTS,
-    VAConfigEntry,
-    VADisplayType,
     VAMode,
-    VAType,
 )
+from .typed import VAConfigEntry, VADisplayType, VAType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,6 +40,37 @@ def get_integration_entries(
         for entry in hass.config_entries.async_entries(DOMAIN)
         if entry.data[CONF_TYPE] in accepted_types and not entry.disabled_by
     ]
+
+
+def get_entity_list(
+    hass: HomeAssistant,
+    integration: str | list[str] | None = None,
+    domain: str | list[str] | None = None,
+    append: str | list[str] | None = None,
+) -> list[str]:
+    """Get the entity ids of devices not in dnd mode."""
+    if append:
+        matched_entities = ensure_list(append)
+    else:
+        matched_entities = []
+    # Stop full list of entities returning
+    if not integration and not domain:
+        return matched_entities
+
+    if domain and isinstance(domain, str):
+        domain = [domain]
+
+    if integration and isinstance(integration, str):
+        integration = [integration]
+
+    entity_registry = er.async_get(hass)
+    for entity_info, entity_id in entity_registry.entities._index.items():  # noqa: SLF001
+        if integration and entity_info[1] not in integration:
+            continue
+        if domain and entity_info[0] not in domain:
+            continue
+        matched_entities.append(entity_id)
+    return matched_entities
 
 
 def is_first_instance(
@@ -71,6 +100,110 @@ def ensure_list(value: str | list[str]):
         value = (value.replace("[", "").replace("]", "").replace('"', "")).split(",")
         return value if value else []
     return []
+
+
+def ensure_menu_button_at_end(status_icons: list[str]) -> None:
+    """Ensure menu button is always the rightmost (last) status icon."""
+    if "menu" in status_icons:
+        status_icons.remove("menu")
+        status_icons.append("menu")
+
+
+def normalize_status_items(raw_input: Any) -> str | list[str] | None:
+    """Normalize and validate status item input.
+
+    Handles various input formats:
+    - Single string
+    - List of strings
+    - JSON string representing a list
+    - Dictionary with attributes
+
+    Returns:
+    - Single string
+    - List of strings
+    - None if invalid input
+    """
+    import json
+
+    if raw_input is None:
+        return None
+
+    if isinstance(raw_input, str):
+        if raw_input.startswith("[") and raw_input.endswith("]"):
+            try:
+                parsed = json.loads(raw_input)
+                if isinstance(parsed, list):
+                    string_items = [str(item) for item in parsed if item]
+                    return string_items if string_items else None
+                return None
+            except json.JSONDecodeError:
+                return raw_input if raw_input else None
+        return raw_input if raw_input else None
+
+    if isinstance(raw_input, list):
+        string_items = [str(item) for item in raw_input if item]
+        return string_items if string_items else None
+
+    if isinstance(raw_input, dict):
+        if "id" in raw_input:
+            return str(raw_input["id"])
+        if "name" in raw_input:
+            return str(raw_input["name"])
+        if "value" in raw_input:
+            return str(raw_input["value"])
+
+    return None
+
+
+def arrange_status_icons(
+    menu_items: list[str], system_icons: list[str], show_menu_button: bool = False
+) -> list[str]:
+    """Arrange status icons in the correct order."""
+    result = [item for item in menu_items if item != "menu"]
+
+    for icon in system_icons:
+        if icon != "menu" and icon not in result:
+            result.append(icon)
+
+    if show_menu_button:
+        ensure_menu_button_at_end(result)
+
+    return result
+
+
+def update_status_icons(
+    current_icons: list[str],
+    add_icons: list[str] = None,
+    remove_icons: list[str] = None,
+    menu_items: list[str] = None,
+    show_menu_button: bool = False,
+) -> list[str]:
+    """Update a status icons list by adding and/or removing icons."""
+    result = current_icons.copy()
+
+    if remove_icons:
+        for icon in remove_icons:
+            if icon == "menu" and show_menu_button:
+                continue
+            if icon in result:
+                result.remove(icon)
+
+    if add_icons:
+        for icon in add_icons:
+            if icon not in result:
+                if icon != "menu":
+                    result.append(icon)
+
+    if menu_items is not None:
+        system_icons = [
+            icon for icon in result if icon not in menu_items and icon != "menu"
+        ]
+        menu_icon_list = [icon for icon in result if icon in menu_items]
+        result = arrange_status_icons(menu_icon_list, system_icons, show_menu_button)
+    elif show_menu_button:
+        ensure_menu_button_at_end(result)
+
+    return result
 
 
 def get_entity_attribute(hass: HomeAssistant, entity_id: str, attribute: str) -> Any:
@@ -197,7 +330,7 @@ def get_entity_id_from_conversation_device_id(
 ) -> str | None:
     """Get the view assist entity id for a device id relating to the mic entity."""
     for entry in get_integration_entries(hass):
-        mic_entity_id = entry.runtime_data.mic_device
+        mic_entity_id = entry.runtime_data.core.mic_device
         entity_registry = er.async_get(hass)
         mic_entity = entity_registry.async_get(mic_entity_id)
         if mic_entity.device_id == device_id:
@@ -205,16 +338,26 @@ def get_entity_id_from_conversation_device_id(
     return None
 
 
-def get_mimic_entity_id(hass: HomeAssistant) -> str:
+def get_mimic_entity_id(hass: HomeAssistant, browser_id: str | None = None) -> str:
     """Get mimic entity id."""
     # If we reach here, no match for browser_id was found
-    if mimic_entry_ids := [
-        entry.entry_id
-        for entry in get_integration_entries(hass)
-        if entry.data.get(CONF_DEV_MIMIC)
-    ]:
-        return get_sensor_entity_from_instance(hass, mimic_entry_ids[0])
-    return None
+    master_entry = get_master_config_entry(hass)
+    if browser_id:
+        if get_display_type_from_browser_id(hass, browser_id) == "native":
+            if (
+                master_entry.runtime_data.developer_settings.developer_device
+                == browser_id
+            ):
+                return (
+                    master_entry.runtime_data.developer_settings.developer_mimic_device
+                )
+            return None
+
+        device_id = get_device_id_from_name(hass, browser_id)
+        if master_entry.runtime_data.developer_settings.developer_device == device_id:
+            return master_entry.runtime_data.developer_settings.developer_mimic_device
+        return None
+    return master_entry.runtime_data.developer_settings.developer_mimic_device
 
 
 def get_entity_id_by_browser_id(hass: HomeAssistant, browser_id: str) -> str:
@@ -257,6 +400,24 @@ def get_mute_switch_entity_id(hass: HomeAssistant, mic_entity_id: str) -> str | 
     return None
 
 
+def get_hassmic_pipeline_status_entity_id(
+    hass: HomeAssistant, mic_entity_id: str
+) -> str | None:
+    """Get the wakeword entity id for a hassmic device relating to the mic entity."""
+    entity_registry = er.async_get(hass)
+    if mic_entity := entity_registry.async_get(mic_entity_id):
+        if mic_entity.platform != HASSMIC_DOMAIN:
+            return None
+        device_id = mic_entity.device_id
+        device_entities = er.async_entries_for_device(entity_registry, device_id)
+        for entity in device_entities:
+            if entity.domain == "sensor" and entity.entity_id.endswith(
+                "_pipeline_state"
+            ):
+                return entity.entity_id
+    return None
+
+
 def get_display_type_from_browser_id(
     hass: HomeAssistant, browser_id: str
 ) -> VADisplayType:
@@ -272,7 +433,7 @@ def get_display_type_from_browser_id(
                 return VADisplayType.BROWSERMOD
             if entry.domain == REMOTE_ASSIST_DISPLAY_DOMAIN:
                 return VADisplayType.REMOTE_ASSIST_DISPLAY
-    return None
+    return "native"
 
 
 def get_revert_settings_for_mode(mode: VAMode) -> tuple:
@@ -328,12 +489,13 @@ def get_key(
 ) -> dict[str, dict | str | int] | str | int:
     """Try to get a deep value from a dict based on a dot-notation."""
 
-    dn_list = dot_notation_path.split(".")
-
     try:
+        if "." in dot_notation_path:
+            dn_list = dot_notation_path.split(".")
+        else:
+            dn_list = [dot_notation_path]
         return reduce(dict.get, dn_list, data)
-    except (TypeError, KeyError) as ex:
-        _LOGGER.error("TYPE ERROR: %s - %s", dn_list, ex)
+    except (TypeError, KeyError):
         return None
 
 
@@ -354,9 +516,7 @@ def get_download_image(
 ) -> Path:
     """Get url from unsplash random image endpoint."""
     path = Path(hass.config.config_dir, DOMAIN, save_path)
-    filename = (
-        f"downloaded_{config.entry_id.lower()}_{slugify(config.runtime_data.name)}.jpg"
-    )
+    filename = f"downloaded_{config.entry_id.lower()}_{slugify(config.runtime_data.core.name)}.jpg"
     image: Path | None = None
 
     try:
@@ -408,12 +568,6 @@ def get_filesystem_images(hass: HomeAssistant, fs_path: str) -> list[Path]:
         return None
 
     return image_list
-
-
-def make_url_from_file_path(hass: HomeAssistant, path: Path) -> str:
-    """Make a url from the file path."""
-    url = path.as_uri()
-    return url.replace("file://", "").replace(hass.config.config_dir, "")
 
 
 def differ_to_json(diffs: list) -> dict:
