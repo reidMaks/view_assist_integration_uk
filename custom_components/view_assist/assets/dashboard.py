@@ -57,7 +57,14 @@ class DashboardManager(BaseAssetManager):
         """Onboard the user if not yet setup."""
         name = "dashboard"
         db_version = {}
+
         if self.is_installed(name):
+            # Download latest dashboard file and create user-dashboard diff file
+            await self._download_dashboard()
+            await self._dashboard_changed(
+                Event("lovelace_updated", {"url_path": self._dashboard_key})
+            )
+
             # Migration to update management of already installed dashboard
             installed_version = await self.async_get_installed_version(name)
             latest_version = await self.async_get_latest_version(name)
