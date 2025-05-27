@@ -7,7 +7,6 @@ from typing import Any
 from homeassistant.components.lovelace import LovelaceData, dashboard
 from homeassistant.const import EVENT_PANELS_UPDATED
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.util import dt as dt_util
 from homeassistant.util.yaml import load_yaml_dict, parse_yaml, save_yaml
 
 from ..const import (  # noqa: TID252
@@ -36,6 +35,9 @@ class ViewManager(BaseAssetManager):
             for view in views:
                 # If dashboard and views exist and we are just migrating to managed views
                 if await self.async_is_installed(view):
+                    # Download latest version of view
+                    await self._download_view(view, cancel_if_exists=True)
+
                     installed_version = await self.async_get_installed_version(view)
                     latest_version = await self.async_get_latest_version(view)
                     _LOGGER.debug(
@@ -351,6 +353,7 @@ class ViewManager(BaseAssetManager):
         self,
         view_name: str,
         community_view: bool = False,
+        cancel_if_exists: bool = False,
     ):
         """Download view files from a github repo directory."""
 
@@ -360,6 +363,9 @@ class ViewManager(BaseAssetManager):
             dir_url = f"{DASHBOARD_VIEWS_GITHUB_PATH}/{VIEWS_DIR}/{COMMUNITY_VIEWS_DIR}/{view_name}"
         else:
             dir_url = f"{DASHBOARD_VIEWS_GITHUB_PATH}/{VIEWS_DIR}/{view_name}"
+
+        if cancel_if_exists and Path(base, view_name, f"{view_name}.yaml").exists():
+            return False
 
         # Validate view dir on repo
         if await self.download_manager.async_dir_exists(dir_url):

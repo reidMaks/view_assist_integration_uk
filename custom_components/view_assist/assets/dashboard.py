@@ -43,7 +43,7 @@ class DashboardManager(BaseAssetManager):
     ) -> None:
         """Initialise."""
         super().__init__(hass, config, data)
-        self.build_mode = False
+        self.ignore_change_events = False
 
     async def async_setup(self) -> None:
         """Set up the AssetManager."""
@@ -57,7 +57,16 @@ class DashboardManager(BaseAssetManager):
         """Onboard the user if not yet setup."""
         name = "dashboard"
         db_version = {}
+
         if self.is_installed(name):
+            # Ensure dashboard file exists
+            await self._download_dashboard(cancel_if_exists=True)
+
+            # Update user-dashboard diff file
+            await self._dashboard_changed(
+                Event("lovelace_updated", {"url_path": self._dashboard_key})
+            )
+
             # Migration to update management of already installed dashboard
             installed_version = await self.async_get_installed_version(name)
             latest_version = await self.async_get_latest_version(name)
@@ -74,6 +83,7 @@ class DashboardManager(BaseAssetManager):
         self.onboarding = True
         # Check if onboarding is needed and if so, run it
         _LOGGER.debug("Installing dashboard")
+        self.ignore_change_events = True
         status = {}
         result = await self.async_install_or_update(
             name=DASHBOARD_NAME,
@@ -85,6 +95,7 @@ class DashboardManager(BaseAssetManager):
                 "installed": result.version,
                 "latest": result.latest_version,
             }
+        self.ignore_change_events = False
         self.onboarding = False
 
         return status
@@ -165,6 +176,9 @@ class DashboardManager(BaseAssetManager):
                 f"Dashboard file not found: {dashboard_file_path}"
             )
 
+        # Ignore change events during update/install
+        self.ignore_change_events = True
+
         if not self.is_installed(self._dashboard_key):
             _LOGGER.debug("Installing dashboard")
             mock_connection = MockWSConnection(self.hass)
@@ -190,16 +204,18 @@ class DashboardManager(BaseAssetManager):
                     f"{DASHBOARD_DIR}/{DASHBOARD_DIR}.yaml",
                 )
 
-                if dashboard_config := await self.hass.async_add_executor_job(
+                if new_dashboard_config := await self.hass.async_add_executor_job(
                     load_yaml_dict, dashboard_file_path
                 ):
                     self._update_install_progress("dashboard", 70)
                     await lovelace.dashboards[self._dashboard_key].async_save(
-                        dashboard_config
+                        new_dashboard_config
                     )
                     self._update_install_progress("dashboard", 80)
 
-                    installed_version = self._read_dashboard_version(dashboard_config)
+                    installed_version = self._read_dashboard_version(
+                        new_dashboard_config
+                    )
                     success = True
                 else:
                     raise AssetManagerException(
@@ -211,7 +227,7 @@ class DashboardManager(BaseAssetManager):
                 )
         else:
             _LOGGER.debug("Updating dashboard")
-            if dashboard_config := await self.hass.async_add_executor_job(
+            if new_dashboard_config := await self.hass.async_add_executor_job(
                 load_yaml_dict, dashboard_file_path
             ):
                 lovelace: LovelaceData = self.hass.data["lovelace"]
@@ -220,18 +236,20 @@ class DashboardManager(BaseAssetManager):
                 )
                 # Load dashboard config data
                 if dashboard_store:
-                    dashboard_config = await dashboard_store.async_load(False)
+                    old_dashboard_config = await dashboard_store.async_load(False)
 
                     # Copy views to updated dashboard
-                    dashboard_config["views"] = dashboard_config.get("views")
+                    new_dashboard_config["views"] = old_dashboard_config.get("views")
 
                     # Apply
-                    await dashboard_store.async_save(dashboard_config)
+                    await dashboard_store.async_save(new_dashboard_config)
                     self._update_install_progress("dashboard", 80)
                     await self._apply_user_dashboard_changes()
                     self._update_install_progress("dashboard", 90)
 
-                    installed_version = self._read_dashboard_version(dashboard_config)
+                    installed_version = self._read_dashboard_version(
+                        new_dashboard_config
+                    )
                     success = True
                 else:
                     raise AssetManagerException("Error getting dashboard store")
@@ -241,6 +259,7 @@ class DashboardManager(BaseAssetManager):
                 )
 
         self._update_install_progress("dashboard", 100)
+        self.ignore_change_events = False
         _LOGGER.debug(
             "Dashboard successfully installed - version %s",
             installed_version,
@@ -276,10 +295,13 @@ class DashboardManager(BaseAssetManager):
                 _LOGGER.debug("Dashboard version not found")
         return "0.0.0"
 
-    async def _download_dashboard(self) -> bool:
+    async def _download_dashboard(self, cancel_if_exists: bool = False) -> bool:
         """Download dashboard file."""
         # Ensure download to path exists
         base = self.hass.config.path(f"{DOMAIN}/{DASHBOARD_DIR}")
+
+        if cancel_if_exists and Path(base, f"{DASHBOARD_DIR}.yaml").exists():
+            return False
 
         # Validate view dir on repo
         dir_url = f"{DASHBOARD_VIEWS_GITHUB_PATH}/{DASHBOARD_DIR}"
@@ -290,7 +312,7 @@ class DashboardManager(BaseAssetManager):
 
     async def _dashboard_changed(self, event: Event):
         # If in dashboard build mode, ignore changes
-        if self.build_mode:
+        if self.ignore_change_events:
             return
 
         if event.data["url_path"] == self._dashboard_key:

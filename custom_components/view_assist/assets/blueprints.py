@@ -1,5 +1,6 @@
 """Blueprint manager for View Assist."""
 
+import asyncio
 import logging
 from pathlib import Path
 import re
@@ -42,6 +43,22 @@ class BlueprintManager(BaseAssetManager):
             # Load all blueprints
             self.onboarding = True
             bp_versions = {}
+
+            # Ensure the blueprint automations domain has been loaded
+            # issue 134
+            try:
+                async with asyncio.timeout(30):
+                    while not self.hass.data.get("blueprint", {}).get("automation"):
+                        _LOGGER.debug(
+                            "Blueprint automations domain not loaded yet - waiting"
+                        )
+                        await asyncio.sleep(1)
+            except TimeoutError:
+                _LOGGER.error(
+                    "Timed out waiting for blueprint automations domain to load"
+                )
+                return None
+
             blueprints = await self._get_blueprint_list()
             for name in blueprints:
                 try:
@@ -174,7 +191,9 @@ class BlueprintManager(BaseAssetManager):
             bp.blueprint.domain
         )
         if domain_blueprints is None:
-            raise ValueError("Invalid blueprint domain")
+            raise AssetManagerException(
+                f"Invalid blueprint domain for {name}: {bp.blueprint.domain}"
+            )
 
         path = bp.suggested_filename
         if not path.endswith(".yaml"):
@@ -271,13 +290,13 @@ class BlueprintManager(BaseAssetManager):
 
     def _get_blueprint_path(self, bp_name: str) -> str:
         """Get the URL for a blueprint."""
-        return f"/{BLUEPRINT_GITHUB_PATH}/{bp_name}/blueprint-{bp_name.replace('_', '').lower()}.yaml"
+        return f"{BLUEPRINT_GITHUB_PATH}/{bp_name}/blueprint-{bp_name.replace('_', '').lower()}.yaml"
 
     async def _get_blueprint_from_repo(self, name: str) -> importer.ImportedBlueprint:
         """Get the blueprint from the repo."""
         try:
             path = self._get_blueprint_path(name)
-            url = f"https://github.com/{GITHUB_REPO}/blob/{GITHUB_BRANCH}{path}"
+            url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{path}"
             return await importer.fetch_blueprint_from_github_url(self.hass, url)
         except Exception as ex:
             raise AssetManagerException(
