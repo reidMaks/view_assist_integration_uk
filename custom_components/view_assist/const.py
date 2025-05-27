@@ -154,7 +154,7 @@ DEFAULT_VALUES = {
     CONF_DO_NOT_DISTURB: "off",
     CONF_USE_ANNOUNCE: "off",
     CONF_MIC_UNMUTE: "off",
-    CONF_DUCKING_VOLUME: 2,
+    CONF_DUCKING_VOLUME: 35,
     # Default integration options
     CONF_ENABLE_UPDATES: True,
     # Default developer otions
