@@ -47,10 +47,10 @@ class BlueprintManager(BaseAssetManager):
             # Ensure the blueprint automations domain has been loaded
             # issue 134
             try:
-                async with asyncio.timeout(10):
-                    while not self.hass.data["blueprint"].get("automation"):
+                async with asyncio.timeout(30):
+                    while not self.hass.data.get("blueprint", {}).get("automation"):
                         _LOGGER.debug(
-                            "Blueprint automations domain loaded yet - waiting"
+                            "Blueprint automations domain not loaded yet - waiting"
                         )
                         await asyncio.sleep(1)
             except TimeoutError:
