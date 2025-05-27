@@ -59,8 +59,10 @@ class DashboardManager(BaseAssetManager):
         db_version = {}
 
         if self.is_installed(name):
-            # Download latest dashboard file and create user-dashboard diff file
-            await self._download_dashboard()
+            # Ensure dashboard file exists
+            await self._download_dashboard(cancel_if_exists=True)
+
+            # Update user-dashboard diff file
             await self._dashboard_changed(
                 Event("lovelace_updated", {"url_path": self._dashboard_key})
             )
@@ -283,10 +285,13 @@ class DashboardManager(BaseAssetManager):
                 _LOGGER.debug("Dashboard version not found")
         return "0.0.0"
 
-    async def _download_dashboard(self) -> bool:
+    async def _download_dashboard(self, cancel_if_exists: bool = False) -> bool:
         """Download dashboard file."""
         # Ensure download to path exists
         base = self.hass.config.path(f"{DOMAIN}/{DASHBOARD_DIR}")
+
+        if cancel_if_exists and Path(base, f"{DASHBOARD_DIR}.yaml").exists():
+            return False
 
         # Validate view dir on repo
         dir_url = f"{DASHBOARD_VIEWS_GITHUB_PATH}/{DASHBOARD_DIR}"
