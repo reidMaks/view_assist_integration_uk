@@ -236,10 +236,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: VAConfigEntry):
         )
 
         # Fire display device registration to setup display if first time config
-        async_dispatcher_send(
-            hass,
-            f"{DOMAIN}_{get_device_name_from_id(hass, entry.runtime_data.core.display_device)}_registered",
-        )
+        if entry.data[CONF_TYPE] == VAType.VIEW_AUDIO:
+            async_dispatcher_send(
+                hass,
+                f"{DOMAIN}_{get_device_name_from_id(hass, entry.runtime_data.core.display_device)}_registered",
+            )
 
     return True
 
