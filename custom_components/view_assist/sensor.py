@@ -21,7 +21,7 @@ from .const import (
 )
 from .helpers import get_device_id_from_entity_id, get_mute_switch_entity_id
 from .timers import VATimers
-from .typed import VAConfigEntry, VATimeFormat
+from .typed import VAConfigEntry, VATimeFormat, VAType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -104,26 +104,33 @@ class ViewAssistSensor(SensorEntity):
             "mediaplayer_device": r.core.mediaplayer_device,
             "musicplayer_device": r.core.musicplayer_device,
             "voice_device_id": self._voice_device_id,
-            # Dashboard settings
-            "status_icons": r.dashboard.display_settings.status_icons,
-            "status_icons_size": r.dashboard.display_settings.status_icons_size,
-            "menu_config": r.dashboard.display_settings.menu_config,
-            "menu_items": r.dashboard.display_settings.menu_items,
-            "menu_active": self._get_menu_active_state(),
-            "assist_prompt": self.get_option_key_migration_value(
-                r.dashboard.display_settings.assist_prompt
-            ),
-            "font_style": r.dashboard.display_settings.font_style,
-            "use_24_hour_time": r.dashboard.display_settings.time_format
-            == VATimeFormat.HOUR_24,
-            "background": r.dashboard.background_settings.background,
-            # Default settings
-            "mode": r.default.mode,
-            "view_timeout": r.default.view_timeout,
             "do_not_disturb": r.default.do_not_disturb,
             "use_announce": r.default.use_announce,
-            "weather_entity": r.default.weather_entity,
         }
+
+        # Display device settings
+        if r.core.type == VAType.VIEW_AUDIO:
+            attrs.update(
+                {
+                    # Dashboard settings
+                    "status_icons": r.dashboard.display_settings.status_icons,
+                    "status_icons_size": r.dashboard.display_settings.status_icons_size,
+                    "menu_config": r.dashboard.display_settings.menu_config,
+                    "menu_items": r.dashboard.display_settings.menu_items,
+                    "menu_active": self._get_menu_active_state(),
+                    "assist_prompt": self.get_option_key_migration_value(
+                        r.dashboard.display_settings.assist_prompt
+                    ),
+                    "font_style": r.dashboard.display_settings.font_style,
+                    "use_24_hour_time": r.dashboard.display_settings.time_format
+                    == VATimeFormat.HOUR_24,
+                    "background": r.dashboard.background_settings.background,
+                    # Default settings
+                    "mode": r.default.mode,
+                    "view_timeout": r.default.view_timeout,
+                    "weather_entity": r.default.weather_entity,
+                }
+            )
 
         # Only add these attributes if they exist
         if r.core.display_device:
@@ -178,10 +185,13 @@ class ViewAssistSensor(SensorEntity):
         menu_manager = self.hass.data[DOMAIN].get("menu_manager")
         if not menu_manager:
             return False
-            
-        if hasattr(menu_manager, "_menu_states") and self.entity_id in menu_manager._menu_states:
+
+        if (
+            hasattr(menu_manager, "_menu_states")
+            and self.entity_id in menu_manager._menu_states
+        ):
             return menu_manager._menu_states[self.entity_id].active
-            
+
         return False
 
     @property
