@@ -21,13 +21,10 @@ from .const import (
     VAMode,
 )
 from .helpers import (
-    arrange_status_icons,
-    ensure_menu_button_at_end,
     get_config_entry_by_entity_id,
     get_master_config_entry,
     get_sensor_entity_from_instance,
     normalize_status_items,
-    update_status_icons,
 )
 from .typed import VAConfigEntry, VAEvent, VAMenuConfig
 
@@ -46,7 +43,6 @@ class MenuState:
     active: bool = False
     configured_items: list[str] = field(default_factory=list)
     launch_icons: list[str] = field(default_factory=list)
-    status_icons: list[str] = field(default_factory=list)
     system_icons: list[str] = field(default_factory=list)
     menu_timeout: asyncio.Task | None = None
     item_timeouts: dict[tuple[str, str, bool], asyncio.Task] = field(
@@ -256,32 +252,6 @@ class MenuManager:
 
         return default
 
-    def _refresh_system_icons(self, entity_id: str, menu_state: MenuState) -> list[str]:
-        """Refresh system icons from current entity state."""
-        state = self.hass.states.get(entity_id)
-        if not state:
-            return menu_state.system_icons
-
-        modes = [VAMode.HOLD, VAMode.CYCLE]
-
-        # Get current status_icons excluding menu items and mode icons
-        current_status_icons = state.attributes.get(CONF_STATUS_ICONS, [])
-        system_icons = [
-            icon
-            for icon in current_status_icons
-            if icon not in menu_state.configured_items
-            and icon != "menu"
-            and icon not in modes
-        ]
-
-        # Add current mode if it exists
-        current_mode = state.attributes.get("mode")
-        if current_mode in modes and current_mode not in system_icons:
-            system_icons.append(current_mode)
-
-        menu_state.system_icons = system_icons
-        return system_icons
-
     async def toggle_menu(
         self, entity_id: str, show: bool | None = None, timeout: int | None = None
     ) -> None:
@@ -321,21 +291,21 @@ class MenuManager:
         # Check if menu button should be shown
         show_menu_button = menu_config == VAMenuConfig.ENABLED_VISIBLE
 
-        # Always refresh system icons to ensure we have latest state
-        system_icons = self._refresh_system_icons(entity_id, menu_state)
+        # Always show all icons (system + launch + menu button) in status_icons
+        # The frontend JavaScript handles which ones to display based on menu_active state
+        updated_icons = self._arrange_status_icons(
+            [],
+            menu_state.system_icons,
+            menu_state.launch_icons,
+            show_menu_button
+        )
 
-        # Apply the menu state change
-        changes = {}
+        # Update menu state
+        menu_state.active = show
+        changes = {"status_icons": updated_icons, "menu_active": show}
+
+        # Handle timeout for auto-close
         if show:
-            # Show menu
-            updated_icons = arrange_status_icons(
-                menu_state.configured_items, system_icons, show_menu_button
-            )
-            menu_state.active = True
-            menu_state.status_icons = updated_icons
-            changes = {"status_icons": updated_icons, "menu_active": True}
-
-            # Handle timeout
             if timeout is not None:
                 self._setup_timeout(entity_id, timeout)
             else:
@@ -344,15 +314,6 @@ class MenuManager:
                 )
                 if menu_timeout > 0:
                     self._setup_timeout(entity_id, menu_timeout)
-        else:
-            # Hide menu
-            updated_icons = system_icons.copy()
-            if show_menu_button:
-                ensure_menu_button_at_end(updated_icons)
-
-            menu_state.active = False
-            menu_state.status_icons = updated_icons
-            changes = {"status_icons": updated_icons, "menu_active": False}
 
         # Apply changes
         if changes:
@@ -434,13 +395,11 @@ class MenuManager:
             f"{CONF_DISPLAY_SETTINGS}.{CONF_MENU_CONFIG}",
             VAMenuConfig.DISABLED,
         )
-
-        # Check if menu button should be shown
         show_menu_button = menu_config == VAMenuConfig.ENABLED_VISIBLE
 
         changes = {}
         if menu:
-            # Add to menu items
+            # Add to menu items (runtime only - don't persist via service calls)
             updated_items = menu_state.configured_items.copy()
             changed = False
 
@@ -452,32 +411,32 @@ class MenuManager:
             if changed:
                 menu_state.configured_items = updated_items
                 changes["menu_items"] = updated_items
-                await self._save_to_config_entry_options(
-                    entity_id, CONF_MENU_ITEMS, updated_items
+
+                # Always update status_icons with all icons (frontend handles display)
+                updated_icons = self._arrange_status_icons(
+                    [],
+                    menu_state.system_icons,
+                    menu_state.launch_icons,
+                    show_menu_button
                 )
-
-                # Update icons if menu is active
-                if menu_state.active:
-                    updated_icons = arrange_status_icons(
-                        updated_items, menu_state.system_icons, show_menu_button
-                    )
-                    menu_state.status_icons = updated_icons
-                    changes["status_icons"] = updated_icons
-        else:
-            # Add to status icons
-            updated_icons = update_status_icons(
-                menu_state.status_icons,
-                add_icons=items,
-                menu_items=menu_state.configured_items if menu_state.active else None,
-                show_menu_button=show_menu_button,
-            )
-
-            if updated_icons != menu_state.status_icons:
-                menu_state.status_icons = updated_icons
                 changes["status_icons"] = updated_icons
-                await self._save_to_config_entry_options(
-                    entity_id, CONF_STATUS_ICONS, updated_icons
+        else:
+            # Add to launch icons
+            changed = False
+            for item in items:
+                if item not in menu_state.launch_icons:
+                    menu_state.launch_icons.append(item)
+                    changed = True
+
+            if changed:
+                # Always rebuild status icons with all icons (frontend handles display)
+                updated_icons = self._arrange_status_icons(
+                    [],
+                    menu_state.system_icons,
+                    menu_state.launch_icons,
+                    show_menu_button
                 )
+                changes["status_icons"] = updated_icons
 
         # Apply changes
         if changes:
@@ -513,13 +472,11 @@ class MenuManager:
             f"{CONF_DISPLAY_SETTINGS}.{CONF_MENU_CONFIG}",
             VAMenuConfig.DISABLED,
         )
-
-        # Check if menu button should be shown
         show_menu_button = menu_config == VAMenuConfig.ENABLED_VISIBLE
 
         changes = {}
         if from_menu:
-            # Remove from menu items
+            # Remove from menu items (runtime only - don't persist via service calls)
             updated_items = [
                 item for item in menu_state.configured_items if item not in items
             ]
@@ -527,32 +484,32 @@ class MenuManager:
             if updated_items != menu_state.configured_items:
                 menu_state.configured_items = updated_items
                 changes["menu_items"] = updated_items
-                await self._save_to_config_entry_options(
-                    entity_id, CONF_MENU_ITEMS, updated_items
+
+                # Always update status_icons with all icons (frontend handles display)
+                updated_icons = self._arrange_status_icons(
+                    [],  # Menu items handled by frontend
+                    menu_state.system_icons,
+                    menu_state.launch_icons,
+                    show_menu_button
                 )
-
-                # Update icons if menu is active
-                if menu_state.active:
-                    updated_icons = arrange_status_icons(
-                        updated_items, menu_state.system_icons, show_menu_button
-                    )
-                    menu_state.status_icons = updated_icons
-                    changes["status_icons"] = updated_icons
-        else:
-            # Remove from status icons
-            updated_icons = update_status_icons(
-                menu_state.status_icons,
-                remove_icons=items,
-                menu_items=menu_state.configured_items if menu_state.active else None,
-                show_menu_button=show_menu_button,
-            )
-
-            if updated_icons != menu_state.status_icons:
-                menu_state.status_icons = updated_icons
                 changes["status_icons"] = updated_icons
-                await self._save_to_config_entry_options(
-                    entity_id, CONF_STATUS_ICONS, updated_icons
+        else:
+            # Remove from launch icons
+            changed = False
+            for item in items:
+                if item in menu_state.launch_icons:
+                    menu_state.launch_icons.remove(item)
+                    changed = True
+
+            if changed:
+                # Always rebuild status icons with all icons (frontend handles display)
+                updated_icons = self._arrange_status_icons(
+                    [],  # Menu items handled by frontend
+                    menu_state.system_icons,
+                    menu_state.launch_icons,
+                    show_menu_button
                 )
+                changes["status_icons"] = updated_icons
 
         # Apply changes and cancel timeouts
         if changes:
@@ -560,25 +517,6 @@ class MenuManager:
 
         for item in items:
             self._cancel_item_timeout(entity_id, item, from_menu)
-
-    async def _save_to_config_entry_options(
-        self, entity_id: str, option_key: str, value: list[str]
-    ) -> None:
-        """Save options to config entry for persistence."""
-        config_entry = get_config_entry_by_entity_id(self.hass, entity_id)
-        if not config_entry:
-            _LOGGER.warning("Cannot save %s - config entry not found", option_key)
-            return
-
-        try:
-            new_options = dict(config_entry.options)
-
-            new_options[option_key] = value
-            self.hass.config_entries.async_update_entry(
-                config_entry, options=new_options
-            )
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.error("Error saving config entry options: %s", str(err))
 
     def _setup_timeout(self, entity_id: str, timeout: int) -> None:
         """Setup timeout for menu."""
