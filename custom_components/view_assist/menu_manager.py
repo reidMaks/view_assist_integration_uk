@@ -35,6 +35,8 @@ _LOGGER = logging.getLogger(__name__)
 
 StatusItemType = str | list[str]
 
+SYSTEM_ICONS = ["mic", "mediaplayer", "dnd", "hold", "cycle"]
+
 
 @dataclass
 class MenuState:
@@ -43,6 +45,7 @@ class MenuState:
     entity_id: str
     active: bool = False
     configured_items: list[str] = field(default_factory=list)
+    launch_icons: list[str] = field(default_factory=list)
     status_icons: list[str] = field(default_factory=list)
     system_icons: list[str] = field(default_factory=list)
     menu_timeout: asyncio.Task | None = None
@@ -68,6 +71,92 @@ class MenuManager:
         self.hass.bus.async_listen_once(
             "homeassistant_started", self._initialize_on_startup
         )
+
+    def _ensure_menu_button_at_end(self, status_icons: list[str]) -> None:
+        """Ensure menu button is always the rightmost (last) status icon."""
+        if "menu" in status_icons:
+            status_icons.remove("menu")
+            status_icons.append("menu")
+
+    def _arrange_status_icons(
+        self,
+        menu_items: list[str],
+        system_icons: list[str], 
+        launch_icons: list[str],
+        show_menu_button: bool = False
+    ) -> list[str]:
+        """Arrange status icons in the correct order: menu → system → launch → menu button."""
+        result = []
+
+        for item in menu_items:
+            if item != "menu" and item not in result:
+                result.append(item)
+
+        for icon in system_icons:
+            if icon != "menu" and icon not in result:
+                result.append(icon)
+
+        for icon in launch_icons:
+            if icon != "menu" and icon not in result:
+                result.append(icon)
+
+        if show_menu_button:
+            self._ensure_menu_button_at_end(result)
+
+        return result
+
+    def _update_status_icons(
+        self,
+        current_icons: list[str],
+        add_icons: list[str] = None,
+        remove_icons: list[str] = None,
+        menu_items: list[str] = None,
+        system_icons: list[str] = None,
+        launch_icons: list[str] = None,
+        show_menu_button: bool = False,
+    ) -> list[str]:
+        """Update status icons maintaining proper ordering."""
+        if menu_items is not None:
+            return self._arrange_status_icons(
+                menu_items, 
+                system_icons or [], 
+                launch_icons or [], 
+                show_menu_button
+            )
+
+        result = current_icons.copy()
+
+        if remove_icons:
+            for icon in remove_icons:
+                if icon == "menu" and show_menu_button:
+                    continue
+                if icon in result:
+                    result.remove(icon)
+
+        if add_icons:
+            for icon in add_icons:
+                if icon not in result and icon != "menu":
+                    result.append(icon)
+
+        if show_menu_button:
+            self._ensure_menu_button_at_end(result)
+
+        return result
+
+    def _separate_icon_types(self, all_icons: list[str], menu_items: list[str]) -> tuple[list[str], list[str]]:
+        """Separate icons into system icons and launch icons."""
+        system_icons = []
+        launch_icons = []
+
+        for icon in all_icons:
+            if icon == "menu":
+                continue
+            elif icon in SYSTEM_ICONS:
+                system_icons.append(icon)
+            elif icon not in menu_items:
+                launch_icons.append(icon)
+
+        return system_icons, launch_icons
 
     async def _initialize_on_startup(self, _event: Event) -> None:
         """Initialize when Home Assistant has fully started."""
@@ -101,19 +190,16 @@ class MenuManager:
                 self._menu_states[entity_id].configured_items = menu_items or []
 
                 status_icons = state.attributes.get(CONF_STATUS_ICONS, [])
-                self._menu_states[entity_id].status_icons = (
-                    status_icons if status_icons else []
-                )
+                if status_icons:
+                    system_icons, launch_icons = self._separate_icon_types(
+                        status_icons, menu_items or []
+                    )
+                    self._menu_states[entity_id].system_icons = system_icons
+                    self._menu_states[entity_id].launch_icons = launch_icons
+
                 self._menu_states[entity_id].active = state.attributes.get(
                     "menu_active", False
                 )
-
-                self._menu_states[entity_id].system_icons = [
-                    icon
-                    for icon in self._menu_states[entity_id].status_icons
-                    if icon not in self._menu_states[entity_id].configured_items
-                    and icon != "menu"
-                ]
 
         return self._menu_states[entity_id]
 
@@ -279,6 +365,44 @@ class MenuManager:
                     f"{DOMAIN}_{config_entry.entry_id}_event",
                     VAEvent("menu_update", {"menu_active": show}),
                 )
+
+    async def update_system_icons(
+        self, entity_id: str, add_icons: list[str] = None, remove_icons: list[str] = None
+    ) -> None:
+        """Update system icons (called by entity listeners)."""
+        await self._ensure_initialized()
+        menu_state = self._get_or_create_state(entity_id)
+
+        # Get menu configuration
+        menu_config = self._get_config_value(
+            entity_id,
+            f"{CONF_DISPLAY_SETTINGS}.{CONF_MENU_CONFIG}",
+            VAMenuConfig.DISABLED,
+        )
+        show_menu_button = menu_config == VAMenuConfig.ENABLED_VISIBLE
+
+        # Update system icons list
+        if remove_icons:
+            for icon in remove_icons:
+                if icon in menu_state.system_icons:
+                    menu_state.system_icons.remove(icon)
+
+        if add_icons:
+            for icon in add_icons:
+                if icon in SYSTEM_ICONS and icon not in menu_state.system_icons:
+                    menu_state.system_icons.append(icon)
+
+        # Always rebuild status icons with all icons (frontend handles display)
+        updated_icons = self._arrange_status_icons(
+            [],
+            menu_state.system_icons,
+            menu_state.launch_icons,
+            show_menu_button
+        )
+
+        # Apply changes
+        changes = {"status_icons": updated_icons}
+        await self._update_entity_state(entity_id, changes)
 
     async def add_status_item(
         self,
