@@ -93,28 +93,34 @@ class EntityListeners:
 
         # Add mic device/wake word entity listening listner for volume ducking
         if config_entry.runtime_data.default.ducking_volume is not None:
-            mic_integration = get_config_entry_by_entity_id(
-                self.hass, self.config_entry.runtime_data.core.mic_device
-            ).domain
-            if mic_integration == HASSMIC_DOMAIN:
-                entity_id = get_hassmic_pipeline_status_entity_id(
-                    hass, self.config_entry.runtime_data.core.mic_device
-                )
-            else:
-                entity_id = self.config_entry.runtime_data.core.mic_device
-
-            if entity_id:
-                _LOGGER.debug("Listening for mic device %s", entity_id)
-                config_entry.async_on_unload(
-                    async_track_state_change_event(
-                        hass,
-                        entity_id,
-                        self._async_on_mic_state_change,
+            try:
+                mic_integration = get_config_entry_by_entity_id(
+                    self.hass, self.config_entry.runtime_data.core.mic_device
+                ).domain
+                if mic_integration == HASSMIC_DOMAIN:
+                    entity_id = get_hassmic_pipeline_status_entity_id(
+                        hass, self.config_entry.runtime_data.core.mic_device
                     )
-                )
-            else:
-                _LOGGER.warning(
-                    "Unable to find entity for pipeline status for %s",
+                else:
+                    entity_id = self.config_entry.runtime_data.core.mic_device
+
+                if entity_id:
+                    _LOGGER.debug("Listening for mic device %s", entity_id)
+                    config_entry.async_on_unload(
+                        async_track_state_change_event(
+                            hass,
+                            entity_id,
+                            self._async_on_mic_state_change,
+                        )
+                    )
+                else:
+                    _LOGGER.warning(
+                        "Unable to find entity for pipeline status for %s",
+                        self.config_entry.runtime_data.core.mic_device,
+                    )
+            except AttributeError:
+                _LOGGER.error(
+                    "Error getting mic entity for %s",
                     self.config_entry.runtime_data.core.mic_device,
                 )
 
@@ -466,12 +472,15 @@ class EntityListeners:
             return
 
         music_player_entity_id = self.config_entry.runtime_data.core.musicplayer_device
-        mic_integration = get_config_entry_by_entity_id(
-            self.hass, self.config_entry.runtime_data.core.mic_device
-        ).domain
-        music_player_integration = get_config_entry_by_entity_id(
-            self.hass, music_player_entity_id
-        ).domain
+        try:
+            mic_integration = get_config_entry_by_entity_id(
+                self.hass, self.config_entry.runtime_data.core.mic_device
+            ).domain
+            music_player_integration = get_config_entry_by_entity_id(
+                self.hass, music_player_entity_id
+            ).domain
+        except AttributeError:
+            return
 
         _LOGGER.debug(
             "Mic state change: %s: %s->%s",
@@ -480,7 +489,10 @@ class EntityListeners:
             event.data["new_state"].state,
         )
 
-        if mic_integration == "esphome" and music_player_integration == "esphome":
+        if mic_integration in (
+            "esphome",
+            "va_wyoming",
+        ) and music_player_integration in ("esphome", "va_wyoming"):
             # HA VPE already supports volume ducking
             return
 
@@ -566,6 +578,10 @@ class EntityListeners:
 
     @callback
     def _async_on_mic_change(self, event: Event[EventStateChangedData]) -> None:
+        event_new = event.data.get("new_state")
+        if not event_new:
+            return
+
         mic_mute_new_state = event.data["new_state"].state
 
         # If not change to mic mute state, exit function
