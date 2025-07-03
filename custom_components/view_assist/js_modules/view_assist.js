@@ -1,4 +1,4 @@
-const version = "1.0.10"
+const version = "1.0.11"
 const TIMEOUT_ERROR = "SELECTTREE-TIMEOUT";
 
 export async function await_element(el, hard = false) {
@@ -404,8 +404,18 @@ class ViewAssist {
   set_va_browser_id() {
     // Create a browser id if not already set
     if (!localStorage.getItem("view_assist_browser_id")) {
-      const s4 = () => { return Math.floor((1 + Math.random()) * 100000).toString(16).substring(1); };
-      const browser_id = `va-${s4()}${s4()}-${s4()}${s4()}`
+      // Test if VA Companiion App is installed and get uuid form that
+      let browser_id = '';
+      //if (typeof ViewAssistApp.getViewAssistCAUUID != "undefined") {
+      // safe to use the function
+      try {
+        browser_id = `va-${ViewAssistApp.getViewAssistCAUUID()}`;
+      } catch (e) {
+        console.log("View Assist Companion App not installed, generating browser id");
+        const s4 = () => { return Math.floor((1 + Math.random()) * 100000).toString(16).substring(1); };
+        browser_id = `va-${s4()}${s4()}-${s4()}${s4()}`
+      }
+
       console.log("BrowserID - " + browser_id);
       localStorage.setItem("view_assist_browser_id", browser_id);
     }
