@@ -107,6 +107,9 @@ BASE_DEVICE_SCHEMA = vol.Schema(
                     EntityFilterSelectorConfig(
                         integration="wyoming", domain=ASSIST_SAT_DOMAIN
                     ),
+                    EntityFilterSelectorConfig(
+                        integration="va_wyoming", domain=ASSIST_SAT_DOMAIN
+                    ),
                 ]
             )
         ),

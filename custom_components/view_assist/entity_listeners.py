@@ -489,7 +489,10 @@ class EntityListeners:
             event.data["new_state"].state,
         )
 
-        if mic_integration in "esphome" and music_player_integration == "esphome":
+        if mic_integration in (
+            "esphome",
+            "va_wyoming",
+        ) and music_player_integration in ("esphome", "va_wyoming"):
             # HA VPE already supports volume ducking
             return
 
