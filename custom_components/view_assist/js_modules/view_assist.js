@@ -1,4 +1,4 @@
-const version = "1.0.10"
+const version = "1.0.12"
 const TIMEOUT_ERROR = "SELECTTREE-TIMEOUT";
 
 export async function await_element(el, hard = false) {
@@ -269,62 +269,78 @@ class ViewAssist {
   constructor() {
     this._hass = null;
     this.serverTimeHandler = null;
+    this.hide_header_timeout = null;
+    this.hide_sidebar_timeout = null;
     this.variables = new VAData();
     this.connected = false;
     this.initialize();
   }
 
   async hide_header(enabled) {
-    let elMain = await selectTree(
-      document.body,
-      "home-assistant $ home-assistant-main $ partial-panel-resolver ha-panel-lovelace $ hui-root $"
-    )
+    try {
+      let elMain = await selectTree(
+        document.body,
+        "home-assistant $ home-assistant-main $ partial-panel-resolver ha-panel-lovelace $ hui-root $"
+      )
 
-    await selectTree(
-      elMain, "hui-view-container"
-    ).then((el) => {
-      enabled ? el.style.setProperty("padding-top", "0px") : el.style.removeProperty("padding-top")
-    });
+      await selectTree(
+        elMain, "hui-view-container"
+      ).then((el) => {
+        enabled ? el.style.setProperty("padding-top", "0px") : el.style.removeProperty("padding-top")
+      });
 
-    await selectTree(
-      elMain, ".header"
-    ).then((el) => {
-      enabled ? el.style.setProperty("display", "none"): el.style.removeProperty("display")
-    });
+      await selectTree(
+        elMain, ".header"
+      ).then((el) => {
+        enabled ? el.style.setProperty("display", "none") : el.style.removeProperty("display")
+      });
+    } catch (e) {
+      clearTimeout(this.hide_header_timeout);
+      this.hide_header_timeout = setTimeout(() => {
+        this.hide_header(enabled);
+      }, 200);
+    }
   }
 
   async hide_sidebar(enabled) {
-    let elMain = await selectTree(
-      document.body,
-      "home-assistant $ home-assistant-main"
-    )
+    try {
+      let elMain = await selectTree(
+        document.body,
+        "home-assistant $ home-assistant-main"
+      )
 
-    enabled ? elMain?.style?.setProperty("--mdc-drawer-width", "0px") : elMain?.style?.removeProperty("--mdc-drawer-width");
+      enabled ? elMain?.style?.setProperty("--mdc-drawer-width", "0px") : elMain?.style?.removeProperty("--mdc-drawer-width");
 
-    await selectTree(
-      elMain, "$ partial-panel-resolver"
-    ).then((el) => {
-      enabled ? el.style.setProperty("--mdc-top-app-bar-width", "100% !important") : el.style.removeProperty("--mdc-top-app-bar-width")
-    });
+      await selectTree(
+        elMain, "$ partial-panel-resolver"
+      ).then((el) => {
+        enabled ? el.style.setProperty("--mdc-top-app-bar-width", "100% !important") : el.style.removeProperty("--mdc-top-app-bar-width")
+      });
 
-    await selectTree(
-      elMain, "$ ha-drawer ha-sidebar"
-    ).then((el) => {
-      enabled ? el.style.setProperty("display", "none !important") : el.style.removeProperty("display")
-    });
+      await selectTree(
+        elMain, "$ ha-drawer ha-sidebar"
+      ).then((el) => {
+        enabled ? el.style.setProperty("display", "none !important") : el.style.removeProperty("display")
+      });
 
-    await selectTree(
-      elMain, "$ partial-panel-resolver ha-panel-lovelace $ hui-root $ ha-menu-button"
-    ).then((el) => {
-      enabled ? el.style.setProperty("display", "none") : el.style.removeProperty("display")
-    });
+      await selectTree(
+        elMain, "$ partial-panel-resolver ha-panel-lovelace $ hui-root $ ha-menu-button"
+      ).then((el) => {
+        enabled ? el.style.setProperty("display", "none") : el.style.removeProperty("display")
+      });
 
-    // Hide white line on left
-    await selectTree(
-      elMain, "$ ha-drawer $ aside"
-    ).then((el) => {
-      enabled ? el.style.setProperty("display", "none") : el.style.removeProperty("display");
-    });
+      // Hide white line on left
+      await selectTree(
+        elMain, "$ ha-drawer $ aside"
+      ).then((el) => {
+        enabled ? el.style.setProperty("display", "none") : el.style.removeProperty("display");
+      });
+    } catch (e) {
+      clearTimeout(this.hide_sidebar_timeout);
+      this.hide_sidebar_timerout = setTimeout(() => {
+        this.hide_sidebar(enabled);
+      }, 200);
+    }
 
   }
 
@@ -380,6 +396,11 @@ class ViewAssist {
         window.addEventListener("location-changed", () => {
           this.hide_sections();
           this.display_browser_id();
+          // Added to ensure hiding of header and sidebar on slower devices
+          // at first start
+          //setTimeout(() => {
+          //  this.hide_sections();
+          //}, 10000);
         });
 
         customElements.define("viewassist-countdown", CountdownTimer)
@@ -404,8 +425,18 @@ class ViewAssist {
   set_va_browser_id() {
     // Create a browser id if not already set
     if (!localStorage.getItem("view_assist_browser_id")) {
-      const s4 = () => { return Math.floor((1 + Math.random()) * 100000).toString(16).substring(1); };
-      const browser_id = `va-${s4()}${s4()}-${s4()}${s4()}`
+      // Test if VA Companiion App is installed and get uuid form that
+      let browser_id = '';
+      //if (typeof ViewAssistApp.getViewAssistCAUUID != "undefined") {
+      // safe to use the function
+      try {
+        browser_id = `va-${ViewAssistApp.getViewAssistCAUUID()}`;
+      } catch (e) {
+        console.log("View Assist Companion App not installed, generating browser id");
+        const s4 = () => { return Math.floor((1 + Math.random()) * 100000).toString(16).substring(1); };
+        browser_id = `va-${s4()}${s4()}-${s4()}${s4()}`
+      }
+
       console.log("BrowserID - " + browser_id);
       localStorage.setItem("view_assist_browser_id", browser_id);
     }
