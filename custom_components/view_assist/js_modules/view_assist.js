@@ -295,7 +295,6 @@ class ViewAssist {
         enabled ? el.style.setProperty("display", "none") : el.style.removeProperty("display")
       });
     } catch (e) {
-      console.error("Error hiding header: ", e.message);
       clearTimeout(this.hide_header_timeout);
       this.hide_header_timeout = setTimeout(() => {
         this.hide_header(enabled);
@@ -337,7 +336,6 @@ class ViewAssist {
         enabled ? el.style.setProperty("display", "none") : el.style.removeProperty("display");
       });
     } catch (e) {
-      console.error("Error hiding sidebar: ", e.message);
       clearTimeout(this.hide_sidebar_timeout);
       this.hide_sidebar_timerout = setTimeout(() => {
         this.hide_sidebar(enabled);
@@ -417,8 +415,10 @@ class ViewAssist {
   hide_sections() {
     // Hide header and sidebar
     if (!this.variables.config?.mimic_device) {
-      this.hide_header(this.variables.config?.hide_header);
-      this.hide_sidebar(this.variables.config?.hide_sidebar);
+      setTimeout(() => {
+        this.hide_header(this.variables.config?.hide_header);
+        this.hide_sidebar(this.variables.config?.hide_sidebar);
+      }, 100);
     }
   }
 
