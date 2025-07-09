@@ -89,7 +89,7 @@ async def async_setup_entry(
                 {
                     "asset_class": asset_class,
                     "name": name,
-                    "remove": AwesomeVersion(installed) >= latest,
+                    "remove": not installed or AwesomeVersion(installed) >= latest,
                 },
                 startup=True,
             )

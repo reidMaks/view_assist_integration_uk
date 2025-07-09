@@ -467,6 +467,7 @@ class EntityListeners:
         # If not change to mic state, exit function
         if (
             not event.data.get("old_state")
+            or not event.data.get("new_state")
             or event.data["old_state"].state == event.data["new_state"].state
         ):
             return
@@ -609,6 +610,9 @@ class EntityListeners:
     def _async_on_mediaplayer_device_mute_change(
         self, event: Event[EventStateChangedData]
     ) -> None:
+        if not event.data.get("new_state"):
+            return
+
         mp_mute_new_state = event.data["new_state"].attributes.get(
             "is_volume_muted", False
         )

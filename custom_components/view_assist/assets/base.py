@@ -40,7 +40,7 @@ class BaseAssetManager:
     async def async_setup(self) -> None:
         """Set up the AssetManager."""
 
-    async def async_onboard(self) -> dict[str, Any]:
+    async def async_onboard(self, force: bool = False) -> dict[str, Any]:
         """Onboard the asset manager."""
         return {}
 
