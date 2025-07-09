@@ -25,10 +25,10 @@ _LOGGER = logging.getLogger(__name__)
 class ViewManager(BaseAssetManager):
     """Class to manage view assets."""
 
-    async def async_onboard(self) -> dict[str, Any] | None:
+    async def async_onboard(self, force: bool = False) -> dict[str, Any] | None:
         """Onboard the user if not yet setup."""
         # Check if onboarding is needed and if so, run it
-        if not self.data:
+        if not self.data or force:
             self.onboarding = True
             vw_versions = {}
             views = await self._async_get_view_list()
