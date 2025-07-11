@@ -275,7 +275,7 @@ def get_entity_id_from_conversation_device_id(
         mic_entity_id = entry.runtime_data.core.mic_device
         entity_registry = er.async_get(hass)
         mic_entity = entity_registry.async_get(mic_entity_id)
-        if mic_entity.device_id == device_id:
+        if mic_entity and mic_entity.device_id == device_id:
             return get_sensor_entity_from_instance(hass, entry.entry_id)
     return None
 

@@ -68,6 +68,7 @@ from .const import (
     DEFAULT_VALUES,
     DOMAIN,
     REMOTE_ASSIST_DISPLAY_DOMAIN,
+    VACA_DOMAIN,
     VAAssistPrompt,
     VAIconSizes,
 )
@@ -106,6 +107,9 @@ BASE_DEVICE_SCHEMA = vol.Schema(
                     ),
                     EntityFilterSelectorConfig(
                         integration="wyoming", domain=ASSIST_SAT_DOMAIN
+                    ),
+                    EntityFilterSelectorConfig(
+                        integration=VACA_DOMAIN, domain=ASSIST_SAT_DOMAIN
                     ),
                 ]
             )

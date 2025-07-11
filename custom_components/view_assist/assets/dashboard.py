@@ -53,7 +53,7 @@ class DashboardManager(BaseAssetManager):
             self.hass.bus.async_listen(EVENT_LOVELACE_UPDATED, self._dashboard_changed)
         )
 
-    async def async_onboard(self) -> dict[str, Any] | None:
+    async def async_onboard(self, force: bool = False) -> dict[str, Any] | None:
         """Onboard the user if not yet setup."""
         name = "dashboard"
         db_version = {}

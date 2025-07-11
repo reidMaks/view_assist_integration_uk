@@ -36,10 +36,10 @@ BLUEPRINT_MANAGER = "blueprint_manager"
 class BlueprintManager(BaseAssetManager):
     """Manage blueprints for View Assist."""
 
-    async def async_onboard(self) -> None:
+    async def async_onboard(self, force: bool = False) -> None:
         """Load blueprints for initialisation."""
         # Check if onboarding is needed and if so, run it
-        if not self.data:
+        if not self.data or force:
             # Load all blueprints
             self.onboarding = True
             bp_versions = {}
