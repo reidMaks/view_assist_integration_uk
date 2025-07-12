@@ -425,7 +425,7 @@ class MenuManager:
             changed = False
             for item in items:
                 if item not in menu_state.launch_icons:
-                    menu_state.launch_icons.append(item)
+                    menu_state.launch_icons.insert(0, item)
                     changed = True
 
             if changed:
