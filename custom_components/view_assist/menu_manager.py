@@ -351,7 +351,7 @@ class MenuManager:
         if add_icons:
             for icon in add_icons:
                 if icon in SYSTEM_ICONS and icon not in menu_state.system_icons:
-                    menu_state.system_icons.append(icon)
+                    menu_state.system_icons.insert(0, icon)
 
         # Always rebuild status icons with all icons (frontend handles display)
         updated_icons = self._arrange_status_icons(
@@ -425,7 +425,7 @@ class MenuManager:
             changed = False
             for item in items:
                 if item not in menu_state.launch_icons:
-                    menu_state.launch_icons.append(item)
+                    menu_state.launch_icons.insert(0, item)
                     changed = True
 
             if changed:
