@@ -40,6 +40,7 @@ class VAAssistPrompt(StrEnum):
 
     BLUR_POPUP = "blur_pop_up"
     FLASHING_BAR = "flashing_bar"
+    KITT_BAR = "kitt_bar"
 
 
 class VAIconSizes(StrEnum):

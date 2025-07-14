@@ -37,6 +37,7 @@ from .const import (
     USE_VA_NAVIGATION_FOR_BROWSERMOD,
     VA_ATTRIBUTE_UPDATE_EVENT,
     VA_BACKGROUND_UPDATE_EVENT,
+    VACA_DOMAIN,
     VAMode,
 )
 from .helpers import (
@@ -490,10 +491,30 @@ class EntityListeners:
             event.data["new_state"].state,
         )
 
+        # Send event to display new javascript overlays
+        # Convert state to standard for stt and hassmic
+        state = event.data["new_state"].state
+        if state in ["vad", "sst-listening"]:
+            state = AssistSatelliteState.LISTENING
+        elif state in ["start", "intent-processing"]:
+            state = AssistSatelliteState.PROCESSING
+
+        async_dispatcher_send(
+            self.hass,
+            f"{DOMAIN}_{self.config_entry.entry_id}_event",
+            VAEvent(
+                "listening",
+                {
+                    "state": state,
+                    "style": self.config_entry.runtime_data.dashboard.display_settings.assist_prompt,
+                },
+            ),
+        )
+
         if mic_integration in (
             "esphome",
-            "va_wyoming",
-        ) and music_player_integration in ("esphome", "va_wyoming"):
+            VACA_DOMAIN,
+        ) and music_player_integration in ("esphome", VACA_DOMAIN):
             # HA VPE already supports volume ducking
             return
 
