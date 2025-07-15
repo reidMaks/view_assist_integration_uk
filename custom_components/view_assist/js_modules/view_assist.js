@@ -1,4 +1,4 @@
-const version = "1.0.12"
+const version = "1.0.13"
 const TIMEOUT_ERROR = "SELECTTREE-TIMEOUT";
 
 export async function await_element(el, hard = false) {
@@ -405,6 +405,8 @@ class ViewAssist {
 
         customElements.define("viewassist-countdown", CountdownTimer)
         customElements.define("viewassist-clock", Clock)
+        await this.add_custom_css();
+        await this.add_custom_html();
       }
 
     } catch (e) {
@@ -499,17 +501,17 @@ class ViewAssist {
       localStorage.setItem("view_assist_status", "registered");
       this.process_config(event, payload);
     }
-    if (event == "registered") {
+    else if (event == "registered") {
       location.reload();
     }
-    if (event == "timer_update") {
+    else if (event == "timer_update") {
       this.variables.config.timers = payload
     }
-    if (event == "navigate") {
+    else if (event == "navigate") {
       if (payload["variables"]) this.variables.navigation = payload["variables"];
       this.browser_navigate(payload["path"]);
     }
-    if (event == "unregistered") {
+    else if (event == "unregistered") {
       if (localStorage.getItem("view_assist_sensor") || localStorage.getItem("view_assist_mimic_device")) {
         localStorage.removeItem("view_assist_sensor");
         localStorage.removeItem("view_assist_mimic_device");
@@ -519,7 +521,10 @@ class ViewAssist {
       localStorage.setItem("view_assist_status", "unregistered");
       this.display_browser_id();
     }
-    if (event == "reload") {
+    else if (event == "listening") {
+      this.show_listening_overlay(payload["state"], payload["style"])
+    }
+    else if (event == "reload") {
       location.reload()
     }
   }
@@ -568,6 +573,69 @@ class ViewAssist {
       if (!path) return;
       history.pushState(null, "", path);
       window.dispatchEvent(new CustomEvent("location-changed"));
+    }
+  }
+
+  async add_custom_css() {
+
+    var linkElement = document.createElement('link');
+    linkElement.setAttribute('rel', 'stylesheet');
+    linkElement.setAttribute('type', 'text/css');
+    linkElement.setAttribute('href', '/view_assist/dashboard/overlay.css');
+    document.head.appendChild(linkElement);
+  }
+
+  async add_custom_html() {
+    var htmlElement = document.createElement('div');
+    htmlElement.id = 'view-assist-overlays';
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function () {
+      if (this.readyState == 4) {
+        if (this.status == 200) {
+          // Remove html comments form file
+          htmlElement.innerHTML = this.responseText;
+          document.body.appendChild(htmlElement);
+        } else if (this.status == 404) {
+          console.error("Overlay HTML not found - no overlays will be displayed");
+          return;
+        }
+      }
+    }
+    xhttp.open("GET", "/view_assist/dashboard/overlay.html", true);
+    xhttp.send();
+    /* Exit the function: */
+    return;
+  }
+
+  async show_listening_overlay(state, style) {
+    // Display listening message
+    try {
+      const overlays = document.getElementById("view-assist-overlays");
+      const styleName = "view-assist-" + style.replaceAll(" ", "-");
+      const styleDiv = overlays.querySelector(`[id=${styleName}]`);
+
+      const listeningDiv = styleDiv.querySelector(`[id="listening"]`);
+      const processingDiv = styleDiv.querySelector(`[id="processing"]`);
+
+      switch (state) {
+        case "listening":
+          listeningDiv.style.display = "block";
+          processingDiv.style.display = "none";
+          styleDiv.style.display = "block";
+          break;
+        case "processing":
+          listeningDiv.style.display = "none";
+          processingDiv.style.display = "block";
+          styleDiv.style.display = "block";
+          break;
+        default:
+          styleDiv.style.display = "none";
+          break;
+      }
+
+    } catch (e) {
+      console.log("Error showing overlay for style: ", style, "with action: ", state, "\n", e);
+      return;
     }
   }
 }

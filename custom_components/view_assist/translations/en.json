@@ -191,7 +191,8 @@
     "assist_prompt_selector": {
       "options": {
         "blur_pop_up": "Blurs the screen and shows pop up",
-        "flashing_bar": "Flashing bar at bottom"
+        "flashing_bar": "Flashing bar at bottom",
+        "kitt_bar": "KITT style bar at bottom"
       }
     },
     "status_icons_size_selector": {
