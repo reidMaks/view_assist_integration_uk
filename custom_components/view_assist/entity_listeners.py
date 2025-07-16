@@ -6,6 +6,8 @@ from datetime import datetime as dt
 import logging
 import random
 
+from awesomeversion import AwesomeVersion
+
 from homeassistant.components.assist_satellite.entity import AssistSatelliteState
 from homeassistant.components.media_player import MediaPlayerState
 from homeassistant.config_entries import ConfigEntryState
@@ -25,6 +27,7 @@ from homeassistant.helpers.dispatcher import (
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.start import async_at_started
 
+from .assets import ASSETS_MANAGER, AssetClass
 from .const import (
     BROWSERMOD_DOMAIN,
     CC_CONVERSATION_ENDED_EVENT,
@@ -33,6 +36,7 @@ from .const import (
     DEFAULT_VIEW_INFO,
     DOMAIN,
     HASSMIC_DOMAIN,
+    MIN_DASHBOARD_FOR_OVERLAYS,
     REMOTE_ASSIST_DISPLAY_DOMAIN,
     USE_VA_NAVIGATION_FOR_BROWSERMOD,
     VA_ATTRIBUTE_UPDATE_EVENT,
@@ -492,23 +496,27 @@ class EntityListeners:
 
         # Send event to display new javascript overlays
         # Convert state to standard for stt and hassmic
-        state = event.data["new_state"].state
-        if state in ["vad", "sst-listening"]:
-            state = AssistSatelliteState.LISTENING
-        elif state in ["start", "intent-processing"]:
-            state = AssistSatelliteState.PROCESSING
+        installed_dashboard = await self.hass.data[DOMAIN][
+            ASSETS_MANAGER
+        ].get_installed_version(AssetClass.DASHBOARD, "dashboard")
+        if AwesomeVersion(installed_dashboard) >= MIN_DASHBOARD_FOR_OVERLAYS:
+            state = event.data["new_state"].state
+            if state in ["vad", "sst-listening"]:
+                state = AssistSatelliteState.LISTENING
+            elif state in ["start", "intent-processing"]:
+                state = AssistSatelliteState.PROCESSING
 
-        async_dispatcher_send(
-            self.hass,
-            f"{DOMAIN}_{self.config_entry.entry_id}_event",
-            VAEvent(
-                "listening",
-                {
-                    "state": state,
-                    "style": self.config_entry.runtime_data.dashboard.display_settings.assist_prompt,
-                },
-            ),
-        )
+            async_dispatcher_send(
+                self.hass,
+                f"{DOMAIN}_{self.config_entry.entry_id}_event",
+                VAEvent(
+                    "listening",
+                    {
+                        "state": state,
+                        "style": self.config_entry.runtime_data.dashboard.display_settings.assist_prompt,
+                    },
+                ),
+            )
 
         if mic_integration in (
             "esphome",
@@ -637,7 +645,6 @@ class EntityListeners:
     def _async_on_mediaplayer_device_mute_change(
         self, event: Event[EventStateChangedData]
     ) -> None:
-
         """Handle media player mute state changes via menu manager."""
         if not event.data.get("new_state"):
             return
@@ -655,7 +662,7 @@ class EntityListeners:
             return
 
         _LOGGER.debug("MP MUTE: %s", mp_mute_new_state)
-        
+
         # Get entity ID for this config entry
         entity_id = get_sensor_entity_from_instance(
             self.hass, self.config_entry.entry_id
@@ -663,7 +670,7 @@ class EntityListeners:
 
         # Get menu manager to update system icons
         menu_manager = self.hass.data[DOMAIN]["menu_manager"]
-        
+
         # Use menu manager to update system icons
         if mp_mute_new_state:
             self.hass.async_create_task(
@@ -671,7 +678,9 @@ class EntityListeners:
             )
         else:
             self.hass.async_create_task(
-                menu_manager.update_system_icons(entity_id, remove_icons=["mediaplayer"])
+                menu_manager.update_system_icons(
+                    entity_id, remove_icons=["mediaplayer"]
+                )
             )
 
     async def _async_cc_on_conversation_ended_handler(self, event: Event):
