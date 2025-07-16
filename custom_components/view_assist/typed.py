@@ -35,6 +35,13 @@ class VAScreenMode(StrEnum):
     HIDE_HEADER_SIDEBAR = "hide_header_sidebar"
 
 
+class VAAssistPrompt(StrEnum):
+    """Assist prompt types enum."""
+
+    BLUR_POPUP = "blur_pop_up"
+    FLASHING_BAR = "flashing_bar"
+
+
 class VAIconSizes(StrEnum):
     """Icon size options enum."""
 

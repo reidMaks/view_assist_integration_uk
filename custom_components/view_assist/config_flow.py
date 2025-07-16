@@ -3,6 +3,7 @@
 import logging
 from typing import Any
 
+from awesomeversion import AwesomeVersion
 import voluptuous as vol
 
 from homeassistant.components.assist_satellite import DOMAIN as ASSIST_SAT_DOMAIN
@@ -26,6 +27,7 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
 )
 
+from .assets import ASSETS_MANAGER, AssetClass
 from .const import (
     BROWSERMOD_DOMAIN,
     CONF_ASSIST_PROMPT,
@@ -67,6 +69,7 @@ from .const import (
     DEFAULT_TYPE,
     DEFAULT_VALUES,
     DOMAIN,
+    MIN_DASHBOARD_FOR_OVERLAYS,
     REMOTE_ASSIST_DISPLAY_DOMAIN,
     VACA_DOMAIN,
     VAIconSizes,
@@ -77,6 +80,7 @@ from .helpers import (
     get_master_config_entry,
 )
 from .typed import (
+    VAAssistPrompt,
     VABackgroundMode,
     VAConfigEntry,
     VAMenuConfig,
@@ -194,11 +198,20 @@ async def get_dashboard_options_schema(
         }
 
     # Get the overlay options
-    available_overlays = await hass.async_add_executor_job(get_available_overlays, hass)
-    _LOGGER.debug("Overlay options: %s", available_overlays)
-    overlay_options = [
-        {"value": key, "label": value} for key, value in available_overlays.items()
-    ]
+    installed_dashboard = await hass.data[DOMAIN][ASSETS_MANAGER].get_installed_version(
+        AssetClass.DASHBOARD, "dashboard"
+    )
+    if AwesomeVersion(installed_dashboard) >= MIN_DASHBOARD_FOR_OVERLAYS:
+        available_overlays = await hass.async_add_executor_job(
+            get_available_overlays, hass
+        )
+        _LOGGER.debug("Overlay options: %s", available_overlays)
+        overlay_options = [
+            {"value": key, "label": value} for key, value in available_overlays.items()
+        ]
+    else:
+        _LOGGER.debug("No overlays available, using default options")
+        overlay_options = [e.value for e in VAAssistPrompt]
 
     BASE = {
         vol.Optional(CONF_DASHBOARD): str,
