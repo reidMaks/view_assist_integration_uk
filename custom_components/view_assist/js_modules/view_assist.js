@@ -611,8 +611,7 @@ class ViewAssist {
     // Display listening message
     try {
       const overlays = document.getElementById("view-assist-overlays");
-      const styleName = "view-assist-" + style.replaceAll(" ", "-");
-      const styleDiv = overlays.querySelector(`[id=${styleName}]`);
+      const styleDiv = overlays.querySelector(`[id=${style}]`);
 
       const listeningDiv = styleDiv.querySelector(`[id="listening"]`);
       const processingDiv = styleDiv.querySelector(`[id="processing"]`);

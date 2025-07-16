@@ -35,14 +35,6 @@ class VAScreenMode(StrEnum):
     HIDE_HEADER_SIDEBAR = "hide_header_sidebar"
 
 
-class VAAssistPrompt(StrEnum):
-    """Assist prompt types enum."""
-
-    BLUR_POPUP = "blur_pop_up"
-    FLASHING_BAR = "flashing_bar"
-    KITT_BAR = "kitt_bar"
-
-
 class VAIconSizes(StrEnum):
     """Icon size options enum."""
 
@@ -112,7 +104,7 @@ class BackgroundConfig:
 class DisplayConfig:
     """Display settings class."""
 
-    assist_prompt: VAAssistPrompt | None = None
+    assist_prompt: str | None = None
     status_icons_size: VAIconSizes | None = None
     font_style: str | None = None
     status_icons: list[str] = field(default_factory=list)

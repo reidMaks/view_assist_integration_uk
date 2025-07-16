@@ -1,5 +1,6 @@
 """Helper functions."""
 
+from bs4 import BeautifulSoup
 from functools import reduce
 import logging
 from pathlib import Path
@@ -15,9 +16,11 @@ from homeassistant.util import slugify
 from .const import (
     BROWSERMOD_DOMAIN,
     CONF_DISPLAY_DEVICE,
+    DASHBOARD_DIR,
     DOMAIN,
     HASSMIC_DOMAIN,
     IMAGE_PATH,
+    OVERLAY_FILE_NAME,
     RANDOM_IMAGE_URL,
     REMOTE_ASSIST_DISPLAY_DOMAIN,
     VAMODE_REVERTS,
@@ -555,3 +558,25 @@ def json_to_dictdiffer(jsondiff: dict) -> list:
                 )
 
     return output
+
+
+def get_available_overlays(hass: HomeAssistant) -> dict[str, str]:
+    """Get available overlays for pipeline listening, processing, etc."""
+    # Read the HTML file
+    overlays = {}
+    path = hass.config.path(DOMAIN, DASHBOARD_DIR, f"{OVERLAY_FILE_NAME}.html")
+    if Path(path).exists():
+        content = Path(path).read_text(encoding="utf-8")
+
+        # Parse the HTML content
+        soup = BeautifulSoup(content, "html.parser")
+
+        # Print the href attribute of each link
+        for div in soup.find_all("div", recursive=False):
+            o_id = div.get("id")
+            name = div.get("data-name")
+            if o_id and name:
+                overlays[o_id] = name
+    if overlays:
+        return overlays
+    return {}
