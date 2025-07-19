@@ -190,6 +190,7 @@ VA_BACKGROUND_UPDATE_EVENT = "va_background_update_{}"
 VA_ASSET_UPDATE_PROGRESS = "va_asset_update_progress"
 VA_ADD_UPDATE_ENTITY_EVENT = "va_add_update_entity_event"
 CC_CONVERSATION_ENDED_EVENT = f"{CUSTOM_CONVERSATION_DOMAIN}_conversation_ended"
+VACA_INTENT_EVENT = f"{VACA_DOMAIN}_intent_event"
 
 
 # TODO: Remove this when BP/Views updated

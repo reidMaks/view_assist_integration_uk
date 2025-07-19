@@ -42,6 +42,7 @@ from .const import (
     VA_ATTRIBUTE_UPDATE_EVENT,
     VA_BACKGROUND_UPDATE_EVENT,
     VACA_DOMAIN,
+    VACA_INTENT_EVENT,
     VAMode,
 )
 from .helpers import (
@@ -163,7 +164,15 @@ class EntityListeners:
         config_entry.async_on_unload(
             hass.bus.async_listen(
                 CC_CONVERSATION_ENDED_EVENT,
-                self._async_cc_on_conversation_ended_handler,
+                self._async_on_intent_event_handler,
+            )
+        )
+
+        # Add listener for vaca intent event
+        config_entry.async_on_unload(
+            hass.bus.async_listen(
+                VACA_INTENT_EVENT,
+                self._async_on_intent_event_handler,
             )
         )
 
@@ -683,8 +692,8 @@ class EntityListeners:
                 )
             )
 
-    async def _async_cc_on_conversation_ended_handler(self, event: Event):
-        """Handle custom conversation integration conversation ended event."""
+    async def _async_on_intent_event_handler(self, event: Event):
+        """Handle conversation ended event from custom conversation or vaca."""
         # Get VA entity from device id
         entity_id = get_sensor_entity_from_instance(
             self.hass, self.config_entry.entry_id
@@ -696,7 +705,7 @@ class EntityListeners:
             )
             == entity_id
         ):
-            _LOGGER.debug("Received CC event for %s: %s", entity_id, event)
+            _LOGGER.debug("Received intent event for %s: %s", entity_id, event)
             # mic device id matches this VA entity
             # reformat event data
             state = get_key("result.response.speech.plain.speech", event.data)
@@ -712,7 +721,7 @@ class EntityListeners:
             )
         else:
             _LOGGER.debug(
-                "Received CC event for %s but device id does not match: %s",
+                "Received intent event for %s but device id does not match: %s",
                 entity_id,
                 event.data["device_id"],
             )
