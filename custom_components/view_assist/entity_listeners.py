@@ -37,12 +37,12 @@ from .const import (
     USE_VA_NAVIGATION_FOR_BROWSERMOD,
     VA_ATTRIBUTE_UPDATE_EVENT,
     VA_BACKGROUND_UPDATE_EVENT,
+    VACA_DOMAIN,
     VAMode,
 )
 from .helpers import (
     async_get_download_image,
     async_get_filesystem_images,
-    ensure_menu_button_at_end,
     get_config_entry_by_entity_id,
     get_device_name_from_id,
     get_display_type_from_browser_id,
@@ -93,28 +93,34 @@ class EntityListeners:
 
         # Add mic device/wake word entity listening listner for volume ducking
         if config_entry.runtime_data.default.ducking_volume is not None:
-            mic_integration = get_config_entry_by_entity_id(
-                self.hass, self.config_entry.runtime_data.core.mic_device
-            ).domain
-            if mic_integration == HASSMIC_DOMAIN:
-                entity_id = get_hassmic_pipeline_status_entity_id(
-                    hass, self.config_entry.runtime_data.core.mic_device
-                )
-            else:
-                entity_id = self.config_entry.runtime_data.core.mic_device
-
-            if entity_id:
-                _LOGGER.debug("Listening for mic device %s", entity_id)
-                config_entry.async_on_unload(
-                    async_track_state_change_event(
-                        hass,
-                        entity_id,
-                        self._async_on_mic_state_change,
+            try:
+                mic_integration = get_config_entry_by_entity_id(
+                    self.hass, self.config_entry.runtime_data.core.mic_device
+                ).domain
+                if mic_integration == HASSMIC_DOMAIN:
+                    entity_id = get_hassmic_pipeline_status_entity_id(
+                        hass, self.config_entry.runtime_data.core.mic_device
                     )
-                )
-            else:
-                _LOGGER.warning(
-                    "Unable to find entity for pipeline status for %s",
+                else:
+                    entity_id = self.config_entry.runtime_data.core.mic_device
+
+                if entity_id:
+                    _LOGGER.debug("Listening for mic device %s", entity_id)
+                    config_entry.async_on_unload(
+                        async_track_state_change_event(
+                            hass,
+                            entity_id,
+                            self._async_on_mic_state_change,
+                        )
+                    )
+                else:
+                    _LOGGER.warning(
+                        "Unable to find entity for pipeline status for %s",
+                        self.config_entry.runtime_data.core.mic_device,
+                    )
+            except AttributeError:
+                _LOGGER.error(
+                    "Error getting mic entity for %s",
                     self.config_entry.runtime_data.core.mic_device,
                 )
 
@@ -461,17 +467,21 @@ class EntityListeners:
         # If not change to mic state, exit function
         if (
             not event.data.get("old_state")
+            or not event.data.get("new_state")
             or event.data["old_state"].state == event.data["new_state"].state
         ):
             return
 
         music_player_entity_id = self.config_entry.runtime_data.core.musicplayer_device
-        mic_integration = get_config_entry_by_entity_id(
-            self.hass, self.config_entry.runtime_data.core.mic_device
-        ).domain
-        music_player_integration = get_config_entry_by_entity_id(
-            self.hass, music_player_entity_id
-        ).domain
+        try:
+            mic_integration = get_config_entry_by_entity_id(
+                self.hass, self.config_entry.runtime_data.core.mic_device
+            ).domain
+            music_player_integration = get_config_entry_by_entity_id(
+                self.hass, music_player_entity_id
+            ).domain
+        except AttributeError:
+            return
 
         _LOGGER.debug(
             "Mic state change: %s: %s->%s",
@@ -480,7 +490,30 @@ class EntityListeners:
             event.data["new_state"].state,
         )
 
-        if mic_integration == "esphome" and music_player_integration == "esphome":
+        # Send event to display new javascript overlays
+        # Convert state to standard for stt and hassmic
+        state = event.data["new_state"].state
+        if state in ["vad", "sst-listening"]:
+            state = AssistSatelliteState.LISTENING
+        elif state in ["start", "intent-processing"]:
+            state = AssistSatelliteState.PROCESSING
+
+        async_dispatcher_send(
+            self.hass,
+            f"{DOMAIN}_{self.config_entry.entry_id}_event",
+            VAEvent(
+                "listening",
+                {
+                    "state": state,
+                    "style": self.config_entry.runtime_data.dashboard.display_settings.assist_prompt,
+                },
+            ),
+        )
+
+        if mic_integration in (
+            "esphome",
+            VACA_DOMAIN,
+        ) and music_player_integration in ("esphome", VACA_DOMAIN):
             # HA VPE already supports volume ducking
             return
 
@@ -492,28 +525,43 @@ class EntityListeners:
 
         old_state = event.data["old_state"].state
         new_state = event.data["new_state"].state
-        ducking_volume = self.config_entry.runtime_data.default.ducking_volume / 100
 
         if (mic_integration == HASSMIC_DOMAIN and old_state == "wake_word-start") or (
             mic_integration != HASSMIC_DOMAIN
             and new_state == AssistSatelliteState.LISTENING
         ):
+            _LOGGER.debug("Mic is listening, ducking music player volume")
+
+            # Ducking volume is a % of current volume of mediaplayer
+            ducking_percent = self.config_entry.runtime_data.default.ducking_volume
+
             if music_player_volume := self.hass.states.get(
                 music_player_entity_id
             ).attributes.get("volume_level"):
+                _LOGGER.debug("Current music player volume: %s", music_player_volume)
+                # Set current volume for restoring later
                 self.music_player_volume = music_player_volume
 
-                if self.hass.states.get(music_player_entity_id):
-                    if music_player_volume > ducking_volume:
-                        _LOGGER.debug("Ducking music player volume: %s", ducking_volume)
-                        await self.hass.services.async_call(
-                            "media_player",
-                            "volume_set",
-                            {
-                                "entity_id": music_player_entity_id,
-                                "volume_level": ducking_volume,
-                            },
-                        )
+                # Calculate media player volume for ducking
+                ducking_volume = music_player_volume * ((100 - ducking_percent) / 100)
+
+                if self.music_player_volume > ducking_volume:
+                    _LOGGER.debug("Ducking music player volume to: %s", ducking_volume)
+                    await self.hass.services.async_call(
+                        "media_player",
+                        "volume_set",
+                        {
+                            "entity_id": music_player_entity_id,
+                            "volume_level": ducking_volume,
+                        },
+                    )
+
+            else:
+                _LOGGER.debug(
+                    "Music player volume not found, volume ducking not supported"
+                )
+                return
+
         elif (
             (mic_integration == HASSMIC_DOMAIN and new_state == "wake_word-start")
             or (
@@ -522,13 +570,19 @@ class EntityListeners:
             )
         ) and self.music_player_volume is not None:
             if self.hass.states.get(music_player_entity_id):
-                await asyncio.sleep(2)
+                await asyncio.sleep(1)
                 _LOGGER.debug(
                     "Restoring music player volume: %s", self.music_player_volume
                 )
                 # Restore gradually to avoid sudden volume change
+                current_music_player_volume = self.hass.states.get(
+                    music_player_entity_id
+                ).attributes.get("volume_level")
                 for i in range(1, 11):
-                    volume = min(self.music_player_volume, ducking_volume + (i * 0.1))
+                    volume = min(
+                        self.music_player_volume,
+                        current_music_player_volume + (i * 0.1),
+                    )
                     await self.hass.services.async_call(
                         "media_player",
                         "volume_set",
@@ -545,6 +599,11 @@ class EntityListeners:
 
     @callback
     def _async_on_mic_change(self, event: Event[EventStateChangedData]) -> None:
+        """Handle microphone mute state changes via menu manager."""
+        event_new = event.data.get("new_state")
+        if not event_new:
+            return
+
         mic_mute_new_state = event.data["new_state"].state
 
         # If not change to mic mute state, exit function
@@ -555,23 +614,34 @@ class EntityListeners:
             return
 
         _LOGGER.debug("MIC MUTE: %s", mic_mute_new_state)
-        d = self.config_entry.runtime_data.dashboard.display_settings
-        status_icons = d.status_icons.copy()
 
-        if mic_mute_new_state == "on" and "mic" not in status_icons:
-            status_icons.append("mic")
-        elif mic_mute_new_state == "off" and "mic" in status_icons:
-            status_icons.remove("mic")
+        # Get entity ID for this config entry
+        entity_id = get_sensor_entity_from_instance(
+            self.hass, self.config_entry.entry_id
+        )
 
-        ensure_menu_button_at_end(status_icons)
+        # Get menu manager to update system icons
+        menu_manager = self.hass.data[DOMAIN]["menu_manager"]
 
-        d.status_icons = status_icons
-        self.update_entity()
+        # Use menu manager to update system icons
+        if mic_mute_new_state == "on":
+            self.hass.async_create_task(
+                menu_manager.update_system_icons(entity_id, add_icons=["mic"])
+            )
+        else:
+            self.hass.async_create_task(
+                menu_manager.update_system_icons(entity_id, remove_icons=["mic"])
+            )
 
     @callback
     def _async_on_mediaplayer_device_mute_change(
         self, event: Event[EventStateChangedData]
     ) -> None:
+
+        """Handle media player mute state changes via menu manager."""
+        if not event.data.get("new_state"):
+            return
+
         mp_mute_new_state = event.data["new_state"].attributes.get(
             "is_volume_muted", False
         )
@@ -585,18 +655,24 @@ class EntityListeners:
             return
 
         _LOGGER.debug("MP MUTE: %s", mp_mute_new_state)
-        d = self.config_entry.runtime_data.dashboard.display_settings
-        status_icons = d.status_icons.copy() if d.status_icons else []
+        
+        # Get entity ID for this config entry
+        entity_id = get_sensor_entity_from_instance(
+            self.hass, self.config_entry.entry_id
+        )
 
-        if mp_mute_new_state and "mediaplayer" not in status_icons:
-            status_icons.append("mediaplayer")
-        elif not mp_mute_new_state and "mediaplayer" in status_icons:
-            status_icons.remove("mediaplayer")
-
-        ensure_menu_button_at_end(status_icons)
-
-        d.status_icons = status_icons
-        self.update_entity()
+        # Get menu manager to update system icons
+        menu_manager = self.hass.data[DOMAIN]["menu_manager"]
+        
+        # Use menu manager to update system icons
+        if mp_mute_new_state:
+            self.hass.async_create_task(
+                menu_manager.update_system_icons(entity_id, add_icons=["mediaplayer"])
+            )
+        else:
+            self.hass.async_create_task(
+                menu_manager.update_system_icons(entity_id, remove_icons=["mediaplayer"])
+            )
 
     async def _async_cc_on_conversation_ended_handler(self, event: Event):
         """Handle custom conversation integration conversation ended event."""
@@ -758,65 +834,51 @@ class EntityListeners:
             await self._async_on_mode_state_change(event)
 
     async def _async_on_dnd_device_state_change(self, event: Event) -> None:
-        """Set dnd status icon."""
-
+        """Handle DND state changes via menu manager."""
         # This is called from our set_service event listener and therefore event data is
         # slightly different.  See set_state_changed_attribute above
         dnd_new_state = event.data["new_value"]
-        d = self.config_entry.runtime_data.dashboard.display_settings
 
         _LOGGER.debug("DND STATE: %s", dnd_new_state)
-        status_icons = d.status_icons.copy()
-        if dnd_new_state and "dnd" not in status_icons:
-            status_icons.append("dnd")
-        elif not dnd_new_state and "dnd" in status_icons:
-            status_icons.remove("dnd")
 
-        ensure_menu_button_at_end(status_icons)
-
-        d.status_icons = status_icons
-        self.update_entity()
-
-    async def _async_on_mode_state_change(self, event: Event) -> None:
-        """Set mode status icon."""
-
-        new_mode = event.data["new_value"]
-        r = self.config_entry.runtime_data
-        d = r.dashboard.display_settings
-
-        _LOGGER.debug("MODE STATE: %s", new_mode)
-
-        # Get current status icons directly from entity state
+        # Get entity ID for this config entry
         entity_id = get_sensor_entity_from_instance(
             self.hass, self.config_entry.entry_id
         )
-        if entity := self.hass.states.get(entity_id):
-            status_icons = list(entity.attributes.get("status_icons", []))
+
+        # Get menu manager to update system icons
+        menu_manager = self.hass.data[DOMAIN]["menu_manager"]
+
+        # Use menu manager to update system icons
+        if dnd_new_state:
+            await menu_manager.update_system_icons(entity_id, add_icons=["dnd"])
         else:
-            status_icons = d.status_icons.copy()
+            await menu_manager.update_system_icons(entity_id, remove_icons=["dnd"])
 
-        modes = [VAMode.HOLD, VAMode.CYCLE]
+    async def _async_on_mode_state_change(self, event: Event) -> None:
+        """Handle mode state changes via menu manager."""
+        new_mode = event.data["new_value"]
+        r = self.config_entry.runtime_data
 
-        # Remove all mode icons
-        for mode in modes:
-            if mode in status_icons:
-                status_icons.remove(mode)
+        _LOGGER.debug("MODE STATE: %s", new_mode)
 
-        # Now add back any you want
-        if new_mode in modes and new_mode not in status_icons:
-            status_icons.append(new_mode)
-
-        ensure_menu_button_at_end(status_icons)
-
-        # Store the updated status icons in the display settings
-        d.status_icons = status_icons
-
-        # Update entity state
-        await self.hass.services.async_call(
-            DOMAIN,
-            "set_state",
-            service_data={"entity_id": entity_id, "status_icons": status_icons},
+        # Get entity ID for this config entry
+        entity_id = get_sensor_entity_from_instance(
+            self.hass, self.config_entry.entry_id
         )
+
+        # Get menu manager to update system icons
+        menu_manager = self.hass.data[DOMAIN]["menu_manager"]
+
+        # Define mode icons that should be shown
+        mode_icons = [VAMode.HOLD, VAMode.CYCLE]
+
+        # Remove all mode icons first
+        await menu_manager.update_system_icons(entity_id, remove_icons=mode_icons)
+
+        # Add current mode icon if it should be shown
+        if new_mode in mode_icons:
+            await menu_manager.update_system_icons(entity_id, add_icons=[new_mode])
 
         self.update_entity()
 

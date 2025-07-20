@@ -139,54 +139,62 @@ class AssetsManager:
         self.store = AssetsManagerStorage(hass)
         self.managers: dict[str, BaseAssetManager] = {}
         self.data: dict[str, Any] = {}
+        self.force_onboard: bool = False
 
     async def async_setup(self) -> None:
         """Set up the AssetManager."""
-        self.data = await self.store.load()
+        try:
+            _LOGGER.debug("Setting up AssetsManager")
+            self.data = await self.store.load()
 
-        # Setup managers
-        for asset_class, manager in ASSET_CLASS_MANAGERS.items():
-            self.managers[asset_class] = manager(
-                self.hass, self.config, self.data.get(asset_class)
-            )
-
-        # Onboard managers
-        await self.onboard_managers()
-
-        # Setup managers
-        for manager in self.managers.values():
-            await manager.async_setup()
-
-        # Add update action
-        self.hass.services.async_register(
-            DOMAIN, "update_versions", self._async_handle_update_versions_service_call
-        )
-
-        # Add load asset action
-        self.hass.services.async_register(
-            DOMAIN,
-            "load_asset",
-            self._async_handle_load_asset_service_call,
-            schema=LOAD_ASSET_SERVICE_SCHEMA,
-        )
-
-        # Add save asset action
-        self.hass.services.async_register(
-            DOMAIN,
-            "save_asset",
-            self._async_handle_save_asset_service_call,
-            schema=SAVE_ASSET_SERVICE_SCHEMA,
-        )
-
-        # Experimental - schedule update of asset latest versions
-        if self.config.runtime_data.integration.enable_updates:
-            self.config.async_on_unload(
-                async_track_time_interval(
-                    self.hass,
-                    self.async_update_version_info,
-                    timedelta(minutes=VERSION_CHECK_INTERVAL),
+            # Setup managers
+            for asset_class, manager in ASSET_CLASS_MANAGERS.items():
+                self.managers[asset_class] = manager(
+                    self.hass, self.config, self.data.get(asset_class)
                 )
+
+            # Onboard managers
+            await self.onboard_managers()
+
+            # Setup managers
+            for manager in self.managers.values():
+                await manager.async_setup()
+
+            # Add update action
+            self.hass.services.async_register(
+                DOMAIN,
+                "update_versions",
+                self._async_handle_update_versions_service_call,
             )
+
+            # Add load asset action
+            self.hass.services.async_register(
+                DOMAIN,
+                "load_asset",
+                self._async_handle_load_asset_service_call,
+                schema=LOAD_ASSET_SERVICE_SCHEMA,
+            )
+
+            # Add save asset action
+            self.hass.services.async_register(
+                DOMAIN,
+                "save_asset",
+                self._async_handle_save_asset_service_call,
+                schema=SAVE_ASSET_SERVICE_SCHEMA,
+            )
+
+            # Experimental - schedule update of asset latest versions
+            if self.config.runtime_data.integration.enable_updates:
+                self.config.async_on_unload(
+                    async_track_time_interval(
+                        self.hass,
+                        self.async_update_version_info,
+                        timedelta(minutes=VERSION_CHECK_INTERVAL),
+                    )
+                )
+        except Exception as ex:
+            _LOGGER.error("Error setting up AssetsManager. Error is %s", ex)
+            raise HomeAssistantError(f"Error setting up AssetsManager: {ex}") from ex
 
     async def _async_handle_update_versions_service_call(self, call: ServiceCall):
         """Handle update of the view versions."""
@@ -224,11 +232,17 @@ class AssetsManager:
 
     async def onboard_managers(self) -> None:
         """Onboard the user if not yet setup."""
+        # Check dashboard has not been deleted.
+        # Ensures re-onboarded if it has
+        if not self.managers[AssetClass.DASHBOARD].is_installed("dashboard"):
+            _LOGGER.debug("Dashboard not installed, forcing onboarding")
+            self.force_onboard = True
+
         # Check if onboarding is needed and if so, run it
         for asset_class, manager in self.managers.items():
-            if not self.data.get(asset_class):
+            if not self.data.get(asset_class) or self.force_onboard:
                 _LOGGER.debug("Onboarding %s", asset_class)
-                result = await manager.async_onboard()
+                result = await manager.async_onboard(force=self.force_onboard)
 
                 if result:
                     _LOGGER.debug("Onboarding result %s - %s", asset_class, result)
@@ -248,16 +262,19 @@ class AssetsManager:
             ) < timedelta(minutes=VERSION_CHECK_INTERVAL):
                 return
 
-        _LOGGER.debug(
-            "Updating latest versions for %s",
-            f"{asset_class} asset class" if asset_class else "all asset classes",
-        )
-
         managers = self.managers
         if asset_class and asset_class in self.managers:
             managers = {k: v for k, v in self.managers.items() if k == asset_class}
 
         for asset_class, manager in managers.items():  # noqa: PLR1704
+            # If no key in self.data, return
+            if not self.data.get(asset_class):
+                _LOGGER.debug(
+                    "No data for %s, skipping update",
+                    asset_class,
+                )
+                continue
+
             # Reduces download by only getting version from repo if the last commit date is greater than
             # we have stored
             update_from_repo = True

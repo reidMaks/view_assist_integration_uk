@@ -31,6 +31,7 @@ BROWSERMOD_DOMAIN = "browser_mod"
 REMOTE_ASSIST_DISPLAY_DOMAIN = "remote_assist_display"
 CUSTOM_CONVERSATION_DOMAIN = "custom_conversation"
 HASSMIC_DOMAIN = "hassmic"
+VACA_DOMAIN = "vaca"
 USE_VA_NAVIGATION_FOR_BROWSERMOD = True
 
 IMAGE_PATH = "images"
@@ -42,7 +43,7 @@ JSMODULES = [
     {
         "name": "View Assist Helper",
         "filename": "view_assist.js",
-        "version": "1.0.10",
+        "version": "1.0.13",
     },
 ]
 VERSION_CHECK_INTERVAL = (
@@ -154,7 +155,7 @@ DEFAULT_VALUES = {
     CONF_DO_NOT_DISTURB: "off",
     CONF_USE_ANNOUNCE: "off",
     CONF_MIC_UNMUTE: "off",
-    CONF_DUCKING_VOLUME: 35,
+    CONF_DUCKING_VOLUME: 70,
     # Default integration options
     CONF_ENABLE_UPDATES: True,
     # Default developer otions
