@@ -27,7 +27,7 @@ from homeassistant.helpers.dispatcher import (
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.start import async_at_started
 
-from .assets import ASSETS_MANAGER, AssetClass
+from .assets import ASSETS_MANAGER, AssetClass, AssetsManager
 from .const import (
     BROWSERMOD_DOMAIN,
     CC_CONVERSATION_ENDED_EVENT,
@@ -485,13 +485,9 @@ class EntityListeners:
         ):
             return
 
-        music_player_entity_id = self.config_entry.runtime_data.core.musicplayer_device
         try:
             mic_integration = get_config_entry_by_entity_id(
                 self.hass, self.config_entry.runtime_data.core.mic_device
-            ).domain
-            music_player_integration = get_config_entry_by_entity_id(
-                self.hass, music_player_entity_id
             ).domain
         except AttributeError:
             return
@@ -505,10 +501,14 @@ class EntityListeners:
 
         # Send event to display new javascript overlays
         # Convert state to standard for stt and hassmic
-        installed_dashboard = await self.hass.data[DOMAIN][
-            ASSETS_MANAGER
-        ].get_installed_version(AssetClass.DASHBOARD, "dashboard")
-        if AwesomeVersion(installed_dashboard) >= MIN_DASHBOARD_FOR_OVERLAYS:
+        am: AssetsManager = self.hass.data[DOMAIN][ASSETS_MANAGER]
+        installed_dashboard = await am.get_installed_version(
+            AssetClass.DASHBOARD, "dashboard"
+        )
+        if (
+            installed_dashboard
+            and AwesomeVersion(installed_dashboard) >= MIN_DASHBOARD_FOR_OVERLAYS
+        ):
             state = event.data["new_state"].state
             if state in ["vad", "sst-listening"]:
                 state = AssistSatelliteState.LISTENING
@@ -526,6 +526,15 @@ class EntityListeners:
                     },
                 ),
             )
+
+        # Volume ducking
+        music_player_entity_id = self.config_entry.runtime_data.core.musicplayer_device
+        try:
+            music_player_integration = get_config_entry_by_entity_id(
+                self.hass, music_player_entity_id
+            ).domain
+        except AttributeError:
+            return
 
         if mic_integration in (
             "esphome",
