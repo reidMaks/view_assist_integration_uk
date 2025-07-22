@@ -637,7 +637,6 @@ class EntityListeners:
     def _async_on_mediaplayer_device_mute_change(
         self, event: Event[EventStateChangedData]
     ) -> None:
-
         """Handle media player mute state changes via menu manager."""
         if not event.data.get("new_state"):
             return
@@ -655,7 +654,7 @@ class EntityListeners:
             return
 
         _LOGGER.debug("MP MUTE: %s", mp_mute_new_state)
-        
+
         # Get entity ID for this config entry
         entity_id = get_sensor_entity_from_instance(
             self.hass, self.config_entry.entry_id
@@ -663,7 +662,7 @@ class EntityListeners:
 
         # Get menu manager to update system icons
         menu_manager = self.hass.data[DOMAIN]["menu_manager"]
-        
+
         # Use menu manager to update system icons
         if mp_mute_new_state:
             self.hass.async_create_task(
@@ -671,7 +670,9 @@ class EntityListeners:
             )
         else:
             self.hass.async_create_task(
-                menu_manager.update_system_icons(entity_id, remove_icons=["mediaplayer"])
+                menu_manager.update_system_icons(
+                    entity_id, remove_icons=["mediaplayer"]
+                )
             )
 
     async def _async_cc_on_conversation_ended_handler(self, event: Event):
@@ -788,7 +789,7 @@ class EntityListeners:
                     self.config_entry.runtime_data.dashboard.list_view
                 )
 
-            else:
+            elif not event.data["new_state"].attributes.get("processed_locally", False):
                 word_count = len(speech_text.split())
                 message_font_size = ["10vw", "8vw", "6vw", "4vw"][
                     min(word_count // 6, 3)
