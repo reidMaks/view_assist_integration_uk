@@ -806,7 +806,7 @@ class EntityListeners:
                     self.config_entry.runtime_data.dashboard.list_view
                 )
 
-            else:
+            elif not event.data["new_state"].attributes.get("processed_locally", False):
                 word_count = len(speech_text.split())
                 message_font_size = ["10vw", "8vw", "6vw", "4vw"][
                     min(word_count // 6, 3)
