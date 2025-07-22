@@ -3,6 +3,7 @@
 import logging
 from typing import Any
 
+from awesomeversion import AwesomeVersion
 import voluptuous as vol
 
 from homeassistant.components.assist_satellite import DOMAIN as ASSIST_SAT_DOMAIN
@@ -26,6 +27,7 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
 )
 
+from .assets import ASSETS_MANAGER, AssetClass
 from .const import (
     BROWSERMOD_DOMAIN,
     CONF_ASSIST_PROMPT,
@@ -67,13 +69,18 @@ from .const import (
     DEFAULT_TYPE,
     DEFAULT_VALUES,
     DOMAIN,
+    MIN_DASHBOARD_FOR_OVERLAYS,
     REMOTE_ASSIST_DISPLAY_DOMAIN,
     VACA_DOMAIN,
-    VAAssistPrompt,
     VAIconSizes,
 )
-from .helpers import get_devices_for_domain, get_master_config_entry
+from .helpers import (
+    get_available_overlays,
+    get_devices_for_domain,
+    get_master_config_entry,
+)
 from .typed import (
+    VAAssistPrompt,
     VABackgroundMode,
     VAConfigEntry,
     VAMenuConfig,
@@ -161,7 +168,9 @@ def get_display_devices(
     ]
 
 
-def get_dashboard_options_schema(config_entry: VAConfigEntry | None) -> vol.Schema:
+async def get_dashboard_options_schema(
+    hass: HomeAssistant, config_entry: VAConfigEntry | None
+) -> vol.Schema:
     """Return schema for dashboard options."""
     is_master = (
         config_entry is not None
@@ -188,6 +197,22 @@ def get_dashboard_options_schema(config_entry: VAConfigEntry | None) -> vol.Sche
             )
         }
 
+    # Get the overlay options
+    installed_dashboard = await hass.data[DOMAIN][ASSETS_MANAGER].get_installed_version(
+        AssetClass.DASHBOARD, "dashboard"
+    )
+    if AwesomeVersion(installed_dashboard) >= MIN_DASHBOARD_FOR_OVERLAYS:
+        available_overlays = await hass.async_add_executor_job(
+            get_available_overlays, hass
+        )
+        _LOGGER.debug("Overlay options: %s", available_overlays)
+        overlay_options = [
+            {"value": key, "label": value} for key, value in available_overlays.items()
+        ]
+    else:
+        _LOGGER.debug("No overlays available, using default options")
+        overlay_options = [e.value for e in VAAssistPrompt]
+
     BASE = {
         vol.Optional(CONF_DASHBOARD): str,
         vol.Optional(CONF_HOME): str,
@@ -212,7 +237,7 @@ def get_dashboard_options_schema(config_entry: VAConfigEntry | None) -> vol.Sche
         vol.Optional(CONF_ASSIST_PROMPT): SelectSelector(
             SelectSelectorConfig(
                 translation_key="assist_prompt_selector",
-                options=[e.value for e in VAAssistPrompt],
+                options=overlay_options,
                 mode=SelectSelectorMode.DROPDOWN,
             )
         ),
@@ -530,7 +555,7 @@ class ViewAssistOptionsFlowHandler(OptionsFlow):
     async def async_step_dashboard_options(self, user_input=None):
         """Handle dashboard options flow."""
         data_schema = self.add_suggested_values_to_schema(
-            get_dashboard_options_schema(self.config_entry),
+            await get_dashboard_options_schema(self.hass, self.config_entry),
             get_suggested_option_values(self.config_entry),
         )
 

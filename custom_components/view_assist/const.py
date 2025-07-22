@@ -5,7 +5,6 @@ from enum import StrEnum
 from homeassistant.const import CONF_MODE
 
 from .typed import (
-    VAAssistPrompt,
     VABackgroundMode,
     VAIconSizes,
     VAMenuConfig,
@@ -138,7 +137,7 @@ DEFAULT_VALUES = {
         CONF_ROTATE_BACKGROUND_INTERVAL: 60,
     },
     CONF_DISPLAY_SETTINGS: {
-        CONF_ASSIST_PROMPT: VAAssistPrompt.BLUR_POPUP,
+        CONF_ASSIST_PROMPT: "blur_pop_up",
         CONF_STATUS_ICON_SIZE: VAIconSizes.LARGE,
         CONF_FONT_STYLE: "Roboto",
         CONF_STATUS_ICONS: [],
@@ -203,3 +202,6 @@ OPTION_KEY_MIGRATIONS = {
     "BrowserMod": "browser_mod",
     "Remote Assist Display": "remote_assist_display",
 }
+
+OVERLAY_FILE_NAME = "overlay"
+MIN_DASHBOARD_FOR_OVERLAYS = "1.1.0"
