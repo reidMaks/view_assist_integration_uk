@@ -1,4 +1,4 @@
-const version = "1.0.13"
+const version = "1.0.14"
 const TIMEOUT_ERROR = "SELECTTREE-TIMEOUT";
 
 export async function await_element(el, hard = false) {
