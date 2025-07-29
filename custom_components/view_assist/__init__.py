@@ -318,7 +318,11 @@ def set_runtime_data_for_config(
         attr: str, is_master: bool = False
     ) -> str | float | list | None:
         value = get_key(attr, dict(config_entry.options))
-        if not is_master and (value is None or (isinstance(value, dict) and not value)):
+        if not is_master and (
+            value is None
+            or (isinstance(value, dict) and not value)
+            or (isinstance(value, list) and not value)
+        ):
             value = get_key(attr, dict(master_config_options))
         if value is None or (isinstance(value, dict) and not value):
             value = get_key(attr, DEFAULT_VALUES)
