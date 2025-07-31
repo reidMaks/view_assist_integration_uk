@@ -1,4 +1,4 @@
-const version = "1.0.13"
+const version = "1.0.15"
 const TIMEOUT_ERROR = "SELECTTREE-TIMEOUT";
 
 export async function await_element(el, hard = false) {
@@ -273,7 +273,7 @@ class ViewAssist {
     this.hide_sidebar_timeout = null;
     this.variables = new VAData();
     this.connected = false;
-    this.initialize();
+    setTimeout(() => this.initialize(), 100);
   }
 
   async hide_header(enabled) {
@@ -379,6 +379,13 @@ class ViewAssist {
 
   async initialize() {
     try {
+
+      // Add custom elements and overlay html
+      customElements.define("viewassist-countdown", CountdownTimer)
+      customElements.define("viewassist-clock", Clock)
+      await this.add_custom_css();
+      await this.add_custom_html();
+
       // Connect to server websocket
       this._hass = await hass();
       await this.connect();
@@ -396,17 +403,7 @@ class ViewAssist {
         window.addEventListener("location-changed", () => {
           this.hide_sections();
           this.display_browser_id();
-          // Added to ensure hiding of header and sidebar on slower devices
-          // at first start
-          //setTimeout(() => {
-          //  this.hide_sections();
-          //}, 10000);
         });
-
-        customElements.define("viewassist-countdown", CountdownTimer)
-        customElements.define("viewassist-clock", Clock)
-        await this.add_custom_css();
-        await this.add_custom_html();
       }
 
     } catch (e) {
@@ -611,8 +608,7 @@ class ViewAssist {
     // Display listening message
     try {
       const overlays = document.getElementById("view-assist-overlays");
-      const styleName = "view-assist-" + style.replaceAll(" ", "-");
-      const styleDiv = overlays.querySelector(`[id=${styleName}]`);
+      const styleDiv = overlays.querySelector(`[id=${style}]`);
 
       const listeningDiv = styleDiv.querySelector(`[id="listening"]`);
       const processingDiv = styleDiv.querySelector(`[id="processing"]`);
