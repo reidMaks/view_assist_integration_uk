@@ -344,7 +344,7 @@ remove_status_item:
       required: true
       selector:
         object:
-    from_menu_items:
+    menu:
       name: "Remove from Menu Items"
       description: "If true, removes the item(s) from the configured menu items list. If false, removes from status icons."
       required: false
