@@ -42,7 +42,7 @@ JSMODULES = [
     {
         "name": "View Assist Helper",
         "filename": "view_assist.js",
-        "version": "1.0.15",
+        "version": "1.0.16",
     },
 ]
 VERSION_CHECK_INTERVAL = (
