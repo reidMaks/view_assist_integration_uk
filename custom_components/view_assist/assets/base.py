@@ -72,6 +72,7 @@ class BaseAssetManager:
         self,
         name: str,
         download: bool = False,
+        dev_branch: bool = False,
         backup_existing: bool = False,
     ) -> InstallStatus:
         """Install or update asset."""
