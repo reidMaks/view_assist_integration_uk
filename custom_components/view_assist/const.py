@@ -23,6 +23,7 @@ VIEWS_DIR = "views"
 COMMUNITY_VIEWS_DIR = "community_contributions"
 DASHBOARD_DIR = "dashboard"
 DASHBOARD_NAME = "View Assist"
+WIKI_URL = "https://dinki.github.io/View-Assist"
 
 DEFAULT_VIEW = "clock"
 CYCLE_VIEWS = ["music", "info", "weather", "clock"]
