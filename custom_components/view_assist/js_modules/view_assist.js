@@ -1,4 +1,4 @@
-const version = "1.0.15"
+const version = "1.0.16"
 const TIMEOUT_ERROR = "SELECTTREE-TIMEOUT";
 
 export async function await_element(el, hard = false) {
@@ -383,8 +383,9 @@ class ViewAssist {
       // Add custom elements and overlay html
       customElements.define("viewassist-countdown", CountdownTimer)
       customElements.define("viewassist-clock", Clock)
-      await this.add_custom_css();
+
       await this.add_custom_html();
+      await this.add_custom_css();
 
       // Connect to server websocket
       this._hass = await hass();
@@ -574,24 +575,34 @@ class ViewAssist {
   }
 
   async add_custom_css() {
+    // Add custom css to the shadow root
+    var e = document.getElementById("view-assist-overlays").shadowRoot;
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function () {
+      if (this.readyState == 4) {
+        if (this.status == 200) {
+          var st = document.createElement("style");
+          st.innerHTML = this.responseText;
+          e.appendChild(st);
+        }
+      }
+    }
+    xhttp.open("GET", "/view_assist/dashboard/overlay.css", true);
+    xhttp.send();
 
-    var linkElement = document.createElement('link');
-    linkElement.setAttribute('rel', 'stylesheet');
-    linkElement.setAttribute('type', 'text/css');
-    linkElement.setAttribute('href', '/view_assist/dashboard/overlay.css');
-    document.head.appendChild(linkElement);
   }
 
   async add_custom_html() {
     var htmlElement = document.createElement('div');
     htmlElement.id = 'view-assist-overlays';
+    htmlElement.attachShadow({ mode: "open" });
+    document.body.appendChild(htmlElement);
+
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function () {
       if (this.readyState == 4) {
         if (this.status == 200) {
-          // Remove html comments form file
-          htmlElement.innerHTML = this.responseText;
-          document.body.appendChild(htmlElement);
+          htmlElement.shadowRoot.innerHTML = this.responseText;
         } else if (this.status == 404) {
           console.error("Overlay HTML not found - no overlays will be displayed");
           return;
@@ -607,7 +618,7 @@ class ViewAssist {
   async show_listening_overlay(state, style) {
     // Display listening message
     try {
-      const overlays = document.getElementById("view-assist-overlays");
+      const overlays = document.getElementById("view-assist-overlays").shadowRoot;
       const styleDiv = overlays.querySelector(`[id=${style}]`);
 
       const listeningDiv = styleDiv.querySelector(`[id="listening"]`);
