@@ -19,6 +19,7 @@ from homeassistant.util import dt as dt_util, timedelta
 from ..const import (  # noqa: TID252
     ATTR_ASSET_CLASS,
     ATTR_BACKUP_CURRENT_ASSET,
+    ATTR_DISCARD_DASHBOARD_USER_CHANGES,
     ATTR_DOWNLOAD_FROM_DEV_BRANCH,
     ATTR_DOWNLOAD_FROM_REPO,
     DOMAIN,
@@ -60,6 +61,7 @@ LOAD_ASSET_SERVICE_SCHEMA = vol.Schema(
         vol.Required(ATTR_NAME): str,
         vol.Required(ATTR_DOWNLOAD_FROM_REPO, default=False): bool,
         vol.Required(ATTR_DOWNLOAD_FROM_DEV_BRANCH, default=False): bool,
+        vol.Required(ATTR_DISCARD_DASHBOARD_USER_CHANGES, default=False): bool,
         vol.Required(ATTR_BACKUP_CURRENT_ASSET, default=False): bool,
     }
 )
@@ -212,6 +214,9 @@ class AssetsManager:
         asset_name = call.data.get(ATTR_NAME)
         download = call.data.get(ATTR_DOWNLOAD_FROM_REPO, False)
         dev_branch = call.data.get(ATTR_DOWNLOAD_FROM_DEV_BRANCH, False)
+        discard_user_dashboard_changes = call.data.get(
+            ATTR_DISCARD_DASHBOARD_USER_CHANGES, False
+        )
         backup = call.data.get(ATTR_BACKUP_CURRENT_ASSET, False)
 
         try:
@@ -220,6 +225,7 @@ class AssetsManager:
                 asset_name,
                 download=download,
                 dev_branch=dev_branch,
+                discard_user_dashboard_changes=discard_user_dashboard_changes,
                 backup_existing=backup,
             )
         except AssetManagerException as ex:
@@ -328,6 +334,7 @@ class AssetsManager:
         name: str,
         download: bool = False,
         dev_branch: bool = False,
+        discard_user_dashboard_changes: bool = False,
         backup_existing: bool = False,
     ):
         """Install asset."""
@@ -337,6 +344,7 @@ class AssetsManager:
                 name,
                 download=download,
                 dev_branch=dev_branch,
+                discard_user_dashboard_changes=discard_user_dashboard_changes,
                 backup_existing=backup_existing,
             )
 

@@ -151,6 +151,7 @@ class DashboardManager(BaseAssetManager):
         name: str,
         download: bool = False,
         dev_branch: bool = False,
+        discard_user_dashboard_changes: bool = False,
         backup_existing: bool = False,
     ) -> InstallStatus:
         """Install or update dashboard."""
@@ -256,7 +257,10 @@ class DashboardManager(BaseAssetManager):
                     # Apply
                     await dashboard_store.async_save(new_dashboard_config)
                     self._update_install_progress("dashboard", 80)
-                    await self._apply_user_dashboard_changes()
+
+                    if not discard_user_dashboard_changes:
+                        await self._apply_user_dashboard_changes()
+
                     self._update_install_progress("dashboard", 90)
 
                     installed_version = self._read_dashboard_version(

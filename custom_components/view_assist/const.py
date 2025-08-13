@@ -187,6 +187,7 @@ ATTR_ASSET_CLASS = "asset_class"
 ATTR_BACKUP_CURRENT_ASSET = "backup_current_asset"
 ATTR_DOWNLOAD_FROM_REPO = "download_from_repo"
 ATTR_DOWNLOAD_FROM_DEV_BRANCH = "download_from_dev_branch"
+ATTR_DISCARD_DASHBOARD_USER_CHANGES = "discard_dashboard_user_changes"
 
 VA_ATTRIBUTE_UPDATE_EVENT = "va_attr_update_event_{}"
 VA_BACKGROUND_UPDATE_EVENT = "va_background_update_{}"

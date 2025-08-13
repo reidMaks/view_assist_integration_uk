@@ -162,6 +162,7 @@ class BlueprintManager(BaseAssetManager):
         name,
         download: bool = False,
         dev_branch: bool = False,
+        discard_user_dashboard_changes: bool = False,
         backup_existing: bool = False,
     ) -> InstallStatus:
         """Install or update blueprint."""
