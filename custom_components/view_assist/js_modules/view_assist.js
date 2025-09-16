@@ -1,5 +1,6 @@
 const version = "1.0.17"
 const TIMEOUT_ERROR = "SELECTTREE-TIMEOUT";
+const getLocale = () => document.documentElement.lang || navigator.language || 'en-GB';
 
 export async function await_element(el, hard = false) {
   if (el.localName?.includes("-"))
@@ -66,15 +67,24 @@ export async function hass() {
   return base.hass;
 }
 
-function strftime(sFormat, date) {
+function strftime(sFormat, date, locale = getLocale()) {
   if (!(date instanceof Date)) date = new Date();
+  const widths = { LONG: 'long', SHORT: 'short' };
   var nDay = date.getDay(),
     nDate = date.getDate(),
     nMonth = date.getMonth(),
     nYear = date.getFullYear(),
     nHour = date.getHours(),
-    aDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
-    aMonths = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+    
+
+    getDayName = function(width = widths.LONG) {
+      return new Intl.DateTimeFormat(locale, { weekday: width }).format(date);
+    },
+
+    getMonthName = function(width = widths.LONG) {
+      return new Intl.DateTimeFormat(locale, { month: width }).format(date);
+    },
+    
     aDayCount = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334],
     isLeapYear = function() {
       if ((nYear&3)!==0) return false;
@@ -90,10 +100,10 @@ function strftime(sFormat, date) {
     };
   return sFormat.replace(/%[a-z]/gi, function(sMatch) {
     return {
-      '%a': aDays[nDay].slice(0,3),
-      '%A': aDays[nDay],
-      '%b': aMonths[nMonth].slice(0,3),
-      '%B': aMonths[nMonth],
+      '%a': getDayName(widths.SHORT),
+      '%A': getDayName(widths.LONG),
+      '%b': getMonthName(widths.SHORT),
+      '%B': getMonthName(widths.LONG),
       '%c': date.toUTCString(),
       '%C': Math.floor(nYear/100),
       '%d': zeroPad(nDate, 2),
@@ -122,8 +132,8 @@ function strftime(sFormat, date) {
               return zeroPad(1 + Math.ceil((n1stThu-target)/604800000), 2);
             })(),
       '%w': '' + nDay,
-      '%x': date.toLocaleDateString(),
-      '%X': date.toLocaleTimeString(),
+      '%x': date.toLocaleDateString(locale),
+      '%X': date.toLocaleTimeString(locale),
       '%y': ('' + nYear).slice(2),
       '%Y': nYear,
       '%z': date.toTimeString().replace(/.+GMT([+-]\d+).+/, '$1'),
@@ -157,11 +167,12 @@ class Clock extends HTMLElement {
 
     const dt_now = new Date();
     var format = this.getAttribute("format") ? this.getAttribute("format") : '%H:%M'
+    const locale = getLocale();
 
     if (this.server_time) {
-      el.textContent = strftime(format, new Date(dt_now.getTime() + window.viewassist.server_time_delta));
+      el.textContent = strftime(format, new Date(dt_now.getTime() + window.viewassist.server_time_delta), locale);
     } else {
-      el.textContent = strftime(format,dt_now);
+      el.textContent = strftime(format, dt_now, locale);
     }
   }
 
